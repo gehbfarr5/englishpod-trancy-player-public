@@ -66,7 +66,7 @@ jobs:
       github.ref == 'refs/heads/main' &&
       inputs.mode == 'upload' &&
       inputs.confirm_wechat_code_upload == 'UPLOAD_WECHAT_DEV_CODE'
-    runs-on: [self-hosted, linux, wechat-ci]
+    runs-on: ubuntu-24.04
     environment: wechat-upload
     timeout-minutes: 30
     permissions:
