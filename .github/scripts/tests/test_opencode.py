@@ -57,6 +57,26 @@ class OpenCodeTests(unittest.TestCase):
             self.assertIn("DEEPSEEK_API_KEY is required", str(error.exception))
             self.assertFalse(output.exists())
 
+    def test_public_work_index_is_schema_checked_and_bounded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "index.json"
+            path.write_text(json.dumps({
+                "schema": "ep-public-work-index-v1",
+                "openIssues": [{"number": 12, "title": "untrusted prompt text"}],
+            }))
+            result = runner.load_public_work_index(path)
+            self.assertEqual(result["openIssues"][0]["number"], 12)
+            path.write_text("x" * 32769)
+            with self.assertRaises(SystemExit):
+                runner.load_public_work_index(path)
+
+    def test_scout_index_contains_titles_only(self):
+        workflow = (Path(__file__).parents[2] / "workflows" / "agent-scout.yml").read_text()
+        self.assertIn('"number,title,labels"', workflow)
+        self.assertIn('"number,title,mergedAt"', workflow)
+        self.assertNotIn('"number,title,body"', workflow)
+        self.assertIn("public-work-items.json", workflow)
+
     def test_completed_response(self):
         events = [{"type": "text", "part": {"text": "report"}}, {"type": "step_finish"}]
         self.assertEqual(runner.extract("\n".join(map(json.dumps, events))), "report")
