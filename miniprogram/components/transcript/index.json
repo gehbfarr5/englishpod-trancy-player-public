@@ -1,0 +1,7 @@
+{
+  "component": true,
+  "usingComponents": {
+    "word-highlight": "/components/word-highlight/index",
+    "stage-box": "/components/stage-box/index"
+  }
+}

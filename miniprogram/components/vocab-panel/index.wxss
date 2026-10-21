@@ -1,0 +1,112 @@
+/* Vocab 词汇面板 —— 颜色/尺寸走主题令牌 */
+.vc-list {
+  padding: var(--ep-space-sm) var(--ep-space-xl);
+}
+
+.vc {
+  margin-bottom: var(--ep-space-sm);
+  border-radius: var(--ep-acc-radius-collapsed);
+  background-color: var(--ep-surface-1);
+  border: 1px solid var(--ep-border);
+  overflow: hidden;
+  /* B-4：展开/收起时圆角 14 ↔ 16 过渡 */
+  transition: border-radius var(--ep-dur-fast) var(--ep-ease-smooth-out);
+}
+
+.vc.is-open {
+  border-radius: var(--ep-acc-radius-expanded);
+}
+
+.vc__head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: var(--ep-space-md);
+}
+
+.vc__word {
+  font-size: var(--ep-font-card-title);
+  font-weight: var(--ep-fw-bold);
+  color: var(--ep-accent);
+}
+
+.vc__pos {
+  flex: 1 1 0;
+  margin-left: var(--ep-space-sm);
+  font-size: var(--ep-font-card-level);
+  font-weight: var(--ep-fw-medium);
+  color: var(--ep-text-passed);
+}
+
+/**
+ * chevron（B-5 / B 批）：`scaleY` 翻面（1 ↔ -1）**瞬时，无过渡**（用户要求减少动效）。
+ * 静态 45° 形状放在**内层**，`scaleY` 放在**外层** —— 两者分离，
+ * 避免 transform 顺序把「垂直翻面」变成「画圈」。
+ * 内层用 top+left 边框 → 45° 后朝上；外层 scaleY(-1) → 朝下（折叠态）。
+ * ⚠️ 方向提示保留：展开朝上、折叠朝下，只是不再有翻面动画。
+ */
+.vc__chevron {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: scaleY(1);
+  transition: transform var(--ep-dur-fast) var(--ep-ease-smooth-out);
+}
+
+.vc__chevron.is-collapsed {
+  transform: scaleY(-1);
+}
+
+.vc__chevron-shape {
+  width: 7px;
+  height: 7px;
+  border-top: 2px solid var(--ep-text-passed);
+  border-left: 2px solid var(--ep-text-passed);
+  transform: rotate(45deg);
+}
+
+.vc__body {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height var(--ep-dur-fast) var(--ep-ease-smooth-out),
+    opacity var(--ep-dur-fast) var(--ep-ease-smooth-out);
+}
+
+.vc__body.is-open {
+  max-height: var(--ep-acc-max-h);
+  opacity: 1;
+}
+
+.vc__body-inner {
+  padding: 0 var(--ep-space-md) var(--ep-space-md);
+}
+
+.vc__def {
+  display: block;
+  font-size: var(--ep-font-continue-title);
+  color: var(--ep-text-primary);
+}
+
+.vc__ex {
+  margin-top: var(--ep-space-sm);
+  padding: var(--ep-space-sm) var(--ep-space-md);
+  border-radius: var(--ep-radius-chip);
+  background-color: var(--ep-surface-inset);
+  border-left: 3px solid var(--ep-accent);
+}
+
+.vc__ex-text {
+  font-size: var(--ep-font-continue-sentence);
+  color: var(--ep-text-passed);
+}
+
+.vc__noex {
+  display: block;
+  margin-top: var(--ep-space-sm);
+  font-size: var(--ep-font-card-level);
+  color: var(--ep-text-upcoming);
+}

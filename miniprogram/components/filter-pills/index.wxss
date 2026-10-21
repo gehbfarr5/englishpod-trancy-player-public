@@ -1,0 +1,52 @@
+/* 三态筛选 pills —— 全部尺寸/颜色走 CSS 令牌 */
+.pills {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  height: 36px;
+  padding: 3px;
+  border-radius: var(--ep-radius-pill);
+  background-color: var(--ep-surface-inset);
+  border: 1px solid var(--ep-border);
+}
+
+/* 滑动指示块：单一持久 accent 块 + transform 过渡 */
+.pills__indicator {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  bottom: 3px;
+  box-sizing: border-box;
+  border-radius: var(--ep-radius-pill);
+  background-color: var(--ep-accent);
+  transition: transform var(--ep-dur-fast) var(--ep-ease-smooth-out);
+  will-change: transform;
+}
+
+.pills__chip {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ep-radius-pill);
+}
+
+.pills__label {
+  font-size: var(--ep-font-card-status);
+  font-weight: var(--ep-fw-semibold);
+  color: var(--ep-text-passed);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+}
+
+/* 选中态文字落在 accent 指示块之上，改用 accent 前景色 */
+.pills__chip.is-active .pills__label {
+  color: var(--ep-accent-fg);
+  font-weight: var(--ep-fw-bold);
+}

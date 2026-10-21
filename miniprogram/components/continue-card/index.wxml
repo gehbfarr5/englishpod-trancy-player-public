@@ -1,0 +1,45 @@
+<!--
+  继续收听聚光灯卡
+  - 头部：CONTINUE LISTENING 徽章 + 状态圆点 + 进度 %。
+  - 主体：课程标题 + 实时当前句文本 + 40x40 圆形播放/暂停按钮。
+  - 底部：进度条。
+  点击整卡 = 触发 cardtap；点击圆形按钮 = 触发 toggle。
+-->
+<view
+  class="ccard m3-tactile-985"
+  hover-class="m3-press-985"
+  hover-start-time="0"
+  hover-stay-time="150"
+  bindtap="onCardTap"
+>
+  <view class="ccard__head">
+    <view class="ccard__badge-wrap">
+      <view class="ccard__dot" style="opacity: {{isPlaying ? 1 : 0.35}};"></view>
+      <text class="ccard__badge">{{badge}}</text>
+    </view>
+    <text class="ccard__pct">{{progressPct}}%</text>
+  </view>
+
+  <view class="ccard__body">
+    <view class="ccard__text">
+      <text class="ccard__title">{{title}}</text>
+      <text class="ccard__sentence">{{attributes ? attributes : (sentenceText ? sentenceText : fallbackText)}}</text>
+    </view>
+
+    <!-- 40x40 圆形播放/暂停按钮 -->
+    <view
+      class="ccard__btn m3-tactile-94 {{isPlaying ? 'is-playing' : ''}}"
+      hover-class="m3-press-94"
+      hover-start-time="0"
+      hover-stay-time="150"
+      catchtap="onToggle"
+    >
+      <view class="ccard__btn-icon ic-play {{isPlaying ? 'is-out' : 'is-in'}}"></view>
+      <view class="ccard__btn-icon ic-pause {{isPlaying ? 'is-in' : 'is-out'}}"></view>
+    </view>
+  </view>
+
+  <view class="ccard__bar">
+    <view class="ccard__bar-fill" style="width: {{barWidth}}%;"></view>
+  </view>
+</view>

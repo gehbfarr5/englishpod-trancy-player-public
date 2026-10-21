@@ -1,0 +1,85 @@
+/* 舞台盒子 —— 颜色/尺寸走主题令牌（对齐 iOS: margin 6 0 20 0, padding 13 15 14 15, radius 20） */
+.sbox {
+  box-sizing: border-box;
+  margin: 6px 0 20px 0;
+  padding: 13px 15px 14px 15px;
+  border-radius: 20px;
+  background-color: var(--ep-stage-box-bg);
+  border: 1px solid var(--ep-stage-box-border);
+  transition: border-radius var(--ep-dur-fast) var(--ep-ease-smooth-out);
+}
+
+.sbox.is-open {
+  border-radius: 20px;
+}
+
+.sbox__head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.sbox__badge {
+  font-size: var(--ep-font-section-micro);
+  font-weight: var(--ep-fw-bold);
+  letter-spacing: 0.6px;
+  color: var(--ep-accent);
+}
+
+.sbox__sub {
+  flex: 1 1 0;
+  margin-left: var(--ep-space-sm);
+  font-size: var(--ep-font-section-micro);
+  font-weight: var(--ep-fw-medium);
+  color: var(--ep-text-passed);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/**
+ * chevron（B-5 / B 批）：`scaleY` 翻面（1 ↔ -1）**瞬时，无过渡**（用户要求减少动效）。
+ * 静态 45° 形状在**内层**、`scaleY` 在**外层**（分离，避免 transform 顺序冲突）。
+ * 内层用 top+left 边框 → 45° 后朝上（展开态）；外层 scaleY(-1) → 朝下（折叠态）。
+ * ⚠️ 方向提示保留：展开朝上、折叠朝下，只是不再有翻面动画。
+ */
+.sbox__chevron {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-left: var(--ep-space-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: scaleY(1);
+  transition: transform var(--ep-dur-fast) var(--ep-ease-smooth-out);
+}
+
+.sbox__chevron.is-collapsed {
+  transform: scaleY(-1);
+}
+
+.sbox__chevron-shape {
+  width: 7px;
+  height: 7px;
+  border-top: 2px solid var(--ep-text-passed);
+  border-left: 2px solid var(--ep-text-passed);
+  transform: rotate(45deg);
+}
+
+.sbox__body {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height var(--ep-dur-fast) var(--ep-ease-smooth-out),
+    opacity var(--ep-dur-fast) var(--ep-ease-smooth-out);
+}
+
+.sbox__body.is-open {
+  max-height: var(--ep-stagebox-max-h);
+  opacity: 1;
+}
+
+.sbox__body-inner {
+  margin-top: var(--ep-space-xs);
+}

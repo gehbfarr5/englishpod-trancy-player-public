@@ -1,0 +1,39 @@
+{
+  "description": "EnglishPod 精听 · 微信小程序工程配置，已配置 AppID；须与 config/env.ts 的 APP_ID 保持一致。",
+  "appid": "wxf9bd7099653c6159",
+  "projectname": "englishpod-trancy-player",
+  "compileType": "miniprogram",
+  "miniprogramRoot": "./",
+  "cloudfunctionRoot": "cloudfunctions/",
+  "packOptions": {
+    "ignore": [
+      { "type": "folder", "value": "node_modules" },
+      { "type": "folder", "value": "scripts" },
+      { "type": "folder", "value": "e2e" },
+      { "type": "folder", "value": ".ci" }
+    ],
+    "include": []
+  },
+  "libVersion": "3.0.0",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "newFeature": true,
+    "autoAudits": false,
+    "checkInvalidKey": true,
+    "checkSiteMap": true,
+    "uploadWithSourceMap": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    },
+    "useCompilerPlugins": [
+      "typescript"
+    ]
+  },
+  "condition": {}
+}

@@ -1,0 +1,10 @@
+{
+  "name": "getLessonIndex",
+  "version": "1.0.0",
+  "description": "返回课程库轻量索引（云数据库集合 lessons_index）",
+  "main": "index.js",
+  "private": true,
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

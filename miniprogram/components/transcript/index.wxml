@@ -1,0 +1,58 @@
+<!--
+  字幕组件：按区块渲染主持人行与舞台盒子。
+  - 每个可见行都带 id（`seg-<下标>`），供父级 scroll-into-view 自动定位当前句。
+  - 点击任意行派发 `lineTap`（`detail = { segIdx }`），父级据此 seek 到该句。
+  - 行内布局对齐 iOS：**说话人标签独占一行**，正文（句级高亮）在其下方。
+  - 高亮由子组件（word-highlight）经 WXS 完成，本组件不参与高频计算。
+-->
+<wxs src="/wxs/highlight.wxs" module="hl" />
+<view class="tr">
+  <block wx:for="{{blocks}}" wx:key="key">
+    <!-- 主持人旁白：无舞台盒子 -->
+    <view wx:if="{{item.kind === 'host'}}" class="tr__host">
+      <view
+        id="seg-{{item.line.segIdx}}"
+        class="{{hl.lineClass(item.line.segIdx, activeSegIdx)}} tr__row tr__row--host"
+        data-idx="{{item.line.segIdx}}"
+        bindtap="onLineTap"
+      >
+        <text wx:if="{{item.line.speaker}}" class="tr__speaker">{{item.line.speakerLabel}}</text>
+        <word-highlight
+          words="{{item.line.words}}"
+          seg-index="{{item.line.segIdx}}"
+          active-seg-idx="{{activeSegIdx}}"
+        />
+        <text wx:if="{{item.line.words.length === 0}}" class="tr__plain">{{item.line.text}}</text>
+      </view>
+    </view>
+
+    <!-- 舞台盒子 -->
+    <stage-box
+      wx:else
+      badge-text="{{item.badgeText}}"
+      sub-text="{{item.subText}}"
+      stage-kind="{{item.stageKind}}"
+      box-group-id="{{item.boxGroupId}}"
+      collapsed-ids="{{collapsedBoxIds}}"
+      bind:toggle="onToggleBox"
+    >
+      <view
+        wx:for="{{item.lines}}"
+        wx:for-item="ln"
+        wx:key="segIdx"
+        id="seg-{{ln.segIdx}}"
+        class="{{hl.lineClass(ln.segIdx, activeSegIdx)}} tr__row"
+        data-idx="{{ln.segIdx}}"
+        bindtap="onLineTap"
+      >
+        <text wx:if="{{ln.speaker}}" class="tr__speaker">{{ln.speakerLabel}}</text>
+        <word-highlight
+          words="{{ln.words}}"
+          seg-index="{{ln.segIdx}}"
+          active-seg-idx="{{activeSegIdx}}"
+        />
+        <text wx:if="{{ln.words.length === 0}}" class="tr__plain">{{ln.text}}</text>
+      </view>
+    </stage-box>
+  </block>
+</view>

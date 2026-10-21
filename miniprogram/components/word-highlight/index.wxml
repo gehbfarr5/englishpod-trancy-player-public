@@ -1,0 +1,13 @@
+<!--
+  句级高亮：把一行字幕的词节点按**当前句**着色（同句所有词共享同一态）。
+  - 高亮差分在视图层由 `wxs/highlight.wxs` 完成（逻辑层只下发 activeSegIdx）。
+  - `isVocab` 在加载期一次性算好，随词节点带入，播放中不再变化。
+-->
+<wxs src="/wxs/highlight.wxs" module="hl" />
+<view class="wh">
+  <text
+    wx:for="{{words}}"
+    wx:key="index"
+    class="{{hl.wordClass(segIndex, activeSegIdx, item.isVocab)}}"
+  >{{item.text}} </text>
+</view>

@@ -1,0 +1,40 @@
+<!--
+  Vocab 词汇面板：词条手风琴 + 课内例句（点例句跳播）。
+  - 折叠状态由父级 `expandedIndex` 单开控制（一次仅展开一条）。
+  - 正文**常驻元素 + class 开关**（B-4：不再用 wx:if 瞬切；高度/透明度过渡 250ms）。
+  - chevron 用 `scaleY` 翻面（B-5）：外层做 scaleY，内层保持 45° 静态形状。
+  - 点例句派发 `playExample`（detail = { track, segIdx }），父级据此跳播。
+-->
+<view class="vc-list">
+  <view class="vc {{expandedIndex === index ? 'is-open' : ''}}" wx:for="{{entries}}" wx:key="index">
+    <view class="vc__head m3-tactile-985" hover-class="m3-press-985" hover-start-time="0" hover-stay-time="150" data-idx="{{index}}" bindtap="onToggle">
+      <text class="vc__word">{{item.word}}</text>
+      <text class="vc__pos">{{item.pos}}</text>
+      <view class="vc__chevron {{expandedIndex === index ? '' : 'is-collapsed'}}">
+        <view class="vc__chevron-shape"></view>
+      </view>
+    </view>
+
+    <view class="vc__body {{expandedIndex === index ? 'is-open' : ''}}">
+      <view class="vc__body-inner">
+        <text class="vc__def">{{item.definition}}</text>
+
+        <view
+          wx:for="{{item.examples}}"
+          wx:for-item="ex"
+          wx:key="segIdx"
+          class="vc__ex m3-tactile-94"
+          hover-class="m3-press-94"
+          hover-start-time="0"
+          hover-stay-time="150"
+          data-track="{{ex.track}}"
+          data-idx="{{ex.segIdx}}"
+          bindtap="onExample"
+        >
+          <text class="vc__ex-text">{{ex.text}}</text>
+        </view>
+        <text wx:if="{{item.examples.length === 0}}" class="vc__noex">No in-lesson examples available</text>
+      </view>
+    </view>
+  </view>
+</view>

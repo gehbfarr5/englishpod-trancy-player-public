@@ -1,0 +1,294 @@
+/**
+ * 全局样式 + 设计令牌。
+ *
+ * ⚠️ 重要（M4 真机修复）：微信 **不会**把 `theme.json` 的变量注入成 WXSS 的 CSS 自定义属性。
+ * `theme.json` 的变量只能被 **JSON 配置项**（如 `app.json` 的 `window`）以 `@变量名` 引用。
+ * 因此所有**颜色令牌**都定义在本文件里：
+ *   - 浅色（Paper）在 `page {}`；
+ *   - 深色（Dark）在 `@media (prefers-color-scheme: dark) { page {} }`（官方 DarkMode 适配写法，
+ *     该媒体查询不受 `darkmode` 开关影响，只要客户端支持 DarkMode 即生效）。
+ * `theme.json` 仅保留窗口配置用键（`navBgColor` / `navTxtStyle` / `bgColor`）。
+ *
+ * 令牌真源：`core/themeTokens.ts`（JS 侧唯一真源）。本文件的颜色值与之逐一对齐，
+ * `npm run validate` 会校验「两套颜色变量齐全」以及「WXSS 里不存在未定义的 var(--ep-*) 裸引用」。
+ *
+ * 非颜色令牌（圆角 / 字号 / 字重 / 间距 / 布局 / 动效）同样定义在 `page {}` 中，
+ * 与 `core/themeTokens.ts` 的 RADIUS / FONT_SIZE / FONT_WEIGHT / SPACING / LAYOUT / MOTION 对应。
+ *
+ * 注：CSS 自定义属性会自然继承进自定义组件（即便组件处于样式隔离），组件内可直接 `var(--ep-*)`。
+ */
+
+/* 移除所有滚动条（对齐 iOS 原生沉浸排版） */
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  color: transparent !important;
+}
+
+page {
+  /* ========================================================================
+   *  一、颜色令牌 —— 浅色（Paper / Claude Warm Parchment）
+   * ======================================================================== */
+  --bgColor: #F2EDE2;
+  --ep-deck-bg: #FAF8F5;
+  --ep-deck-gradient-top: #F5E3DC;
+  --ep-deck-gradient-mid: #FCF9F4;
+  --ep-deck-gradient-bottom: #FAF8F5;
+  --ep-deck-border: rgba(20, 20, 19, 0.102);
+  --ep-deck-shadow: rgba(120, 92, 60, 0.16);
+  --ep-bottom-bg: rgba(250, 248, 245, 0.98);
+  --ep-surface-1: #FAF8F5;
+  --ep-surface-2: #E6E0D4;
+  --ep-surface-3: #DAD2C3;
+  --ep-surface-inset: rgba(20, 20, 19, 0.039);
+  --ep-stage-box-bg: #E9E2D4;
+  --ep-stage-box-border: rgba(204, 120, 92, 0.251);
+  --ep-border: rgba(20, 20, 19, 0.078);
+  --ep-metro-outline: rgba(20, 20, 19, 0.161);
+  --ep-metro-btn-bg: rgba(20, 20, 19, 0.031);
+  --ep-text-primary: #141413;
+  --ep-text-passed: rgba(20, 20, 19, 0.478);
+  --ep-text-upcoming: rgba(20, 20, 19, 0.239);
+  --ep-accent: #CC785C;
+  --ep-accent-fg: #FFFFFF;
+  --ep-accent-soft: rgba(204, 120, 92, 0.149);
+  --ep-vocab-hl-unplayed: rgba(204, 120, 92, 0.549);
+  --ep-vocab-hl-passed: rgba(204, 120, 92, 0.8);
+  --ep-vocab-hl-active: #CC785C;
+  --ep-locate-bar-bg: rgba(247, 235, 230, 0.969);
+  --ep-locate-bar-border: rgba(204, 120, 92, 0.451);
+  --ep-scrollbar-thumb: rgba(20, 20, 19, 0.18);
+
+  /* ========================================================================
+   *  二、非颜色令牌：圆角（对齐 core/themeTokens.ts RADIUS）
+   * ======================================================================== */
+  --ep-radius-deck: 26px;
+  --ep-radius-pill: 9999px;
+  --ep-radius-card: 20px;
+  --ep-radius-chip: 12px;
+  --ep-radius-bar: 3px;
+
+  /* ---- 非颜色令牌：字号（对齐 FONT_SIZE） ---- */
+  --ep-font-brand: 22px;
+  --ep-font-brand-sub: 11.5px;
+  --ep-font-completion-pill: 11.5px;
+  --ep-font-section-micro: 10.5px;
+  --ep-font-card-title: 15.5px;
+  --ep-font-card-index: 13px;
+  --ep-font-card-level: 11.5px;
+  --ep-font-card-status: 11.5px;
+  --ep-font-continue-title: 15px;
+  --ep-font-continue-sentence: 12.5px;
+  --ep-font-continue-badge: 9.5px;
+
+  /* ---- 非颜色令牌：字重（对齐 FONT_WEIGHT） ---- */
+  --ep-fw-regular: 400;
+  --ep-fw-medium: 500;
+  --ep-fw-semibold: 600;
+  --ep-fw-bold: 700;
+  --ep-fw-heavy: 800;
+
+  /* ---- 非颜色令牌：间距（对齐 SPACING） ---- */
+  --ep-space-xs: 4px;
+  --ep-space-sm: 8px;
+  --ep-space-md: 12px;
+  --ep-space-lg: 16px;
+  --ep-space-xl: 20px;
+  --ep-space-xxl: 26px;
+
+  /* ---- 非颜色令牌：布局尺寸（对齐 LAYOUT） ---- */
+  --ep-continue-header-h: 20px;
+  --ep-continue-body-h: 42px;
+  --ep-continue-btn: 40px;
+  --ep-status-dot: 7px;
+  --ep-card-index-w: 40px;
+  --ep-card-h: 88px;
+  --ep-card-gap: 9px;
+
+  /* ---- 播放器（Screen 2）布局令牌 ---- */
+  --ep-bar-h: 44px;
+  --ep-dock-radius: 24px;
+  --ep-dock-pad: 16px;
+  --ep-hero-h: 60px;
+  --ep-hero-icon: 30px;
+  --ep-round-btn: 58px;
+  --ep-util-h: 38px;
+  --ep-util-gap: 5px;
+  --ep-util-icon: 18px;
+  --ep-speed-icon: 16px;
+  --ep-speed-font: 11px;
+  --ep-speed-gap: 4px;
+  --ep-scrubber-h: 7px;
+  --ep-ts-font: 11px;
+  --ep-transcript-font: 21.5px;
+  --ep-host-font: 20px;
+  --ep-line-gap: 12px;
+  --ep-stage-radius: 20px;
+  /* 字幕行（对齐 iOS：说话人标签独占一行，正文在下方） */
+  --ep-row-pad-v: 6px;
+  --ep-row-pad-l: 14px;
+  --ep-row-pad-r: 4px;
+  --ep-spk-h: 18px;
+  --ep-spk-gap: 4px;
+  --ep-font-speaker: 11px;
+  --ep-spk-tracking: 0.85px;
+  /* 活跃音轨下划线（A-1） */
+  --ep-underline-w: 42px;
+  --ep-underline-h: 2.2px;
+  --ep-underline-off: 3.5px;
+  /* 返回定位条（D1 / B-8）：预留出底部控制坞（~200px）与系统安全区，避免遮挡进度条 */
+  --ep-locate-bottom: calc(220px + env(safe-area-inset-bottom));
+  --ep-locate-bar-h: 42px;
+  --ep-locate-ic: 22px;
+  --ep-locate-ic-glyph: 13px;
+  --ep-locate-font: 12px;
+  /* Q2：max-height 余量（防字体放大/换行把 42 撑破被裁） */
+  --ep-locate-h-headroom: 4px;
+  /* 手风琴 / 舞台盒子展开（B-4）——B 批「减少动效」已移除「量测内层自然高度」，
+   * 展开改为**瞬时**（`max-height` 只作裁剪、不参与过渡）→ 下面两个上限即**唯一机制**。
+   * 取值足够宽松，不会再出现裁切。 */
+  --ep-acc-radius-collapsed: 14px;
+  --ep-acc-radius-expanded: 16px;
+  --ep-acc-max-h: 480px;
+  --ep-stagebox-max-h: 2400px;
+
+  /* ---- 非颜色令牌：动效（对齐 MOTION） ---- */
+  --ep-dur-micro: 100ms;
+  /* 折叠 / 显隐的纯 `opacity` 淡入时长（可合成属性，几乎零成本；B 批「减少动效」方案） */
+  --ep-dur-fade: 120ms;
+  --ep-dur-mid: 220ms;
+  --ep-dur-fast: 250ms;
+  --ep-dur-scroll: 380ms;
+  --ep-ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ep-ease-bounce: cubic-bezier(0.34, 1.38, 0.64, 1);
+  --ep-ease-m3-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ep-ease-m3-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+
+  /* ---- 方向性内容滑动（B-7，**仅播放器三段胶囊仍在用**）----
+   * 进场上屏 250ms `easeSmoothOut` / 出场下屏 250ms `m3EmphasizedAccelerate`。
+   * ⚠️ bezier 合法性：CSS `cubic-bezier()` 只约束 **x1 / x2 ∈ [0,1]**，y1 / y2 可任意
+   * （`m3EmphasizedAccelerate` 的 `(0.3, 0, 0.8, 0.15)` 与 `easeBounce` 的 1.38 都是合法 y）。
+   * 注：课程库筛选的滑动已按用户「减少动效」要求移除，故 `--ep-slide-filter-px` 一并删除。 */
+  --ep-slide-dur: 250ms;
+  /* 三段胶囊内容：slide 4%（相对容器宽度） */
+  --ep-slide-tab-pct: 4%;
+
+  /* ---- Hero 播放/暂停键：**静态**圆角与阴影（形变 + 触感 + 图标交换动画均已按「减少动效」移除）----
+   * 固定采用「暂停态」参数（更中性的常驻外观）：30 胶囊 + blur 16。
+   * 保留 `--ep-hero-icon` / `--ep-hero-h`（尺寸令牌，见基础排版区）。 */
+  --ep-hero-radius: 30px;
+  --ep-hero-shadow-blur: 16px;
+  --ep-hero-shadow-offset-y: 6px;
+
+  /* ---- 继续收听卡「圆形播放/暂停」按钮（独立组件，规格见 main.dart:2970 `_buildRightPlayButton`）----
+   * 40×40；圆角**固定 20（空闲态）**；图标 24 且**瞬时切换**（交换动画已按「减少动效」移除）。 */
+  --ep-continue-btn-radius: 20px;
+  --ep-continue-btn-icon: 24px;
+
+  /* ---- 基础排版 ---- */
+  background-color: var(--bgColor);
+  color: var(--ep-text-primary);
+  font-size: 28rpx;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================================================
+ *  三、颜色令牌 —— 深色（Dark / Spotify Dark Cocoon）
+ *  `@media (prefers-color-scheme: dark)` 只需重定义颜色，非颜色令牌自动继承。
+ * ========================================================================== */
+@media (prefers-color-scheme: dark) {
+  page {
+    --bgColor: #070709;
+    --ep-deck-bg: #13151C;
+    --ep-deck-gradient-top: #1A2E24;
+    --ep-deck-gradient-mid: #141720;
+    --ep-deck-gradient-bottom: #121318;
+    --ep-deck-border: rgba(255, 255, 255, 0.122);
+    --ep-deck-shadow: rgba(0, 0, 0, 0.45);
+    --ep-bottom-bg: rgba(10, 11, 15, 0.98);
+    --ep-surface-1: #14151B;
+    --ep-surface-2: #1F2029;
+    --ep-surface-3: #282A36;
+    --ep-surface-inset: rgba(255, 255, 255, 0.055);
+    --ep-stage-box-bg: rgba(255, 255, 255, 0.047);
+    --ep-stage-box-border: rgba(255, 255, 255, 0.11);
+    --ep-border: rgba(255, 255, 255, 0.078);
+    --ep-metro-outline: rgba(255, 255, 255, 0.149);
+    --ep-metro-btn-bg: rgba(255, 255, 255, 0.031);
+    --ep-text-primary: #FFFFFF;
+    --ep-text-passed: rgba(255, 255, 255, 0.451);
+    --ep-text-upcoming: rgba(255, 255, 255, 0.22);
+    --ep-accent: #1ED760;
+    --ep-accent-fg: #060608;
+    --ep-accent-soft: rgba(30, 215, 96, 0.161);
+    --ep-vocab-hl-unplayed: rgba(30, 215, 96, 0.502);
+    --ep-vocab-hl-passed: rgba(30, 215, 96, 0.749);
+    --ep-vocab-hl-active: #1ED760;
+    --ep-locate-bar-bg: rgba(20, 38, 28, 0.969);
+    --ep-locate-bar-border: rgba(30, 215, 96, 0.451);
+    --ep-scrollbar-thumb: rgba(255, 255, 255, 0.18);
+  }
+}
+
+/* 占位页面的通用容器，仅用于尚未实现的页面保证可编译、可预览 */
+.page {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 120rpx 40rpx 40rpx;
+}
+
+.page__title {
+  display: block;
+  font-size: 40rpx;
+  font-weight: 600;
+  color: var(--ep-accent);
+}
+
+.page__hint {
+  display: block;
+  margin-top: 20rpx;
+  font-size: 26rpx;
+  color: var(--ep-text-passed);
+}
+
+/* ==========================================================================
+ *  四、M3 触感按压缩放与弹性回弹（_M3TactileScale: scale 0.985 / 0.94 / 0.90）
+ * ========================================================================== */
+.m3-tactile-985 {
+  transition: transform 260ms var(--ep-ease-bounce);
+  will-change: transform;
+}
+.m3-press-985 {
+  transform: scale(0.985) !important;
+  transition: transform 100ms ease-out !important;
+}
+
+.m3-tactile-975 {
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.m3-press-975 {
+  transform: scale(0.975) !important;
+  transition: transform 110ms ease-out !important;
+}
+
+.m3-tactile-94 {
+  transition: transform 260ms var(--ep-ease-bounce);
+  will-change: transform;
+}
+.m3-press-94 {
+  transform: scale(0.94) !important;
+  transition: transform 100ms ease-out !important;
+}
+
+.m3-tactile-90 {
+  transition: transform 260ms var(--ep-ease-bounce);
+  will-change: transform;
+}
+.m3-press-90 {
+  transform: scale(0.90) !important;
+  transition: transform 100ms ease-out !important;
+}
+

@@ -1,0 +1,22 @@
+<!--
+  三态筛选 pills（滑动指示器）
+  - 单个持久 accent 指示块，通过 CSS transform + 250ms ease-smooth-out 平移，
+    模拟 Flutter 的 AnimatedPositioned（P16 — Tabs with sliding active indicator）。
+  - 各 chip 等宽，指示块宽度 = 100% / 数量，translateX 步进 = 100%（相对自身宽度）。
+-->
+<view class="pills">
+  <view
+    class="pills__indicator"
+    style="width: calc((100% - 6px) / {{filterCount}}); transform: translateX(calc({{stepIndex}} * 100%));"
+  ></view>
+
+  <view
+    wx:for="{{filters}}"
+    wx:key="key"
+    class="pills__chip {{item.key === activeKey ? 'is-active' : ''}}"
+    data-key="{{item.key}}"
+    bindtap="onChipTap"
+  >
+    <text class="pills__label">{{item.label}}</text>
+  </view>
+</view>

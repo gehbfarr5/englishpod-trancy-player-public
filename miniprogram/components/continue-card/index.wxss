@@ -1,0 +1,146 @@
+/* 继续收听聚光灯卡 —— 全部尺寸/颜色走 CSS 令牌 */
+.ccard {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--ep-space-sm) var(--ep-space-md);
+  border-radius: var(--ep-radius-card);
+  background-color: var(--ep-surface-inset);
+  border: 1px solid var(--ep-border);
+}
+
+/* 头部（固定 20px） */
+.ccard__head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--ep-continue-header-h);
+}
+
+.ccard__badge-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.ccard__dot {
+  width: var(--ep-status-dot);
+  height: var(--ep-status-dot);
+  margin-right: 6px;
+  border-radius: var(--ep-radius-pill);
+  background-color: var(--ep-accent);
+}
+
+.ccard__badge {
+  font-size: var(--ep-font-continue-badge);
+  font-weight: var(--ep-fw-bold);
+  letter-spacing: 1px;
+  color: var(--ep-accent);
+}
+
+.ccard__pct {
+  font-size: var(--ep-font-continue-badge);
+  font-weight: var(--ep-fw-semibold);
+  color: var(--ep-text-passed);
+}
+
+/* 主体（固定 42px） */
+.ccard__body {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  height: var(--ep-continue-body-h);
+}
+
+.ccard__text {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  margin-right: var(--ep-space-sm);
+}
+
+.ccard__title {
+  font-size: var(--ep-font-continue-title);
+  font-weight: var(--ep-fw-bold);
+  color: var(--ep-text-primary);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ccard__sentence {
+  margin-top: 1px;
+  font-size: var(--ep-font-continue-sentence);
+  font-weight: var(--ep-fw-regular);
+  color: var(--ep-text-passed);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 圆形播放/暂停按钮（40×40） */
+.ccard__btn {
+  position: relative;
+  flex: none;
+  width: var(--ep-continue-btn);
+  height: var(--ep-continue-btn);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--ep-accent);
+  border-radius: var(--ep-continue-btn-radius);
+  overflow: hidden;
+}
+
+.ccard__btn-icon {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 24px;
+  height: 24px;
+  background-color: var(--ep-accent-fg);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+}
+
+.ccard__btn-icon.is-in {
+  z-index: 2;
+  opacity: 1;
+}
+
+.ccard__btn-icon.is-out {
+  z-index: 1;
+  opacity: 0;
+}
+
+.ccard__btn-icon.ic-play {
+  -webkit-mask-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzAwMCIgZD0iTTggNXYxNGwxMS03eiIvPjwvc3ZnPg==');
+  mask-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzAwMCIgZD0iTTggNXYxNGwxMS03eiIvPjwvc3ZnPg==');
+}
+
+.ccard__btn-icon.ic-pause {
+  -webkit-mask-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzAwMCIgZD0iTTYgMTloNFY1SDZ2MTR6bTgtMTR2MTRoNFY1aC00eiIvPjwvc3ZnPg==');
+  mask-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzAwMCIgZD0iTTYgMTloNFY1SDZ2MTR6bTgtMTR2MTRoNFY1aC00eiIvPjwvc3ZnPg==');
+}
+
+/* 进度条 */
+.ccard__bar {
+  margin-top: var(--ep-space-sm);
+  height: var(--ep-radius-bar);
+  border-radius: var(--ep-radius-bar);
+  background-color: var(--ep-border);
+  overflow: hidden;
+}
+
+.ccard__bar-fill {
+  height: 100%;
+  border-radius: var(--ep-radius-bar);
+  background-color: var(--ep-accent);
+}

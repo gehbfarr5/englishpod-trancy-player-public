@@ -1,0 +1,54 @@
+name: Build and verify EnglishPod Web
+description: Sanitized Web build, content sealing and Chromium boot verification
+runs:
+  using: composite
+  steps:
+  - uses: actions/setup-python@v5
+    with:
+      python-version: '3.12'
+  - uses: subosito/flutter-action@v2
+    with:
+      flutter-version: 3.47.5
+      channel: stable
+      cache: true
+  - name: Test packaging and atomic release behavior
+    run: python3 -m unittest discover -s pipeline -p 'test_web_delivery.py' -v
+    shell: bash
+  - name: Stage sanitized streaming Web app outside mobile project
+    run: python3 pipeline/prepare_web_build.py --output "$RUNNER_TEMP/englishpod-web"
+    shell: bash
+  - name: Analyze, test and build real Web output
+    working-directory: ${{ runner.temp }}/englishpod-web
+    run: 'flutter pub get
+
+      flutter analyze
+
+      flutter test
+
+      flutter build web --release --no-web-resources-cdn
+
+      '
+    shell: bash
+  - name: Audit and seal exact build
+    run: 'python3 pipeline/check_distribution.py --scan "$RUNNER_TEMP/englishpod-web/build/web/assets/assets/lessons_safe"
+
+      python3 pipeline/web_bundle.py seal --directory "$RUNNER_TEMP/englishpod-web/build/web" --sha "$GITHUB_SHA" --run-id
+      "$GITHUB_RUN_ID"
+
+      '
+    shell: bash
+  - uses: actions/setup-node@v4
+    with:
+      node-version: '22'
+  - name: Browser boot smoke (no real-audio or device claim)
+    run: 'npm install --prefix "$RUNNER_TEMP/web-browser" --no-package-lock --no-audit --no-fund playwright@1.56.1
+
+      "$RUNNER_TEMP/web-browser/node_modules/.bin/playwright" install --with-deps chromium
+
+      NODE_PATH="$RUNNER_TEMP/web-browser/node_modules" node .github/scripts/web-smoke.cjs "$RUNNER_TEMP/englishpod-web/build/web"
+
+      '
+    shell: bash
+  - name: Original UI browser acceptance (both themes, both Tesla windows, generated media)
+    run: NODE_PATH="$RUNNER_TEMP/web-browser/node_modules" node .github/scripts/web-acceptance.cjs "$RUNNER_TEMP/englishpod-web/build/web"
+    shell: bash

@@ -1,0 +1,60 @@
+.tr {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 主持人开放流独立行：对齐 iOS 保留 18px 垂直留白 */
+.tr__host {
+  margin-bottom: 18px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 行：左强调条 3px + 内边距 14 6 4 6（对齐 iOS EdgeInsets.fromLTRB(14, 6, 4, 6)） */
+.tr__row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 4px 6px 14px;
+  border-left: 3px solid transparent;
+  transition: border-color var(--ep-dur-fast) var(--ep-ease-smooth-out),
+    background-color var(--ep-dur-fast) var(--ep-ease-smooth-out);
+}
+
+/* 当前句：左侧强调条 */
+.line.is-active-line {
+  border-left-color: var(--ep-accent);
+}
+
+/* 说话人标签（对齐 iOS：高度 18 / 字号 11 / w800 / 字距 0.85 / 距下 4px；活跃句取 accent） */
+.tr__speaker {
+  height: 18px;
+  line-height: 18px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: var(--ep-fw-heavy);
+  letter-spacing: 0.85px;
+  color: var(--ep-text-passed);
+  transition: color var(--ep-dur-fast) var(--ep-ease-smooth-out);
+}
+
+.line.is-active-line .tr__speaker {
+  color: var(--ep-accent);
+}
+
+.tr__plain {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 21.5px;
+  line-height: 1.40;
+  letter-spacing: -0.35px;
+  font-weight: var(--ep-fw-bold);
+  color: var(--ep-text-passed);
+  word-break: normal;
+  word-wrap: break-word;
+  white-space: normal;
+}

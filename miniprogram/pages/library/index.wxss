@@ -1,0 +1,129 @@
+/* 课程库单页根容器 */
+.app-root {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: var(--bgColor);
+}
+
+/* 内凹滚动列表区（Recessed Scrollable Course List Well） */
+.lib__well {
+  flex: 1 1 0;
+  min-height: 0;
+  background-color: var(--bgColor);
+}
+
+.lib__well::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  color: transparent !important;
+}
+
+.lib__well-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ep-space-md) var(--ep-space-xl) var(--ep-space-sm);
+}
+
+.lib__well-title {
+  font-size: var(--ep-font-section-micro);
+  font-weight: var(--ep-fw-bold);
+  letter-spacing: 1.4px;
+  color: var(--ep-text-passed);
+}
+
+.lib__well-hint {
+  font-size: var(--ep-font-section-micro);
+  font-weight: var(--ep-fw-medium);
+  letter-spacing: 1px;
+  color: var(--ep-text-upcoming);
+}
+
+.lib__list {
+  padding: 0 var(--ep-space-xl);
+}
+
+.lib__card {
+  display: block;
+  margin-bottom: var(--ep-card-gap);
+}
+
+.lib__empty {
+  padding: var(--ep-space-xxl) var(--ep-space-xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lib__empty-text {
+  font-size: var(--ep-font-card-level);
+  color: var(--ep-text-passed);
+}
+
+/* 列表底部留白，避免最后一张卡片贴底 */
+.lib__footer-space {
+  height: var(--ep-space-xxl);
+}
+
+/* 骨架屏 */
+.lib__skeleton {
+  padding: 0 var(--ep-space-xl);
+}
+
+.lib__sk-card {
+  display: flex;
+  align-items: center;
+  height: var(--ep-card-h);
+  padding: 0 var(--ep-space-lg);
+  margin-bottom: var(--ep-card-gap);
+  border-radius: var(--ep-radius-card);
+  background-color: var(--ep-deck-bg);
+  border: 1px solid var(--ep-deck-border);
+}
+
+.lib__sk-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background-color: var(--ep-surface-inset);
+  opacity: 0.6;
+  animation: skPulse 1.4s ease-in-out infinite;
+}
+
+.lib__sk-lines {
+  flex: 1 1 0;
+  margin-left: var(--ep-space-md);
+}
+
+.lib__sk-line {
+  border-radius: var(--ep-radius-pill);
+  background-color: var(--ep-surface-inset);
+  opacity: 0.6;
+  animation: skPulse 1.4s ease-in-out infinite;
+}
+
+.lib__sk-line--title {
+  width: 60%;
+  height: 14px;
+  margin-bottom: 8px;
+}
+
+.lib__sk-line--sub {
+  width: 35%;
+  height: 10px;
+}
+
+@keyframes skPulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}

@@ -1,0 +1,109 @@
+/* 课程卡片 —— 全部尺寸/颜色走 CSS 令牌 */
+.lcard {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  height: var(--ep-card-h);
+  padding: var(--ep-space-md);
+  border-radius: var(--ep-radius-card);
+  background-color: var(--ep-surface-1);
+  border: 1px solid var(--ep-border);
+}
+
+.lcard.is-current {
+  border-color: var(--ep-accent);
+}
+
+/* 序号 / 完成标记 Squircle (36x36) */
+.lcard__squircle {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  margin-right: var(--ep-space-sm);
+  border-radius: 10px;
+  background-color: var(--ep-surface-inset);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lcard.is-done .lcard__squircle {
+  background-color: var(--ep-accent-soft);
+}
+
+.lcard__index-text {
+  font-size: var(--ep-font-card-index);
+  font-weight: var(--ep-fw-heavy);
+  color: var(--ep-text-passed);
+}
+
+.lcard.is-done .lcard__index-text {
+  color: var(--ep-accent);
+}
+
+.lcard.is-current .lcard__index-text {
+  color: var(--ep-accent);
+}
+
+.lcard__main {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-right: var(--ep-space-sm);
+}
+
+.lcard__title {
+  font-size: var(--ep-font-card-title);
+  font-weight: var(--ep-fw-semibold);
+  color: var(--ep-text-primary);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lcard__level {
+  margin-top: 2px;
+  font-size: var(--ep-font-card-level);
+  font-weight: var(--ep-fw-medium);
+  color: var(--ep-text-passed);
+}
+
+.lcard__bar {
+  margin-top: 6px;
+  height: var(--ep-radius-bar);
+  border-radius: var(--ep-radius-bar);
+  background-color: var(--ep-border);
+  overflow: hidden;
+}
+
+.lcard__bar-fill {
+  height: 100%;
+  border-radius: var(--ep-radius-bar);
+  background-color: var(--ep-accent);
+}
+
+.lcard__status {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: var(--ep-radius-pill);
+  background-color: var(--ep-surface-inset);
+}
+
+.lcard__status.is-highlight {
+  background-color: var(--ep-accent-soft);
+}
+
+.lcard__status-text {
+  font-size: var(--ep-font-card-status);
+  font-weight: var(--ep-fw-bold);
+  color: var(--ep-text-passed);
+}
+
+.lcard__status.is-highlight .lcard__status-text {
+  color: var(--ep-accent);
+}

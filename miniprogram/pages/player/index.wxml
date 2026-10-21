@@ -1,0 +1,172 @@
+<!--
+  沉浸播放器页面（pages/player/index.wxml）
+  纯 WebView 原生页面，支持原生侧滑返回（不冲突）、iOS 级精细排版与触底防抖。
+-->
+<view class="player-root notranslate" translate="no">
+  <!-- 顶部栏（自定义导航，预留原生胶囊安全区） -->
+  <view class="pl__topbar" style="padding-top: {{safeTopPx}}px;">
+    <!-- Row 1: 导航行（高度与微信原生胶囊保持一致） -->
+    <view class="pl__bar" style="height: {{navBarPx}}px; padding-right: {{capsuleRightPadding}}px;">
+      <view class="pl__back m3-tactile-94" hover-class="m3-press-94" hover-start-time="0" hover-stay-time="150" bindtap="onBack">
+        <text class="pl__back-text">← Library</text>
+      </view>
+    </view>
+
+    <!-- Row 2: 沉浸全宽分段胶囊 [ Podcast | Dialogue | Vocab ] -->
+    <view class="pl__seg-row">
+      <view class="pl__seg">
+        <view
+          class="pl__seg-ind"
+          style="width: calc((100% - 6px) / 3); transform: translateX(calc({{tabIndex}} * 100%));"
+        ></view>
+        <view class="pl__seg-item {{activeTab === 'pb' ? 'is-on' : ''}}" data-tab="pb" bindtap="onTabTap">
+          <text class="pl__seg-text">Podcast</text>
+          <view class="pl__seg-under {{showPbUnderline ? 'is-on' : ''}}"></view>
+        </view>
+        <view class="pl__seg-item {{activeTab === 'dg' ? 'is-on' : ''}}" data-tab="dg" bindtap="onTabTap">
+          <text class="pl__seg-text">Dialogue</text>
+          <view class="pl__seg-under {{showDgUnderline ? 'is-on' : ''}}"></view>
+        </view>
+        <view class="pl__seg-item {{activeTab === 'vocab' ? 'is-on' : ''}}" data-tab="vocab" bindtap="onTabTap">
+          <text class="pl__seg-text">Vocab</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 正文舞台：字幕 / 词汇（纯 CSS3 硬件加速切换） -->
+  <view class="pl__stage">
+    <view class="pl__layer {{activeTab !== 'vocab' ? 'is-active' : 'is-hidden'}}">
+      <scroll-view
+        id="transcriptViewport"
+        class="pl__body"
+        scroll-y
+        enhanced="{{true}}"
+        show-scrollbar="{{false}}"
+        scroll-top="{{playerScrollTop}}"
+        scroll-with-animation="{{scrollAnimated}}"
+        binddragstart="onTranscriptDragStart"
+        binddragend="onTranscriptDragEnd"
+        bindtouchstart="onTranscriptTouchStart"
+        bindtouchend="onTranscriptTouchEnd"
+        bindscroll="onTranscriptScroll"
+      >
+        <!-- 内嵌课头：随台词自然滚动（100% 对齐 iOS _buildLessonInlineHeader） -->
+        <view class="pl__inline-header" wx:if="{{lessonTitle}}">
+          <text class="pl__inline-sub">{{lessonLevel}} · {{trackLabel}}</text>
+          <text class="pl__inline-title">{{lessonTitle}}</text>
+        </view>
+        <!-- 课头骨架占位（冷启动且标题尚未到达时） -->
+        <view class="pl__inline-header" wx:elif="{{playerLoading && blocks.length === 0}}">
+          <view class="pl__sk-speaker" style="width: 120px;"></view>
+          <view class="pl__sk-line" style="width: 65%; height: 22px; margin-top: 4px;"></view>
+        </view>
+
+        <!-- 骨架占位（高保真台词排版，错落有致的文本段落与说话人标签） -->
+        <view wx:if="{{playerLoading && blocks.length === 0}}" class="pl__skeleton">
+          <!-- 句段 1：模拟首句（带左侧高亮强调条） -->
+          <view class="pl__sk-row pl__sk-row--active">
+            <view class="pl__sk-speaker" style="width: 52px;"></view>
+            <view class="pl__sk-line" style="width: 88%;"></view>
+            <view class="pl__sk-line" style="width: 54%;"></view>
+          </view>
+          <!-- 句段 2：较长台词 -->
+          <view class="pl__sk-row">
+            <view class="pl__sk-speaker" style="width: 64px;"></view>
+            <view class="pl__sk-line" style="width: 95%;"></view>
+            <view class="pl__sk-line" style="width: 78%;"></view>
+            <view class="pl__sk-line" style="width: 38%;"></view>
+          </view>
+          <!-- 句段 3：短句互动 -->
+          <view class="pl__sk-row">
+            <view class="pl__sk-speaker" style="width: 44px;"></view>
+            <view class="pl__sk-line" style="width: 68%;"></view>
+          </view>
+          <!-- 句段 4：中等台词 -->
+          <view class="pl__sk-row">
+            <view class="pl__sk-speaker" style="width: 58px;"></view>
+            <view class="pl__sk-line" style="width: 86%;"></view>
+            <view class="pl__sk-line" style="width: 62%;"></view>
+          </view>
+          <!-- 句段 5：长句段落 -->
+          <view class="pl__sk-row">
+            <view class="pl__sk-speaker" style="width: 50px;"></view>
+            <view class="pl__sk-line" style="width: 92%;"></view>
+            <view class="pl__sk-line" style="width: 82%;"></view>
+            <view class="pl__sk-line" style="width: 45%;"></view>
+          </view>
+          <!-- 句段 6：结束句 -->
+          <view class="pl__sk-row">
+            <view class="pl__sk-speaker" style="width: 60px;"></view>
+            <view class="pl__sk-line" style="width: 76%;"></view>
+          </view>
+        </view>
+
+        <!-- 台本组件 -->
+        <transcript
+          wx:else
+          id="transcript"
+          blocks="{{blocks}}"
+          active-seg-idx="{{activeSegIdx}}"
+          collapsed-box-ids="{{collapsedBoxIds}}"
+          bind:lineTap="onLineTap"
+          bind:toggleBox="onToggleBox"
+        />
+        <view class="pl__body-pad"></view>
+      </scroll-view>
+    </view>
+
+    <view class="pl__layer {{activeTab === 'vocab' ? 'is-active' : 'is-hidden'}}">
+      <scroll-view class="pl__body" scroll-y enhanced="{{true}}" show-scrollbar="{{false}}">
+        <vocab-panel
+          id="vocabPanel"
+          entries="{{vocabEntries}}"
+          expanded-index="{{expandedVocabIndex}}"
+          bind:toggle="onVocabToggle"
+          bind:playExample="onVocabExample"
+        />
+        <view class="pl__body-pad"></view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <!-- 智能 5 秒一键找回条（100% 对齐 iOS Full-Width Docked Banner） -->
+  <view class="pl__locate-dock {{showLocateBar && activeTab !== 'vocab' ? 'is-open' : ''}}">
+    <view class="pl__locate m3-tactile-985" hover-class="m3-press-985" hover-start-time="0" hover-stay-time="150" bindtap="onLocateTap">
+      <view class="pl__locate-ic">
+        <view class="ic-my-location"></view>
+      </view>
+      <text class="pl__locate-text">{{locateSentence || 'Return to live transcript'}}</text>
+    </view>
+  </view>
+
+  <!-- 控制坞 -->
+  <control-dock
+    position-label="{{positionLabel}}"
+    duration-label="{{durationLabel}}"
+    progress-pct="{{playerProgressPct}}"
+    is-playing="{{isPlaying}}"
+    ended="{{ended}}"
+    single-sentence-loop="{{singleSentenceLoop}}"
+    repeat-episode="{{repeatEpisode}}"
+    speed-label="{{speedLabel}}"
+    has-prev-lesson="{{hasPrevLesson}}"
+    has-next-lesson="{{hasNextLesson}}"
+    bind:toggle="onToggle"
+    bind:prevSentence="onPrevSentence"
+    bind:nextSentence="onNextSentence"
+    bind:prevLesson="onPrevLesson"
+    bind:nextLesson="onNextLesson"
+    bind:toggleLoop="onToggleLoop"
+    bind:toggleRepeat="onToggleRepeat"
+    bind:cycleSpeed="onCycleSpeed"
+    bind:scrubStart="onScrubStart"
+    bind:scrubMove="onScrubMove"
+    bind:scrubEnd="onScrubEnd"
+  />
+
+  <!-- 错误覆盖提示 -->
+  <view wx:if="{{playerErrorMsg}}" class="pl__overlay">
+    <text class="pl__overlay-text">{{playerErrorMsg}}</text>
+  </view>
+</view>

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="EnglishPod listening player">
+  <meta name="theme-color" content="#13151c">
+  <title>EnglishPod</title>
+  <style>
+    body { margin: 0; background: #13151c; color: #fff; font-family: system-ui; }
+    #loading { padding: 2rem; }
+    #build { position: fixed; right: 6px; bottom: 4px; z-index: 10;
+      font: 10px system-ui; color: #888; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div id="loading" role="status">Loading EnglishPod…</div>
+  <a id="build" href="build-info.json" target="_blank" rel="noopener">Build details</a>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

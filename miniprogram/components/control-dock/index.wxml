@@ -1,0 +1,101 @@
+<!--
+  底部控制坞
+  Row1：可拖动进度条 + 时间戳
+  Row2：上句（跳段） · 播放/暂停 · 下句（跳段）
+  Row3：上一课 / 下一课 / 单句循环 / 整课重复 / 倍速
+-->
+<view class="dock">
+  <!-- Row 1：进度条 -->
+  <view
+    class="scrub"
+    bindtouchstart="onScrubStart"
+    bindtouchmove="onScrubMove"
+    bindtouchend="onScrubEnd"
+    bindtouchcancel="onScrubEnd"
+  >
+    <view class="scrub__track" id="scrubTrack">
+      <view class="scrub__fill" style="width: {{scrubbing ? scrubPct : progressPct}}%;"></view>
+      <view class="scrub__thumb" style="left: {{scrubbing ? scrubPct : progressPct}}%;"></view>
+    </view>
+  </view>
+  <view class="scrub__times">
+    <text class="dock__time">{{positionLabel}}</text>
+    <text class="dock__time">{{durationLabel}}</text>
+  </view>
+
+  <!-- Row 2：主控 (对齐 iOS Hero Transport Row) -->
+  <view class="dock__hero">
+    <view class="dock__round m3-tactile-90" hover-class="m3-press-90" hover-start-time="0" hover-stay-time="150" bindtap="onPrevSentence">
+      <view class="ic-skip ic-skip--prev"></view>
+    </view>
+
+    <view
+      class="dock__play m3-tactile-975"
+      hover-class="m3-press-975"
+      hover-start-time="0"
+      hover-stay-time="150"
+      bindtap="onToggle"
+    >
+      <view class="dock__play-icon-box">
+        <view class="dock__play-icon ic-play {{ended || isPlaying ? 'is-out' : 'is-in'}}"></view>
+        <view class="dock__play-icon ic-pause {{ended ? 'is-out' : (isPlaying ? 'is-in' : 'is-out')}}"></view>
+        <view class="dock__play-icon ic-replay {{ended ? 'is-in' : 'is-out'}}"></view>
+      </view>
+      <text class="dock__play-label">{{ended ? 'Replay' : (isPlaying ? 'Pause' : 'Play')}}</text>
+    </view>
+
+    <view class="dock__round m3-tactile-90" hover-class="m3-press-90" hover-start-time="0" hover-stay-time="150" bindtap="onNextSentence">
+      <view class="ic-skip ic-skip--next"></view>
+    </view>
+  </view>
+
+  <!-- Row 3：工具键 -->
+  <view class="dock__util">
+    <view
+      class="dock__util-btn dock__util-btn--left m3-tactile-94 {{hasPrevLesson ? '' : 'is-disabled'}}"
+      hover-class="{{hasPrevLesson ? 'm3-press-94' : ''}}"
+      hover-start-time="0"
+      hover-stay-time="150"
+      bindtap="onPrevLesson"
+    >
+      <view class="ic ic--prev-lesson"></view>
+    </view>
+    <view
+      class="dock__util-btn m3-tactile-94 {{hasNextLesson ? '' : 'is-disabled'}}"
+      hover-class="{{hasNextLesson ? 'm3-press-94' : ''}}"
+      hover-start-time="0"
+      hover-stay-time="150"
+      bindtap="onNextLesson"
+    >
+      <view class="ic ic--next-lesson"></view>
+    </view>
+    <view
+      class="dock__util-btn m3-tactile-94 {{singleSentenceLoop ? 'is-on' : ''}}"
+      hover-class="m3-press-94"
+      hover-start-time="0"
+      hover-stay-time="150"
+      bindtap="onToggleLoop"
+    >
+      <view class="ic ic--loop-one"></view>
+    </view>
+    <view
+      class="dock__util-btn m3-tactile-94 {{repeatEpisode ? 'is-on' : ''}}"
+      hover-class="m3-press-94"
+      hover-start-time="0"
+      hover-stay-time="150"
+      bindtap="onToggleRepeat"
+    >
+      <view class="ic ic--repeat"></view>
+    </view>
+    <view
+      class="dock__util-btn dock__util-btn--right m3-tactile-94 {{speedLabel !== '1.0x' ? 'is-on' : ''}}"
+      hover-class="m3-press-94"
+      hover-start-time="0"
+      hover-stay-time="150"
+      bindtap="onCycleSpeed"
+    >
+      <view class="ic ic--speed"></view>
+      <text wx:if="{{speedLabel !== '1.0x'}}" class="dock__speed-text">{{speedLabel}}</text>
+    </view>
+  </view>
+</view>

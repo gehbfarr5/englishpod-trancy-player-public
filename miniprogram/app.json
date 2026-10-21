@@ -1,0 +1,22 @@
+{
+  "pages": [
+    "pages/library/index",
+    "pages/player/index"
+  ],
+  "renderer": "webview",
+  "darkmode": true,
+  "requiredBackgroundModes": [
+    "audio"
+  ],
+  "themeLocation": "theme.json",
+  "window": {
+    "navigationStyle": "custom",
+    "navigationBarBackgroundColor": "@navBgColor",
+    "navigationBarTextStyle": "@navTxtStyle",
+    "backgroundColor": "@bgColor",
+    "backgroundTextStyle": "dark"
+  },
+  "lazyCodeLoading": "requiredComponents",
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

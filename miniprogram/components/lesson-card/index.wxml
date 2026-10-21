@@ -1,0 +1,30 @@
+<!--
+  课程卡片
+  - 左：序号（固定列宽）；中：标题 + level + 进度条；右：完成度角标。
+  - 点击直接触发 lessonTap。
+-->
+<view
+  class="lcard m3-tactile-985 {{isCurrent ? 'is-current' : ''}} {{isDone ? 'is-done' : ''}}"
+  hover-class="m3-press-985"
+  hover-start-time="0"
+  hover-stay-time="150"
+  data-lesson-id="{{lessonId}}"
+  bindtap="onTap"
+>
+  <!-- 序号 / 完成标记 Squircle (36x36) -->
+  <view class="lcard__squircle">
+    <text class="lcard__index-text">{{isDone ? '✓' : indexText}}</text>
+  </view>
+
+  <view class="lcard__main">
+    <text class="lcard__title">{{title}}</text>
+    <text class="lcard__level">{{level}}</text>
+    <view class="lcard__bar">
+      <view class="lcard__bar-fill" style="width: {{barPercent}}%;"></view>
+    </view>
+  </view>
+
+  <view class="lcard__status {{highlight ? 'is-highlight' : ''}}">
+    <text class="lcard__status-text">{{statusLabel}}</text>
+  </view>
+</view>

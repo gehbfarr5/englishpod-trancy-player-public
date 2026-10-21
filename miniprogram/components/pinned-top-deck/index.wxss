@@ -1,0 +1,81 @@
+/* 顶部钉住区（Elevated Pinned Top Deck）—— 全部尺寸/颜色走 CSS 令牌 */
+.deck {
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+  width: 100%;
+  padding-left: var(--ep-space-xl);
+  padding-right: var(--ep-space-xl);
+  padding-bottom: var(--ep-space-lg);
+  border-radius: 0 0 var(--ep-radius-deck) var(--ep-radius-deck);
+  background-color: var(--ep-deck-bg);
+  background-image: radial-gradient(
+    130% 90% at 50% 0%,
+    var(--ep-deck-gradient-top) 0%,
+    var(--ep-deck-gradient-mid) 46%,
+    var(--ep-deck-gradient-bottom) 100%
+  );
+  border-bottom: 1px solid var(--ep-deck-border);
+  box-shadow: 0 8px 24px var(--ep-deck-shadow);
+}
+
+/* 胶囊按钮安全区：透明占位 */
+.deck__nav {
+  width: 100%;
+}
+
+/* Header Row */
+.deck__header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--ep-space-xs);
+}
+
+.deck__brand {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.deck__brand-name {
+  font-size: var(--ep-font-brand);
+  font-weight: var(--ep-fw-heavy);
+  letter-spacing: -0.6px;
+  color: var(--ep-text-primary);
+}
+
+.deck__brand-sub {
+  margin-top: 2px;
+  font-size: var(--ep-font-brand-sub);
+  font-weight: var(--ep-fw-medium);
+  color: var(--ep-text-passed);
+}
+
+
+.deck__completion {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding-left: 11px;
+  padding-right: 11px;
+  border-radius: var(--ep-radius-pill);
+  background-color: var(--ep-surface-inset);
+  border: 1px solid var(--ep-border);
+}
+
+.deck__completion-text {
+  font-size: var(--ep-font-completion-pill);
+  font-weight: var(--ep-fw-bold);
+  color: var(--ep-accent);
+}
+
+.deck__slot--continue {
+  margin-top: var(--ep-space-md);
+}
+
+.deck__slot--filters {
+  margin-top: var(--ep-space-md);
+}

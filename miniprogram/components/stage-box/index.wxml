@@ -1,0 +1,22 @@
+<!--
+  舞台盒子（📌 DIALOGUE · SCENE / 💡 EXAMPLES · IN ACTION / ✨ KEY PHRASE DRILL）
+  - 头部固定：徽章 + 副标题 + 可折叠 chevron（点击切换）。
+  - 折叠状态由父级下发的 `collapsedIds` 决定（WXS 判定），避免重发整份字幕。
+  - 主体**常驻元素 + class 开关**（B-4：不再用 wx:if 瞬切），高度/透明度过渡 250ms。
+  - chevron 用 `scaleY` 翻面（B-5）：外层 scaleY，内层保持 45° 静态形状。
+-->
+<wxs src="/wxs/highlight.wxs" module="hl" />
+<view class="sbox sbox--{{stageKind}} {{hl.boxVisible(boxGroupId, collapsedIds) ? 'is-open' : ''}}">
+  <view class="sbox__head m3-tactile-985" hover-class="m3-press-985" hover-start-time="0" hover-stay-time="150" bindtap="onToggle">
+    <text class="sbox__badge">{{badgeText}}</text>
+    <text class="sbox__sub">{{subText}}</text>
+    <view class="sbox__chevron {{hl.boxVisible(boxGroupId, collapsedIds) ? '' : 'is-collapsed'}}">
+      <view class="sbox__chevron-shape"></view>
+    </view>
+  </view>
+  <view class="sbox__body {{hl.boxVisible(boxGroupId, collapsedIds) ? 'is-open' : ''}}">
+    <view class="sbox__body-inner">
+      <slot></slot>
+    </view>
+  </view>
+</view>

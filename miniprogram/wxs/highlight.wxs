@@ -1,0 +1,76 @@
+/**
+ * 句级高亮：视图层差分（WXS）。
+ *
+ * 设计要点：
+ *  - 逻辑层只把 `{ activeSegIdx }` 这一个极小 state 下发到视图层；WXS 依据它给
+ *    **整句**（及其词节点整体）计算 class，避免把 `words[]` 或整段状态塞进高频 setData。
+ *  - ⚠️ iOS 定稿**没有逐词高亮**：这里**只按句下标**判定，一句内所有词共享同一态。
+ *  - WXS 语法受限：仅使用 ES5（`var` / `function`），不使用箭头函数、模板字符串、
+ *    可选链，也不调用 `wx.*`。
+ *
+ * 句态：is-passed（已播句）/ is-active（当前句）/ is-upcoming（未播句）。
+ * 词汇额外叠加：vocab-passed / vocab-active / vocab-unplayed（同样**句级**）。
+ */
+
+/**
+ * 计算单个词节点的 class（按**句级**态）。
+ *
+ * @param {number} segIdx 该词所在片段下标
+ * @param {number} activeSegIdx 当前高亮片段下标
+ * @param {boolean} isVocab 是否为课程词汇
+ * @returns {string} class 字符串
+ */
+function wordClass(segIdx, activeSegIdx, isVocab) {
+  var state;
+  if (segIdx < activeSegIdx) {
+    state = 'is-passed';
+  } else if (segIdx > activeSegIdx) {
+    state = 'is-upcoming';
+  } else {
+    state = 'is-active';
+  }
+
+  var cls = 'word ' + state;
+  if (isVocab) {
+    cls = cls + ' is-vocab';
+    if (state === 'is-active') {
+      cls = cls + ' vocab-active';
+    } else if (state === 'is-passed') {
+      cls = cls + ' vocab-passed';
+    } else {
+      cls = cls + ' vocab-unplayed';
+    }
+  }
+  return cls;
+}
+
+/**
+ * 计算片段行的 class（当前句高亮整行）。
+ *
+ * @param {number} segIdx 片段下标
+ * @param {number} activeSegIdx 当前高亮片段下标
+ * @returns {string} class 字符串
+ */
+function lineClass(segIdx, activeSegIdx) {
+  return segIdx === activeSegIdx ? 'line is-active-line' : 'line';
+}
+
+/**
+ * 舞台盒子是否可见（其 `boxGroupId` 未处于折叠集合中）。
+ *
+ * @param {number} boxGroupId 盒子分组 ID
+ * @param {Array<number>} collapsedIds 已折叠的盒子 ID 列表
+ * @returns {boolean} 是否可见
+ */
+function boxVisible(boxGroupId, collapsedIds) {
+  if (!collapsedIds || !collapsedIds.length) {
+    return true;
+  }
+  return collapsedIds.indexOf(boxGroupId) < 0;
+}
+
+module.exports = {
+  wordClass: wordClass,
+  lineClass: lineClass,
+  boxVisible: boxVisible,
+};
