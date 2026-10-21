@@ -42,7 +42,8 @@ jobs:
               stop("OIDC_PROBE=CONFIGURATION_INVALID")
 
           parsed = urllib.parse.urlsplit(token_url)
-          query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+          query = [(key, value) for key, value in urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+                   if key != "audience"]
           query.append(("audience", "sts.tencentcloudapi.com"))
           token_request_url = urllib.parse.urlunsplit(
               (parsed.scheme, parsed.netloc, parsed.path, urllib.parse.urlencode(query), parsed.fragment)
@@ -85,10 +86,15 @@ jobs:
           except (OSError, ValueError, urllib.error.URLError):
               stop("OIDC_PROBE=STS_REQUEST_FAILED")
 
-          result = payload.get("Response", {})
+          if not isinstance(payload, dict) or not isinstance(payload.get("Response"), dict):
+              stop("OIDC_PROBE=STS_RESPONSE_INVALID")
+          result = payload["Response"]
           if result.get("Error"):
               # Return only the stable error code, not provider response messages.
-              code = result["Error"].get("Code", "UNKNOWN")
+              error = result["Error"]
+              if not isinstance(error, dict):
+                  stop("OIDC_PROBE=STS_RESPONSE_INVALID")
+              code = error.get("Code", "UNKNOWN")
               if not isinstance(code, str) or not code.replace("_", "").isalnum():
                   code = "UNKNOWN"
               stop("OIDC_PROBE=STS_REJECTED_" + code)
