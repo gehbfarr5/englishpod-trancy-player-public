@@ -5,12 +5,12 @@ This repository is the intended public source of truth. Tencent CloudBase, COS, 
 ## Current state
 
 - Sanitized Flutter/Web, Mini Program source, and G4 offline tooling are present in this repository.
-- GitHub-hosted CI is verified for G4 and Mini Program checks.
+- GitHub-hosted CI is verified for G4 and Mini Program source checks on main. This does not verify a Tencent upload or device preview.
 - Account B's course data migration was previously completed and validated: the Oct 17 report records that the expected lesson/audio set passed size/SHA-256 integrity and decode checks, lesson details and index mappings were validated, and existing M4A objects were retained. This is historical migration evidence, not a fresh current-state comparison.
 - The Oct 21 console snapshot showed the account A Web host online. It is shared with unrelated workloads. The Web site and its audio directory are separate locations on that same host.
 - The Web-host audio copy has not yet been compared against account B's current COS object hashes. Do not re-upload the corpus; first inventory and compare.
-- Historical OIDC validation applied to the old private repository only. This public repository's Tencent identity and secure course reads are not yet verified.
-- This public repository does not yet have verified Tencent Web deployment, WeChat upload credentials/runner, or production deployment.
+- The Tencent role trust subject has been changed to the public repository's `main`; the actual Actions token exchange and authorized course read are not yet verified.
+- The public repository has a GitHub-hosted WeChat validation/upload workflow. Source validation passes, but the credentialed upload step is skipped; Tencent Web deployment and production deployment remain unverified.
 
 ## Verified status (2026-10-22)
 
@@ -79,7 +79,7 @@ Do not place course JSON/audio in public GitHub Releases or Actions artifacts. P
 
 - Re-register a runner only from its host using a fresh short-lived registration token.
 - Never run untrusted pull-request code on a self-hosted runner.
-- A runner on the shared account A server must not be used until isolation from unrelated host workloads is demonstrated; prefer a GitHub-hosted job or a dedicated runner.
+- The public-repository WeChat workflow now uses a GitHub-hosted runner. The historical runner on the shared host remains untrusted until it is disabled or isolated.
 - Protect production and upload environments with branch restrictions, approvals, concurrency controls, and main-only workflows.
 - Keep hostnames, filesystem paths, private addresses, and process inspection output out of public source and logs.
 - Test a reversible candidate and prove rollback before switching any live trigger.
