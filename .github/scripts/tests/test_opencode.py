@@ -66,6 +66,15 @@ class OpenCodeTests(unittest.TestCase):
             }))
             result = runner.load_public_work_index(path)
             self.assertEqual(result["openIssues"][0]["number"], 12)
+            path.write_text(json.dumps({
+                "schema": "ep-public-work-index-v1",
+                "warning": "untrusted",
+                "openIssues": [{"number": 12, "title": "x", "labels": [], "body": "must be rejected"}],
+                "openPullRequests": [],
+                "recentMergedPullRequests": [],
+            }))
+            with self.assertRaises(SystemExit):
+                runner.load_public_work_index(path)
             path.write_text("x" * 32769)
             with self.assertRaises(SystemExit):
                 runner.load_public_work_index(path)
