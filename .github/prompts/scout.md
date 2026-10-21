@@ -15,4 +15,4 @@ Return a concise Markdown report in English or Chinese with:
 1. Inspected date and source SHA (the workflow adds trusted provenance).
 2. Evidence reviewed and its limitations.
 3. Deduplicated opportunities, each linked to an existing public issue when applicable.
-4. Any blockers and a clear “no new task” conclusion when appropriate.
+4. Any blockers and a clear “no new task” conclusion when appropriate.\n5. For each candidate, state competing explanations, the smallest experiment that could distinguish them, and stop conditions. If none meets the evidence bar, say zero findings is acceptable and recommend no new task.
