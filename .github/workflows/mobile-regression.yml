@@ -49,6 +49,16 @@ jobs:
         with:
           channel: stable
           cache: true
+      - name: Cache Android Gradle dependencies
+        if: matrix.platform == 'android-emulator'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('flutter_app/pubspec.lock', '.github/workflows/mobile-regression.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
       - name: Stage isolated synthetic WAV fixture
         env:
           EP_NATIVE_TEST_WORKSPACE: '1'
