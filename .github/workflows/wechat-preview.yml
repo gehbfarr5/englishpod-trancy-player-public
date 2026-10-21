@@ -1,4 +1,4 @@
-name: WeChat Mini Program (staged preview/upload)
+name: WeChat Mini Program (staged verification/upload)
 
 on:
   pull_request:
@@ -10,13 +10,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'verify: offline; preview: developer QR; upload: development code'
+        description: 'verify: offline checks; upload: WeChat development code'
         type: choice
         required: true
         default: verify
-        options: [verify, preview, upload]
+        options: [verify, upload]
       confirm_wechat_code_upload:
-        description: 'For preview/upload, type UPLOAD_WECHAT_DEV_CODE (never publishes)'
+        description: 'For upload, type UPLOAD_WECHAT_DEV_CODE (never publishes production)'
         type: string
         required: false
 
@@ -59,12 +59,12 @@ jobs:
           node miniprogram/scripts/wechat-ci.mjs verify
 
   transmit:
-    name: Manually authorized WeChat developer preview/upload
+    name: Manually authorized WeChat development-code upload
     needs: verify
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
-      (inputs.mode == 'preview' || inputs.mode == 'upload') &&
+      inputs.mode == 'upload' &&
       inputs.confirm_wechat_code_upload == 'UPLOAD_WECHAT_DEV_CODE'
     runs-on: [self-hosted, linux, wechat-ci]
     environment: wechat-upload
@@ -83,60 +83,14 @@ jobs:
       - name: Install locked dependencies
         working-directory: miniprogram
         run: npm ci
-      - name: Confirm source content before WeChat requests
+      - name: Confirm source content before WeChat request
         run: node miniprogram/scripts/wechat-package-audit.mjs
-      - name: Capture runner host state before WeChat requests (read-only)
-        shell: bash
-        run: |
-          set -uo pipefail
-          echo '== load / memory / swap (read-only) =='
-          cat /proc/loadavg || true
-          grep -E '^(MemTotal|MemAvailable|SwapTotal|SwapFree|Committed_AS):' /proc/meminfo || true
-          echo '== top processes at job start =='
-          COLUMNS=200 ps -eo pid,ppid,etime,pcpu,pmem,rss,stat,comm --sort=-pcpu 2>/dev/null | head -12 || true
-          echo '== node processes possibly left over from earlier jobs =='
-          pgrep -af 'node|miniprogram' 2>/dev/null | head -10 || echo 'none'
-          echo 'No credential, no network call and no host mutation in this step.'
-      - name: Generate developer QR or upload development code (never release)
+      - name: Upload development code (never release)
         env:
           WECHAT_CI_PRIVATE_KEY_B64: ${{ secrets.WECHAT_CI_PRIVATE_KEY_B64 }}
-          WECHAT_CI_MODE: ${{ inputs.mode }}
+          WECHAT_CI_MODE: upload
           WECHAT_CI_APPROVED: ${{ inputs.confirm_wechat_code_upload }}
           WECHAT_CI_ROBOT: ${{ vars.WECHAT_CI_ROBOT || '9' }}
-          # The Seoul self-hosted runner shares the box with unrelated
-          # business processes; when they load the machine mid-run the
-          # miniprogram-ci compilation slows 5-6x (evidence: run 39363220223
-          # — loadavg 0.00 at start, 13.75 mid-compile, compile alone took
-          # 366s vs 64s on an idle machine, and the transfer window was cut
-          # off by the 360s API timeout). 900s fits a slow-compile+transfer
-          # run with margin; stall-warning/heartbeat diagnostics and the
-          # fail-closed error behavior are unchanged. This adapts an
-          # environment guard, not an acceptance gate.
           WECHAT_CI_TIMEOUT_MS: ${{ vars.WECHAT_CI_TIMEOUT_MS || '900000' }}
-          WECHAT_CI_OUTPUT_DIR: ${{ runner.temp }}/wechat-preview
           TMPDIR: ${{ runner.temp }}
-        # Independent process-level guard: SIGTERM at 20 min, then SIGKILL 20s later.
-        # This bounds the step even if Node's event loop is blocked and cannot run its
-        # own watchdog. The script's in-process timeout (default 15 min) fires first.
-        run: timeout --signal=TERM --kill-after=20s 1200s node miniprogram/scripts/wechat-ci.mjs "$WECHAT_CI_MODE"
-      - name: Capture runner host state after a failed WeChat step (read-only)
-        if: failure()
-        shell: bash
-        run: |
-          set -uo pipefail
-          echo '== failure-time load / memory / swap (read-only) =='
-          cat /proc/loadavg || true
-          grep -E '^(MemTotal|MemAvailable|SwapTotal|SwapFree|Committed_AS):' /proc/meminfo || true
-          echo '== processes that survived the failed step =='
-          COLUMNS=200 ps -eo pid,ppid,etime,pcpu,pmem,rss,stat,comm --sort=-pcpu 2>/dev/null | head -12 || true
-          pgrep -af 'miniprogram|processHandler|wechat-ci' 2>/dev/null | head -10 || echo 'no leftover WeChat process'
-          echo "established_sockets=$(ss -Htn state established 2>/dev/null | wc -l)"
-          echo 'No credential, no network call and no host mutation in this step.'
-      - name: Store developer preview QR privately for one day
-        if: inputs.mode == 'preview'
-        uses: actions/upload-artifact@v4
-        with:
-          name: EnglishPod-WeChat-DEV-PREVIEW-${{ github.sha }}
-          path: ${{ runner.temp }}/wechat-preview/preview.jpg
-          if-no-files-found: error
-          retention-days: 1
+        run: timeout --signal=TERM --kill-after=20s 1200s node miniprogram/scripts/wechat-ci.mjs upload
