@@ -3443,8 +3443,13 @@ class _HoldToReplayTopLiveCardState extends State<_HoldToReplayTopLiveCard>
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           _buildTopLeftPill(context, p),
-                          Text(
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
                             widget.trackTimeLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
@@ -3453,6 +3458,7 @@ class _HoldToReplayTopLiveCardState extends State<_HoldToReplayTopLiveCard>
                                 FontFeature.tabularFigures(),
                               ],
                             ),
+                          ),
                           ),
                         ],
                       ),
@@ -7239,10 +7245,11 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       ('completed', 'Completed'),
     ];
     final int activeIdx = _filterIndexFor(_libraryFilter);
-    const double chipWidth = 98.0;
     const double chipHeight = 30.0;
 
-    return Container(
+    return LayoutBuilder(builder: (context, constraints) {
+      final chipWidth = math.min(98.0, math.max(0.0, (constraints.maxWidth - 8) / filters.length));
+      return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: p.surfaceInset,
@@ -7336,6 +7343,9 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
                         ),
                         child: Text(
                           f.$2,
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
                           textHeightBehavior: const TextHeightBehavior(
                             applyHeightToFirstAscent: false,
                             applyHeightToLastDescent: false,
@@ -7350,7 +7360,8 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
           ],
         ),
       ),
-    );
+      );
+    });
   }
 
   Widget _buildCourseCard(
@@ -7574,8 +7585,9 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
   /// when an audio source (`Podcast` or `Dialogue`) is active in the background while viewing `Vocab`.
   Widget _buildPlayerTopBar(AppPalette p) {
     final topInset = MediaQuery.of(context).padding.top;
+    final compact = MediaQuery.sizeOf(context).width < 360;
     final int activeTabIdx = _tabIndexFor(_playerTab);
-    const double tabWidth = 76.0;
+    final double tabWidth = compact ? 70.0 : 76.0;
     const double tabHeight = 30.0;
 
     return Container(
@@ -7599,7 +7611,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
               onTap: _returnToLibraryScreen,
               child: Container(
                 height: 36,
-                padding: const EdgeInsets.symmetric(horizontal: 13),
+                padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 13),
                 decoration: BoxDecoration(
                   color: p.surface2,
                   borderRadius: BorderRadius.circular(9999),
@@ -7610,7 +7622,8 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
                     Icon(Icons.arrow_back_rounded,
                         size: 16, color: p.textPrimary),
                     const SizedBox(width: 5),
-                    Text(
+                    if (!compact)
+                      Text(
                       'Library',
                       style: TextStyle(
                         fontSize: 12.5,
@@ -7665,6 +7678,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     }
 
   Widget _buildTopTabChip(String tabKey, String label, AppPalette p) {
+    final double chipWidth = MediaQuery.sizeOf(context).width < 360 ? 70.0 : 76.0;
     final bool isSelectedView = _playerTab == tabKey;
     final bool isPlayingAudioSource =
         (tabKey == 'pb' || tabKey == 'dg') && _currentTrack == tabKey;
@@ -7742,7 +7756,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
         );
       },
       child: SizedBox(
-        width: 76,
+        width: chipWidth,
         height: 30,
         child: Stack(
           alignment: Alignment.center,
