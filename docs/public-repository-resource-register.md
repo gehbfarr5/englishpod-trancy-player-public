@@ -2,67 +2,66 @@
 
 Last reviewed: 2026-10-21
 
-This register defines the intended cutover from the private source repository to this public repository. Public source control is the canonical code location after acceptance. Existing Tencent resources remain in place; only their CI identities, deployment triggers, and operator links are being rebound.
+This register tracks the public-repository cutover and where project resources live. GitHub is the canonical source and automation control plane; Tencent remains the runtime, course-data, and Mini Program platform. A resource stays where it is until its replacement is verified and rollback is proven.
+
+## Ownership map
+
+| Resource | Current location and role | Verified state | Next verification |
+| --- | --- | --- | --- |
+| Source, issues, PRs, CI | This public repository | Public source snapshot and GitHub-hosted offline checks are present. | Reconcile only approved, non-sensitive open work; keep licensed content and private discussions private. |
+| Course catalog, lesson details, audio | Tencent account B, Shanghai CloudBase/COS; private licensed data | The Oct 17 migration report records 335 courses and 670 MP3 objects migrated; 670/670 matched size and SHA-256 and decoded successfully. It also records 335 lesson details, the lessons index/FileID mappings, and CloudBase function calls validated. Existing 60 M4A objects were retained unchanged. | Refresh current B-side object counts and hashes; verify current Web-host media against B without copying or changing data. |
+| CloudBase functions/database | Tencent account B, Shanghai environment | Historical migration validation passed for index/detail mappings and function calls. | Run fresh, read-only health and representative lesson-index/detail checks. |
+| Web app | Tencent account A, Seoul shared host | The Oct 21 console snapshot showed the host online. The Web site and its audio directory are separate locations on the same host. The host also serves unrelated workloads. | Record deployed source/build version; compare Web-host audio hashes to account B; test rollback and a static-hosting PoC before any move. Never rebuild or repurpose the shared host as part of this project. |
+| WeChat Mini Program and cloud functions | Tencent account B; source is in this repository | Source and offline checks are present. Public-repository upload credentials and runner binding are not verified. | Verify AppID/environment privately, connect a public-repo-only upload path, then upload a development preview and inspect it in DevTools. |
+| Historical WeChat upload runner | Self-hosted on the shared account A host per prior inventory | A target-repository registration and isolation from unrelated host workloads are not verified. | Decide whether to use GitHub-hosted upload or a dedicated isolated runner; do not register trusted upload jobs on a shared host until isolation is demonstrated. |
+| Public-repository Tencent identity | Tencent OIDC | The old private-repository identity was validated historically. That authorization does not cover this public repository. | Create/verify a separate exact-subject read-only identity for the required private COS objects; use no static Tencent keys. |
+| Agent provider and native CI | GitHub Actions / protected repository settings | Public workflow credentials and current-SHA mobile simulator/emulator evidence are not yet verified. | Review workflow permissions and prompts; prove a dry run, then a read-only Scout and reviewed draft Builder. Keep emulator/simulator evidence separate from physical-device tests. |
+
+## Evidence freshness
+
+Historical validation is evidence of the migration at that time, not proof that every current live resource remains unchanged. The Oct 17 migration report passed the account B data integrity and CloudBase checks. The Oct 21 Web-host console snapshot showed the shared server online, but did not establish its deployed commit or prove that its audio files still match account B.
+
+Before changing any connection, refresh the relevant inventory and retain a sanitized evidence record. Public documentation must not contain host addresses, filesystem paths, internal URLs, course payloads, credentials, runner tokens, or raw device reports.
 
 ## Repository boundary
 
 | Area | Canonical destination | Status |
 | --- | --- | --- |
-| Application source: Flutter, Web, Mini Program | This public repository | Source snapshot present; public CI verified |
-| G4 checks and tests | This public repository | Offline test suite passes on GitHub-hosted Actions |
+| Flutter Web/iOS/Android and WeChat source | This public repository | Source snapshot present; public CI verified |
+| G4 checks and tests | This public repository | Offline tests pass on GitHub-hosted Actions |
 | Native emulator/simulator tests | This public repository | Not yet verified in public Actions |
-| Agent Scout/Builder implementation | This public repository | DeepSeek handoff not yet migrated and verified |
+| Agent Scout/Builder implementation | This public repository | Public-repository credentials and end-to-end run not yet verified |
 | Issues, PRs, decisions, open work | Public issues/PRs only after privacy review | Not fully reconciled; do not bulk-copy private discussions |
-| Git history, releases, signed builds | Private archive or private artifact storage | Not copied; releases may contain licensed lesson content |
-| Course JSON, transcripts, audio | Existing authorized private Tencent storage | Keep out of Git, public Releases, and public Actions artifacts |
-| Credentials, runner registration tokens, signing keys | New GitHub secret/environment settings or host-side secret store | Must be re-entered/registered; values cannot be exported from GitHub |
+| Git history, releases, signed builds | Private archive or private artifact storage | Historical releases may include licensed lesson content |
+| Course JSON, transcripts, audio | Existing authorized private Tencent storage | Exclude from Git, public Releases, and public Actions artifacts |
+| Credentials, runner registration tokens, signing keys | Protected GitHub settings or host-side secret store | Re-enter/register securely; never commit values |
 
-## External resource mapping
+## Target identity and least privilege
 
-| Existing resource | Target binding | Current state | Evidence required before archival |
-| --- | --- | --- | --- |
-| Tencent CloudBase environment, functions and database | Remain in Tencent; public source reads them through approved runtime/API path | No resource move is planned; public-repository connection unverified | Health check, index/detail endpoint checks, app loading from the public build |
-| Private COS course catalog and audio | Remain in Tencent private storage; public main workflow gets narrowly scoped OIDC read identity | Cloud objects are not copied; old OIDC trust names the old repo | Exact new subject, successful OIDC probe, full inventory hash verification |
-| Web host | Same host only if existing deployment architecture is approved; otherwise provision an equivalent target | No sanitized deployment workflow or new runner binding is verified | Main-only deployment, version check, access-control check, rollback test |
-| WeChat Mini Program | Existing AppID and cloud functions remain; development upload is initiated from the public repository | Offline checks pass; new-repo private key and runner are not verified | Successful development-code upload and preview review |
-| GitHub Actions self-hosted runner | Re-register to this repository using a fresh short-lived token on the runner host | Existing source runner configuration cannot be transferred by copying a repo file | Target runner appears online; trusted-main-only smoke succeeds |
-| Agent provider | Official DeepSeek endpoint and new repository secret | Secret cannot be copied; workflows not verified in target | Secret installed directly in target settings; real read-only Scout completion and reviewed draft Builder proposal |
-| Apple/Android signing | Keep signing materials out of public source; set only in protected secrets if needed | No target signing setup verified | Build/upload performed with protected signing and no public artifact exposure, if signing is required |
-
-## Public-repository identity details
-
-The target is public repository ID 1428251473 under account ID 111337856. Its default branch is main. The Tencent immutable GitHub OIDC subject for trusted main jobs is:
+The public repository target is `gehbfarr5/englishpod-trancy-player-public`, default branch `main`. Its Tencent OIDC subject is:
 
     repo:gehbfarr5@111337856/englishpod-trancy-player-public@1428251473:ref:refs/heads/main
 
-The former private repository subject is not an acceptable fallback. The existing read-only audio role cannot deploy to a Web host and must not be broadened for convenience. Any write-capable deployment must use a separate, least-privilege role or a host-local deployment credential.
+The old private repository subject is not a fallback for the public repository. Keep course reads in a dedicated read-only role scoped to required private audio objects. A read role must not deploy to a Web host. If a cloud write is required, use a separate least-privilege identity or host-local deployment mechanism.
 
-## Required target settings
+## Required sequence
 
-Create only after reviewing the workflow that consumes each value:
+1. Review and merge sanitized repository documentation and workflow changes.
+2. Refresh account B inventory and read-only integrity checks; compare the existing Web-host audio copy against B.
+3. Establish the public-repository OIDC trust and verify narrowly scoped reads without exposing lesson data to public Actions artifacts or logs.
+4. Run a reversible Web static-hosting PoC while the current Web host remains available.
+5. Choose an isolated Mini Program upload route; install the new-repository secret directly in protected settings and validate a development preview.
+6. Verify Agent workflows, native CI, and current-SHA evidence.
+7. Switch one connection at a time, verify live behavior, and prove rollback.
+8. Disable old-repository triggers and confirm no active service depends on them.
+9. Update the private repository landing page, preserve private-only history and licensed artifacts, then archive the old repository as the final acceptance step.
 
-- Repository/environment secret WECHAT_CI_PRIVATE_KEY_B64 for WeChat development upload.
-- Repository secret DEEPSEEK_API_KEY for Agent workflows.
-- Cloud OIDC provider/role trust for the exact new immutable subject; no long-lived Tencent static key.
-- Protected environments for web-production and wechat-upload, restricted to main and approval where supported.
-- A target-repository self-hosted runner registration only if the deployment/upload workflow requires it.
-- Non-secret variables for region, resource identifiers, runtime endpoint, timeouts, and WeChat robot number. Do not place host IPs, filesystem paths, or internal URLs in source.
+## Credential handling
 
-Do not ask for credential values in issue comments or chat. The owner must enter secret values in GitHub or Tencent's authenticated console. A GitHub secret value is write-only and must be recreated from the owner's secure source.
+Create secrets only after confirming the workflow that consumes them:
 
-## Completion sequence
+- `WECHAT_CI_PRIVATE_KEY_B64` for an approved Mini Program development upload.
+- `DEEPSEEK_API_KEY` only after the public Agent workflow is reviewed and ready.
+- Apple/Android signing secrets only if those workflows are deliberately restored.
 
-1. Finish source/workflow/document sanitization and create a reviewed PR in this repository.
-2. Move only non-sensitive outstanding project work into public issues, with references to private records removed.
-3. Rebind Tencent OIDC and test private-object reads from the public repository.
-4. Design and test a private artifact/build path that never exposes course media through GitHub public artifacts or Releases.
-5. Add main-only Web deployment and WeChat upload workflows; install new-repository secrets and register the runner on the host.
-6. Run reversible deployments/uploads from this repository, verify live functionality, then prove rollback.
-7. Verify Agent workflows and native CI on the current public SHA. Keep synthetic test evidence distinct from physical-device verification.
-8. Disable old-repository deployment triggers; check cloud audit logs and GitHub run history for any lingering old-repo dependency.
-9. Update the private repository landing page to point to the public repository and preserve private-only licensed releases/history.
-10. Archive the old repository and verify its archived flag. Archival is the final acceptance step and must not precede the preceding checks.
-
-## Deliberately private
-
-The following remain private unless a separate rights and security review explicitly approves another destination: licensed course material, historical build artifacts, raw user/device reports, infrastructure logs, private endpoints, credentials, signing material, and unsanitized issue/PR discussions.
+Do not ask for secret values in issues, logs, or chat. The owner enters them directly in GitHub or the authenticated Tencent console.
