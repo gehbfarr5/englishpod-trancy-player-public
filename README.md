@@ -1,23 +1,26 @@
 # EnglishPod Trancy Player — public continuation
 
-This is the sanitized public continuation of the EnglishPod Trancy Player project. It contains the application source, Mini Program source, and G4 automation tooling for continued development.
+This is the sanitized public continuation of the EnglishPod Trancy Player project. It is the intended canonical source for maintained application code and automation.
 
 ## Scope
 
 - Flutter Web/iOS/Android player source
 - WeChat Mini Program source
 - G4 benchmark and regression tooling
-- Sanitized CI and deployment workflow definitions for the existing Tencent Cloud and WeChat environments
+- Sanitized CI and deployment workflow definitions
 
-Course transcripts, lesson JSON, audio assets, signing files, account migration notes, raw device evidence, and private infrastructure configuration are intentionally excluded. Deployment credentials must be configured as repository or environment secrets; no credential values belong in the source tree.
+Course transcripts, lesson JSON, audio assets, signing files, account migration notes, raw device evidence, and private infrastructure configuration are intentionally excluded. Deployment credentials belong only in protected repository or environment settings.
 
 ## Deployment safety
 
 - Pull request CI uses GitHub-hosted runners and read-only repository permissions.
-- Tencent Cloud deployments and WeChat uploads must be limited to approved runs from the default branch.
+- The WeChat development-upload workflow uses a GitHub-hosted runner; the credentialed upload remains manually gated.
+- Tencent Cloud deployments and WeChat uploads must be limited to trusted default-branch runs and approved environments.
 - Self-hosted runners must not execute untrusted pull request code.
 - Course content remains in its existing authorized storage; this repository does not grant redistribution rights.
 
-## Migration status
+## Migration status (2026-10-22)
 
-The repository is public. G4 offline tests and Mini Program typecheck, unit tests, and configuration validation now pass on GitHub-hosted runners. Tencent Cloud web deployment, secure course-data retrieval, WeChat upload credentials, and the dedicated upload runner are not yet connected or verified.
+Public main CI passes for G4 offline checks and Mini Program source validation. A new Android Emulator/iOS Simulator workflow is running its first public execution; it is not yet accepted as passing. The Tencent OIDC trust now targets public main, but an Actions token exchange and authorized COS read have not yet been verified.
+
+The live Web deployment, CloudBase end-to-end health, WeChat development upload/DevTools preview, and public Agent Scout/Builder are not yet verified. Keep the private repository as the rollback record until the public connections and service cutover are proven. See [the resource register](docs/public-repository-resource-register.md) and [the cutover checklist](docs/tencent-cloud-cutover.md).
