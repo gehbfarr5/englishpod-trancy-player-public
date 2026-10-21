@@ -6,8 +6,8 @@ This repository is the intended public source of truth. Tencent CloudBase, COS, 
 
 - Sanitized Flutter/Web, Mini Program source, and G4 offline tooling are present in this repository.
 - GitHub-hosted CI is verified for G4 and Mini Program checks.
-- Account B's course data migration was previously completed and validated: the Oct 17 migration report records 335 courses / 670 MP3 objects with matching size and SHA-256, 335 lesson details and index mappings validated, and 60 existing M4A objects retained. This is historical migration evidence, not a fresh current-state comparison.
-- The Oct 21 console snapshot showed the account A Seoul Web host online. It is shared with unrelated workloads. The Web site and its audio directory are separate locations on that same host.
+- Account B's course data migration was previously completed and validated: the Oct 17 report records that the expected lesson/audio set passed size/SHA-256 integrity and decode checks, lesson details and index mappings were validated, and existing M4A objects were retained. This is historical migration evidence, not a fresh current-state comparison.
+- The Oct 21 console snapshot showed the account A Web host online. It is shared with unrelated workloads. The Web site and its audio directory are separate locations on that same host.
 - The Web-host audio copy has not yet been compared against account B's current COS object hashes. Do not re-upload the corpus; first inventory and compare.
 - Historical OIDC validation applied to the old private repository only. This public repository's Tencent identity and secure course reads are not yet verified.
 - This public repository does not yet have verified Tencent Web deployment, WeChat upload credentials/runner, or production deployment.
@@ -17,7 +17,7 @@ This repository is the intended public source of truth. Tencent CloudBase, COS, 
 | Resource | Current owner/platform | Migration intent |
 | --- | --- | --- |
 | Public source, CI and project decisions | This GitHub repository | Canonical code and automation control plane |
-| Course catalog/details/audio and CloudBase functions | Tencent account B, Shanghai | Keep private and in place; reconnect through least-privilege identity and verify |
+| Course catalog/details/audio and CloudBase functions | Tencent account B | Keep private and in place; reconnect through least-privilege identity and verify |
 | Web app and its separate audio directory | Tencent account A, shared Seoul host | Preserve current service during a static-hosting PoC; move only after parity and rollback are proven |
 | WeChat Mini Program runtime | Tencent account B | Keep runtime and data in place; reconnect source-controlled development upload |
 | Historical WeChat runner | Shared account A host | Replace with GitHub-hosted execution or a dedicated isolated runner; do not assume the shared host is safe for target-repo jobs |
