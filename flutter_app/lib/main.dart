@@ -8582,8 +8582,8 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
                                             const EdgeInsets.only(bottom: 6),
                                         child: _M3TactileScale(
                                           pressedScale: 0.97,
-                                          _resetTranscriptScrollController();
                                           onTap: () async {
+                                            _resetTranscriptScrollController();
                                             setState(() {
                                               _tabSlideDirection = -1;
                                               _playerTab = trackKey;
