@@ -18,7 +18,7 @@ This repository is the intended public source of truth. Tencent CloudBase, COS, 
 | --- | --- | --- |
 | Public source, CI and project decisions | This GitHub repository | Canonical code and automation control plane |
 | Course catalog/details/audio and CloudBase functions | Tencent account B | Keep private and in place; reconnect through least-privilege identity and verify |
-| Web app and its separate audio directory | Tencent account A, shared Seoul host | Preserve current service during a static-hosting PoC; move only after parity and rollback are proven |
+| Web app and its separate audio directory | Tencent account A, shared host | Preserve current service during a static-hosting PoC; move only after parity and rollback are proven |
 | WeChat Mini Program runtime | Tencent account B | Keep runtime and data in place; reconnect source-controlled development upload |
 | Historical WeChat runner | Shared account A host | Replace with GitHub-hosted execution or a dedicated isolated runner; do not assume the shared host is safe for target-repo jobs |
 
@@ -47,7 +47,7 @@ GitHub secret values are write-only. Re-enter secrets directly in the public rep
 - `WECHAT_CI_PRIVATE_KEY_B64` — only for approved Mini Program development uploads.
 - `DEEPSEEK_API_KEY` — only after Agent workflows are safely migrated and reviewed.
 - Apple signing material — only if signing workflows are intentionally restored.
-- Do not add static Tencent `SECRETID/SECRETKEY` as an OIDC substitute.
+- The repository still contains a legacy CloudBase ingestion script that accepts Tencent API key environment variables. It is not used by the current CI workflows; before any future upload use, keep it off public Actions and run it only with narrowly scoped, short-lived credentials in a trusted environment. Do not add static Tencent `SECRETID/SECRETKEY` as an OIDC substitute.
 
 Do not place course JSON/audio in public GitHub Releases or Actions artifacts. Public build output must not contain licensed lesson material. Stage private build inputs from authorized storage and publish only through an access-controlled product path.
 
