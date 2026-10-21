@@ -2,18 +2,8 @@ name: Mobile Regression
 
 on:
   pull_request:
-    paths:
-      - 'flutter_app/**'
-      - '.github/workflows/mobile-regression.yml'
-      - 'pipeline/*native*'
-      - 'pipeline/select_ios_simulator.py'
   push:
     branches: [main]
-    paths:
-      - 'flutter_app/**'
-      - '.github/workflows/mobile-regression.yml'
-      - 'pipeline/*native*'
-      - 'pipeline/select_ios_simulator.py'
   workflow_dispatch:
 
 permissions:
