@@ -13,6 +13,7 @@ This public repository carries source-level automation for the G4 target. A work
 ## Current public evidence (2026-10-22)
 
 - G4 offline checks and Mini Program source checks pass on public main.
+- Flutter tests and a release Web build pass on the change PR; post-merge main verification is queued. The build is not a Tencent deployment.
 - The first Android/iOS simulator attempt exposed missing native wrapper projects before application tests. The workflow now generates temporary unsigned wrappers on hosted runners; the retry is running. No native pass is claimed yet.
 - No current-SHA physical-device evidence, live Web deployment verification, or production measurements are recorded here.
 
