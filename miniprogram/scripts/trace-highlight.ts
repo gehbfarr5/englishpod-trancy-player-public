@@ -2,12 +2,7 @@
  * ============================================================================
  *  句级高亮序列追踪脚本（dev-only，可复现验证）
  * ============================================================================
- *  用 mock 单课正文（0001 课 pb 轨）驱动 `HighlightCursorTracker`，把前 30 秒里
- *  **每一次句级高亮变化**（时间点 → 片段下标 → 句文本）打印出来。
- *
- *  ⚠️ iOS 定稿无逐词高亮：Part 0 收敛后本脚本输出为**句级**（不再有 wordIdx）。
- *
- *  运行：`npm run trace:highlight`
+ *  仅在仓库提供相应脱敏 mock 课程时运行。
  * ============================================================================
  */
 
@@ -18,7 +13,11 @@ import { MOCK_LESSON_DETAILS } from '../mock/lessonDetail';
 const TICK_MS = 250;
 const SECONDS = 30;
 
-const detail = parseLessonDetail(MOCK_LESSON_DETAILS['0001']);
+const rawDetail = MOCK_LESSON_DETAILS.find((item) => item.LessonId === '0001');
+if (!rawDetail) {
+  throw new Error('课程 0001 的 mock 正文未包含在仓库中；请使用本地授权测试数据运行此脚本。');
+}
+const detail = parseLessonDetail(rawDetail);
 const segments = detail.tracks.pb;
 const tracker = new HighlightCursorTracker(segments);
 
