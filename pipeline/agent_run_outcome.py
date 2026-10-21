@@ -1,17 +1,16 @@
 """Machine-readable Agent run outcome classification.
 
-Per docs/iteration-plan-2026-10-19.md section 6 (G0 item 7): workflow
-success alone is not evidence of product improvement. Each Agent Scout /
-Agent Builder run must end with a structured outcome so downstream
+Workflow success alone is not evidence of product improvement. Each public
+Agent Scout / Agent Builder run ends with a structured outcome so downstream
 tooling and humans can distinguish:
 
   - no_task            : no approved [agent-ready] issue was available
-  - missing_credentials: OPENCODE_API_KEY absent; agent inactive
+  - missing_credentials: DEEPSEEK_API_KEY absent; agent inactive
   - inference_failed   : OpenCode errored or returned no completed text
   - no_changes         : Builder produced zero file changes (rejected)
   - tests_failed       : independent gates failed; no PR delivered
   - draft_pr_delivered : Builder pushed a branch and opened a draft PR
-  - report_delivered   : Scout produced a report artifact (scout only)
+  - report_delivered   : Scout delivered a public report (scout only)
   - no_findings        : Scout found no worthwhile task (scout only)
 
 The outcome is a tiny JSON file written next to the workflow's logs; it
