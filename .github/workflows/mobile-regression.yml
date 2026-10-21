@@ -1,0 +1,127 @@
+name: Mobile Regression
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: Native / ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: android-emulator
+            runner: ubuntu-24.04
+          - platform: ios-simulator
+            runner: macos-26
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      NATIVE_REPORT_DIR: ${{ github.workspace }}/native-evidence
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Cache Android Gradle dependencies
+        if: matrix.platform == 'android-emulator'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('flutter_app/pubspec.lock', '.github/workflows/mobile-regression.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Stage isolated synthetic WAV fixture
+        env:
+          EP_NATIVE_TEST_WORKSPACE: '1'
+        run: |
+          python3 pipeline/prepare_native_test_assets.py
+          mkdir -p "$NATIVE_REPORT_DIR"
+          flutter --version > "$NATIVE_REPORT_DIR/toolchain.txt"
+          cd flutter_app
+          # This sanitized source tree intentionally omits platform signing projects.
+          # Generate disposable, unsigned wrappers only on the hosted test runner.
+          flutter create --no-pub --platforms=android,ios --project-name=englishpod_trancy --org=example.com .
+          flutter pub get
+          cp pubspec.lock "$NATIVE_REPORT_DIR/pubspec.lock"
+      - name: Enable Android acceleration
+        if: matrix.platform == 'android-emulator'
+        run: |
+          # Disposable GitHub-hosted runner only.
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run Android Emulator checks (synthetic audio only)
+        if: matrix.platform == 'android-emulator'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disk-size: 4096M
+          emulator-boot-timeout: 300
+          disable-animations: true
+          script: NATIVE_DEVICE=emulator-5554 bash .github/scripts/run-native-regression.sh
+      - name: Boot an available iOS Simulator
+        if: matrix.platform == 'ios-simulator'
+        run: |
+          xcodebuild -version >> "$NATIVE_REPORT_DIR/toolchain.txt"
+          python3 pipeline/select_ios_simulator.py
+      - name: Run iOS Simulator checks (synthetic audio only)
+        if: matrix.platform == 'ios-simulator'
+        run: bash .github/scripts/run-native-regression.sh
+      - name: Finalize explicit PASS/FAIL/ERROR evidence
+        if: always()
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          code=1
+          if [ -f "$NATIVE_REPORT_DIR/exit-code.txt" ]; then code=$(cat "$NATIVE_REPORT_DIR/exit-code.txt"); fi
+          runtime="${NATIVE_RUNTIME:-Android API 35 x86_64}"
+          python3 pipeline/native_test_evidence.py finalize \
+            --response "$NATIVE_REPORT_DIR/response.json" \
+            --platform "$PLATFORM" --runtime "$runtime" --exit-code "$code" \
+            --sha "$(git rev-parse HEAD)" --output "$NATIVE_REPORT_DIR/report.json"
+          python3 -c 'import base64; from pathlib import Path; print("EP_NATIVE_REPORT_V1=" + base64.b64encode(Path("native-evidence/report.json").read_bytes()).decode())'
+          cat "$NATIVE_REPORT_DIR/report.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve machine-readable report
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: native-report-${{ matrix.platform }}-attempt-${{ github.run_attempt }}
+          path: native-evidence/report.json
+          if-no-files-found: error
+          retention-days: 3
+      - name: Preserve screenshots and debugging evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: native-debug-${{ matrix.platform }}-attempt-${{ github.run_attempt }}
+          path: |
+            native-evidence/*.png
+            native-evidence/*.log
+            native-evidence/toolchain.txt
+            native-evidence/pubspec.lock
+          if-no-files-found: warn
+          retention-days: 3
