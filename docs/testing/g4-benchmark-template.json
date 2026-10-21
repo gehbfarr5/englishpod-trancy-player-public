@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "suite": "first_content",
+  "environment": {
+    "sha": null,
+    "build": null,
+    "platform": null,
+    "device": null,
+    "os": null,
+    "client": null,
+    "runtime": null,
+    "network": null,
+    "cache": null,
+    "fixture": null,
+    "lesson_count": null,
+    "scenario": null,
+    "evidence_level": null
+  },
+  "regression_status": "NOT_TESTED",
+  "samples": []
+}
