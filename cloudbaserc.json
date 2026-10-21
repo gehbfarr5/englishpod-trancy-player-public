@@ -1,0 +1,25 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "envId": "dev-englishpod-d6ghydrutca03de08",
+  "functionRoot": "miniprogram/cloudfunctions",
+  "functions": [
+    {
+      "name": "getLessonIndex",
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "timeout": 10,
+      "memorySize": 256,
+      "description": "返回课程库轻量索引（云数据库集合 lessons_index）",
+      "installDependency": true
+    },
+    {
+      "name": "getLessonDetail",
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "timeout": 10,
+      "memorySize": 256,
+      "description": "按 lessonId 从云存储读取 lessons/{lessonId}.json.gz 并解压返回",
+      "installDependency": true
+    }
+  ]
+}
