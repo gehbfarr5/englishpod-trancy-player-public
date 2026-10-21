@@ -3,8 +3,11 @@ set -euo pipefail
 cd "$(dirname "$0")/../../flutter_app"
 test -s build/native-fixture.json
 mkdir -p "$NATIVE_REPORT_DIR"
+log="$NATIVE_REPORT_DIR/flutter.log"
+: > "$log"
 set +e
-python3 - <<'PY' 2>&1 | tee "$NATIVE_REPORT_DIR/flutter.log"
+for attempt in 1 2; do
+  python3 - <<'PY' 2>&1 | tee -a "$log"
 import os
 import signal
 import subprocess
@@ -27,7 +30,17 @@ except subprocess.TimeoutExpired:
     result = 124
 sys.exit(result)
 PY
-result=${PIPESTATUS[0]}
+  result=${PIPESTATUS[0]}
+  if [ "$result" -eq 0 ]; then
+    break
+  fi
+  if [ "$attempt" -eq 1 ] && grep -Eiq '(HTTP[[:space:]]*429|status code 429|429 Too Many Requests|Too Many Requests)' "$log"; then
+    echo 'Maven Central returned HTTP 429; waiting 60 seconds before one bounded retry.' | tee -a "$log"
+    sleep 60
+    continue
+  fi
+  break
+done
 set -e
 printf '%s\n' "$result" > "$NATIVE_REPORT_DIR/exit-code.txt"
 exit "$result"
