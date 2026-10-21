@@ -13,11 +13,11 @@ Course transcripts, lesson JSON, audio assets, signing files, account migration 
 
 ## Deployment safety
 
-- Pull request CI is designed to use GitHub-hosted runners and read-only repository permissions.
+- Pull request CI uses GitHub-hosted runners and read-only repository permissions.
 - Tencent Cloud deployments and WeChat uploads must be limited to approved runs from the default branch.
 - Self-hosted runners must not execute untrusted pull request code.
 - Course content remains in its existing authorized storage; this repository does not grant redistribution rights.
 
 ## Migration status
 
-The repository is public. Source has been staged, but Tencent Cloud web deployment, course-data retrieval, WeChat upload credentials, and runner setup are not yet connected or verified. The latest CI jobs failed before a runner started, so automated checks have not yet run on GitHub.
+The repository is public. G4 offline tests and Mini Program typecheck, unit tests, and configuration validation now pass on GitHub-hosted runners. Tencent Cloud web deployment, secure course-data retrieval, WeChat upload credentials, and the dedicated upload runner are not yet connected or verified.
