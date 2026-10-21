@@ -5513,6 +5513,16 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     unawaited(_flushProgressToPrefs(lid));
 
     if (targetTrack != _currentTrack) {
+      // AnimatedSwitcher keeps the outgoing transcript mounted during the
+      // transition. Give the incoming track its own controller so both lists
+      // never attach to the same ItemScrollController.
+      _itemPositionsListener.itemPositions
+          .removeListener(_onTranscriptPositionsChanged);
+      _itemScrollController = ItemScrollController();
+      _itemPositionsListener = ItemPositionsListener.create();
+      _itemPositionsListener.itemPositions
+          .addListener(_onTranscriptPositionsChanged);
+
       // Lock immediately before switching track state so no stale tick can fire
       _isAudioLoading = true;
       ++_audioLoadToken;
