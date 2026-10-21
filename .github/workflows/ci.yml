@@ -66,3 +66,16 @@ jobs:
         with:
           python-version: "3.12"
       - run: PYTHONPATH=pipeline python -m unittest pipeline/test_g4_benchmark.py pipeline/test_native_test_evidence.py
+
+  agent-runner-contract:
+    name: Agent runner policy tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 pipeline/test_agent_run_outcome.py
+      - run: python3 .github/scripts/tests/test_opencode.py
