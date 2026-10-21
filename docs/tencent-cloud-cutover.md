@@ -14,20 +14,23 @@ This repository is the intended public source of truth. Tencent CloudBase, COS, 
 
 ## Verified status (2026-10-22)
 
-- Public `main` is at `f92f67ab`. Merged-main CI passed after PR #3.
-- PR #3 moved the WeChat development upload job to GitHub-hosted `ubuntu-24.04`. Source validation passed; the credentialed upload job was skipped. No Mini Program code was uploaded and no DevTools preview was verified.
-- The Tencent role trust subject targets this repository's `main`. PR #8 added a protected, manual-only role-exchange workflow; it has not run because the repository variables have not been verified. No authenticated COS request has been recorded.
+- Public `main` is at `4661b633`. PR #8 added the manual-only Tencent OIDC role-exchange probe; its first main-branch run reached STS but failed with sanitized `MissingParameter`. PR #5 merged the explicit `DurationSeconds: 7200` fix, inferred from Tencent's official SDK request shape. A fresh main-branch probe is still required; no credentials are printed or persisted, and the probe does not test COS access.
+- PR #9 adds Flutter tests and a release Web build to CI. On PR #5 head `6973acf`, G4, Mini Program, Flutter tests, and the Web build passed in run #46. This does not deploy the Web app or Mini Program.
+- Public main has an active ruleset requiring PRs, up-to-date CI and native checks, and blocking force pushes and branch deletion. GitHub environment restrictions for deployment/resource workflows are still unconfigured/unverified.
+- PR #5 is merged. Mobile Regression run #12 passed Android Emulator and iOS Simulator N01/N02 using synthetic WAV. Both reports have exit code 0 and identify the same tested tree `90584754ca94da82798df3b758c77fecc785c7e0`, which matches the current merged main tree. This is simulator evidence only; physical-device acceptance remains open. Earlier failures exposed an AnimatedSwitcher scroll-controller collision and compact-width overflows; the merged fix covers keyed transcript/view transitions and the narrow layout paths.
+- The public-repository Tencent OIDC provider and role identifiers are configured as Actions variables. A post-fix main-branch role exchange and a scoped COS read remain unverified.
+- PR #3 moved the WeChat development upload job to GitHub-hosted `ubuntu-24.04`. Source validation passes; the protected upload credential is not configured, so no upload or DevTools preview has been verified.
 - A read-only CloudBase inventory showed 365 lesson-detail objects and 365 lesson audio folders. The Oct 17 integrity report is historical; current object hashes have not been compared with the Web host's separate audio copy.
-- CloudBase still has no verified fresh function health result. A console test of the lesson-index function failed, and the console reports data-load failure with logging unavailable. Do not treat the function table's “normal” status as an end-to-end health check.
-- The current public repository has no Web deployment, Agent Scout/Builder, or Android/iOS simulator workflow. Native test harness and offline G4 validation files alone do not establish those workflows.
-- The private repository still contains open migration-related work and issue history. The remaining paths and records need an explicit migrate-or-retain decision before archival.
-- Storage access policy compatibility and least-privilege behavior remain unverified. Do not change live access settings until the client access path and rollback have been tested.
+- Current CloudBase console observations: the environment overview reported data-load failure and that logging is not enabled; the lesson-index function displays a normal deployment status, while Cloud Studio reports un-deployed workspace changes. No deployment was made and these observations are not an end-to-end health result. The earlier console function test failed; diagnose that before treating CloudBase as healthy.
+- PR #11 ports playback reliability improvements (ordered progress writes, bounded audio retry, and expected browser autoplay handling); its public checks are running. Web deployment, Agent Scout/Builder migration, trusted deployment environments, and physical-device acceptance remain open.
+- The private repository still contains private-only history and migration-related records. Each retained item and live-service dependency must be inventoried before archival.
+- Storage policy compatibility and least-privilege behavior remain unverified. Do not change live access settings until the client access path and rollback have been tested.
 
 ## Remaining gates, in execution order
 
 1. Resolve and document the storage authorization model; retain a rollback path and do not publish licensed lesson data in GitHub or Actions artifacts.
-2. Configure the role/provider identifiers as repository variables, manually run the existing main-only OIDC probe, then add a separate scoped COS read check without printing credentials or course contents.
-3. Run non-destructive CloudBase health checks for the index and a representative detail, with useful diagnostics available.
+2. The role/provider identifiers are configured as repository variables and the DurationSeconds fix is merged. Rerun the main-only OIDC probe, then add a separate scoped COS read check without printing credentials or course contents.
+3. Diagnose CloudBase's data-load failure and un-deployed Studio changes; make logs available if appropriate, then run non-destructive health checks for the index and a representative detail.
 4. Establish a reversible Web deployment candidate from the public repository; verify routes, course data/audio, cache/version behavior and rollback before any live switch.
 5. Configure the protected Mini Program upload credential in public-repository settings, run the manually gated development upload, then verify the resulting preview in WeChat DevTools.
 6. Migrate and review Agent Scout/Builder workflows for the public repository. Run a no-secret dry run, then a protected read-only Scout and reviewed draft Builder result; keep the model credential out of PR jobs and logs.
