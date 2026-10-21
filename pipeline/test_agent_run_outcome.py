@@ -24,7 +24,7 @@ class AgentRunOutcomeTests(unittest.TestCase):
             self.assertEqual(text, json.dumps(payload, ensure_ascii=True, sort_keys=True))
 
     def test_builder_outcomes_cover_plan_category_set(self):
-        # Plan section 6 item 7: builder runs must be classifiable as
+        # Builder run outcomes must cover the complete lifecycle:
         # no_task / missing_credentials / inference_failed / no_changes /
         # tests_failed / draft_pr_delivered.
         self.assertEqual(
