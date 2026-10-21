@@ -36,8 +36,38 @@ def load_public_work_index(path):
     if source.stat().st_size > 32768:
         raise SystemExit("Public work-item index exceeds 32 KiB")
     payload = json.loads(source.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict) or payload.get("schema") != "ep-public-work-index-v1":
-        raise SystemExit("Public work-item index has an invalid schema")
+    allowed = {
+        "schema", "warning", "openIssues", "openPullRequests",
+        "recentMergedPullRequests",
+    }
+    if not isinstance(payload, dict) or set(payload) != allowed:
+        raise SystemExit("Public work-item index has an invalid schema or fields")
+    if payload.get("schema") != "ep-public-work-index-v1":
+        raise SystemExit("Public work-item index has an invalid schema or fields")
+    tables = (
+        ("openIssues", {"number", "title", "labels"}, 50),
+        ("openPullRequests", {"number", "title"}, 25),
+        ("recentMergedPullRequests", {"number", "title", "mergedAt"}, 25),
+    )
+    for name, fields, limit in tables:
+        rows = payload.get(name)
+        if not isinstance(rows, list) or len(rows) > limit:
+            raise SystemExit("Public work-item index has invalid row bounds")
+        for row in rows:
+            if not isinstance(row, dict) or set(row) != fields:
+                raise SystemExit("Public work-item index contains an unexpected field")
+            if type(row.get("number")) is not int or not isinstance(row.get("title"), str):
+                raise SystemExit("Public work-item index contains invalid title metadata")
+            if name == "openIssues" and (
+                not isinstance(row.get("labels"), list)
+                or any(not isinstance(label, str) for label in row["labels"])
+                or len(row["labels"]) > 8
+            ):
+                raise SystemExit("Public work-item index contains invalid labels")
+            if name == "recentMergedPullRequests" and not isinstance(row.get("mergedAt"), str):
+                raise SystemExit("Public work-item index contains invalid merge metadata")
+    if not isinstance(payload.get("warning"), str):
+        raise SystemExit("Public work-item index is missing its trust warning")
     return payload
 
 
