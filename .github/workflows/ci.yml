@@ -14,6 +14,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  flutter-web:
+    name: Flutter tests and Web build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Stage synthetic-only test assets
+        env:
+          EP_NATIVE_TEST_WORKSPACE: "1"
+        run: python3 pipeline/prepare_native_test_assets.py
+      - name: Test and build Flutter Web
+        working-directory: flutter_app
+        run: |
+          flutter pub get
+          flutter test
+          flutter build web --release
+
   mini-program:
     name: Mini Program source checks
     runs-on: ubuntu-latest
