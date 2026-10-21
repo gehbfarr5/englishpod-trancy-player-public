@@ -4849,6 +4849,15 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
   }
 
   bool get _useWeb => kIsWeb || widget.webPlayer != null;
+
+  void _resetTranscriptScrollController() {
+    _itemPositionsListener.itemPositions
+        .removeListener(_onTranscriptPositionsChanged);
+    _itemScrollController = ItemScrollController();
+    _itemPositionsListener = ItemPositionsListener.create();
+    _itemPositionsListener.itemPositions
+        .addListener(_onTranscriptPositionsChanged);
+  }
   int? _webReadIndex;
   double _webReadAlignment = 0, _webLastWidth = 0, _webLastFont = 0, _webLastHeight = 0;
   bool _webMoreOpen = false;
@@ -5516,12 +5525,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       // AnimatedSwitcher keeps the outgoing transcript mounted during the
       // transition. Give the incoming track its own controller so both lists
       // never attach to the same ItemScrollController.
-      _itemPositionsListener.itemPositions
-          .removeListener(_onTranscriptPositionsChanged);
-      _itemScrollController = ItemScrollController();
-      _itemPositionsListener = ItemPositionsListener.create();
-      _itemPositionsListener.itemPositions
-          .addListener(_onTranscriptPositionsChanged);
+      _resetTranscriptScrollController();
 
       // Lock immediately before switching track state so no stale tick can fire
       _isAudioLoading = true;
@@ -5728,6 +5732,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     }
     unawaited(_flushProgressToPrefs(lessonId));
 
+    _resetTranscriptScrollController();
     setState(() {
       _animateToPlayerScreen();
       _playerTab = targetTrack;
@@ -5802,6 +5807,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
 
     // Switching episode defaults to Podcast ('pb') main course
     const nextTrack = 'pb';
+    _resetTranscriptScrollController();
     setState(() {
       _currentTrack = nextTrack;
       if (_playerTab != 'vocab') {
@@ -5858,6 +5864,9 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     );
 
     if (!mounted) return;
+    if (_currentLesson?.lessonId != lessonId || _currentTrack != track) {
+      _resetTranscriptScrollController();
+    }
     setState(() {
       _currentLesson = detail;
       _vocabHighlightRegex = compiledRegex;
@@ -7681,6 +7690,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
         // 1. Clicking 'Vocab': switch view only, do NOT interrupt or reload audio!
         if (tabKey == 'vocab') {
           await _saveProgressSnapshot(forceDiskFlush: false);
+          _resetTranscriptScrollController();
           setState(() {
             _tabSlideDirection = dir;
             _playerTab = 'vocab';
@@ -7692,6 +7702,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
         // If this track is ALREADY the active audio source (e.g. returning from 'vocab' to 'pb'),
         // do NOT reload audio! Simply switch view back and jump immediately to the active sentence!
         if (_currentTrack == tabKey) {
+          _resetTranscriptScrollController();
           setState(() {
             _tabSlideDirection = dir;
             _playerTab = tabKey;
@@ -7716,6 +7727,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
             ? 0
             : (tabKey == 'dg' ? rec.dgSegIdx : rec.pbSegIdx);
 
+        _resetTranscriptScrollController();
         setState(() {
           _tabSlideDirection = dir;
           _playerTab = tabKey;
@@ -8556,6 +8568,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
                                             const EdgeInsets.only(bottom: 6),
                                         child: _M3TactileScale(
                                           pressedScale: 0.97,
+                                          _resetTranscriptScrollController();
                                           onTap: () async {
                                             setState(() {
                                               _tabSlideDirection = -1;
@@ -8564,6 +8577,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
                                             if (_currentTrack != trackKey) {
                                               await _saveProgressSnapshot(
                                                   forceDiskFlush: true);
+                                              _resetTranscriptScrollController();
                                               setState(() {
                                                 _currentTrack = trackKey;
                                               });
