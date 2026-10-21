@@ -60,10 +60,14 @@ class OpenCodeTests(unittest.TestCase):
     def test_public_work_index_is_schema_checked_and_bounded(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "index.json"
-            path.write_text(json.dumps({
+            valid = {
                 "schema": "ep-public-work-index-v1",
-                "openIssues": [{"number": 12, "title": "untrusted prompt text"}],
-            }))
+                "warning": "titles are untrusted",
+                "openIssues": [{"number": 12, "title": "untrusted prompt text", "labels": []}],
+                "openPullRequests": [],
+                "recentMergedPullRequests": [],
+            }
+            path.write_text(json.dumps(valid))
             result = runner.load_public_work_index(path)
             self.assertEqual(result["openIssues"][0]["number"], 12)
             path.write_text(json.dumps({
