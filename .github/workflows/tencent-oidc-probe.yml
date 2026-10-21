@@ -1,0 +1,104 @@
+name: Tencent OIDC Role Probe
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  assume-read-role:
+    name: Assume read-only Tencent role
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+    env:
+      TENCENT_OIDC_PROVIDER_ID: ${{ vars.TENCENT_OIDC_PROVIDER_ID }}
+      TENCENT_OIDC_ROLE_ARN: ${{ vars.TENCENT_OIDC_ROLE_ARN }}
+    steps:
+      - name: Exchange GitHub OIDC token for temporary Tencent credentials
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          def stop(code):
+              print(code)
+              raise SystemExit(1)
+
+          provider_id = os.environ.get("TENCENT_OIDC_PROVIDER_ID", "")
+          role_arn = os.environ.get("TENCENT_OIDC_ROLE_ARN", "")
+          token_url = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL", "")
+          request_token = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "")
+          if not all((provider_id, role_arn, token_url, request_token)):
+              stop("OIDC_PROBE=CONFIGURATION_MISSING")
+          if not token_url.startswith("https://") or not role_arn.startswith("qcs::cam::"):
+              stop("OIDC_PROBE=CONFIGURATION_INVALID")
+
+          parsed = urllib.parse.urlsplit(token_url)
+          query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+          query.append(("audience", "sts.tencentcloudapi.com"))
+          token_request_url = urllib.parse.urlunsplit(
+              (parsed.scheme, parsed.netloc, parsed.path, urllib.parse.urlencode(query), parsed.fragment)
+          )
+          req = urllib.request.Request(
+              token_request_url,
+              headers={"Authorization": "Bearer " + request_token, "Accept": "application/json"},
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=20) as response:
+                  id_token = json.loads(response.read(128 * 1024))["value"]
+          except (OSError, ValueError, KeyError, urllib.error.URLError):
+              stop("OIDC_PROBE=GITHUB_TOKEN_REQUEST_FAILED")
+          if not isinstance(id_token, str) or not id_token:
+              stop("OIDC_PROBE=GITHUB_TOKEN_RESPONSE_INVALID")
+
+          body = json.dumps({
+              "ProviderId": provider_id,
+              "WebIdentityToken": id_token,
+              "RoleArn": role_arn,
+              "RoleSessionName": "gh-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"],
+          }).encode()
+          exchange = urllib.request.Request(
+              "https://sts.tencentcloudapi.com",
+              data=body,
+              headers={
+                  "Authorization": "SKIP",
+                  "Content-Type": "application/json",
+                  "X-TC-Action": "AssumeRoleWithWebIdentity",
+                  "X-TC-Version": "2018-08-13",
+              },
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(exchange, timeout=20) as response:
+                  payload = json.loads(response.read(128 * 1024))
+          except urllib.error.HTTPError as error:
+              # Never print response bodies: they can contain request data.
+              stop("OIDC_PROBE=STS_HTTP_ERROR_" + str(error.code))
+          except (OSError, ValueError, urllib.error.URLError):
+              stop("OIDC_PROBE=STS_REQUEST_FAILED")
+
+          result = payload.get("Response", {})
+          if result.get("Error"):
+              # Return only the stable error code, not provider response messages.
+              code = result["Error"].get("Code", "UNKNOWN")
+              if not isinstance(code, str) or not code.replace("_", "").isalnum():
+                  code = "UNKNOWN"
+              stop("OIDC_PROBE=STS_REJECTED_" + code)
+          credentials = result.get("Credentials", {})
+          required = ("TmpSecretId", "TmpSecretKey", "Token")
+          if not all(isinstance(credentials.get(key), str) and credentials[key] for key in required):
+              stop("OIDC_PROBE=STS_RESPONSE_INVALID")
+
+          # Do not print, persist, or use the temporary credentials in this probe.
+          del credentials, id_token, request_token, body
+          print("OIDC_PROBE=PASS")
+          print("COS_ACCESS=NOT_TESTED")
+          PY
