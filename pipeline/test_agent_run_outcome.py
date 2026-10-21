@@ -24,7 +24,7 @@ class AgentRunOutcomeTests(unittest.TestCase):
             self.assertEqual(text, json.dumps(payload, ensure_ascii=True, sort_keys=True))
 
     def test_builder_outcomes_cover_plan_category_set(self):
-        # Plan section 6 item 7: builder runs must be classifiable as
+        # Builder run outcomes must cover the complete lifecycle:
         # no_task / missing_credentials / inference_failed / no_changes /
         # tests_failed / draft_pr_delivered.
         self.assertEqual(
@@ -116,9 +116,7 @@ class AgentRunOutcomeTests(unittest.TestCase):
             self.assertIn("usage", result.stderr.lower())
 
     def test_workflows_reference_outcome_helper(self):
-        # Contract: both Agent workflows record machine-readable outcomes
-        # per plan section 6 item 7; workflow success alone is not product
-        # evidence.
+        # Both Agent workflows classify outcomes; green CI alone is not product evidence.
         root = Path(__file__).resolve().parents[1]
         scout = (root / ".github" / "workflows" / "agent-scout.yml").read_text()
         builder = (root / ".github" / "workflows" / "agent-builder.yml").read_text()
@@ -132,24 +130,18 @@ class AgentRunOutcomeTests(unittest.TestCase):
         self.assertIn("report_delivered", scout)
         self.assertIn("inference_failed", scout)
         self.assertIn("inference_failed", builder)
-        # Aligned with the merged quota-safe delivery (PR #47): the scout
-        # outcome must ride the base64 job-output channel, never the
-        # quota-blocked Actions artifact store.
+        # Keep bounded Scout outcomes in workflow outputs rather than artifacts.
         self.assertNotIn("actions/upload-artifact", scout)
         self.assertNotIn("actions/download-artifact", scout)
         self.assertIn("outcome_b64", scout)
-        # Builder outcomes are single-job: no artifact store either
-        # (run 39332541897 failed its outcome upload against the quota);
-        # both jobs append to $GITHUB_STEP_SUMMARY instead.
+        # Builder outcomes are single-job and append bounded metadata to the summary.
         self.assertNotIn("actions/upload-artifact", builder)
         self.assertNotIn("actions/download-artifact", builder)
         self.assertIn("GITHUB_STEP_SUMMARY", builder)
         self.assertGreaterEqual(builder.count("GITHUB_STEP_SUMMARY"), 2)  # select + build
 
     def test_scout_prompt_requires_dedup_and_stop_conditions(self):
-        # Contract per plan section 6 item 5: the Scout prompt must allow
-        # zero findings and require dedup, competing explanations, a
-        # minimal experiment, and stop conditions.
+        # Keep the Scout report explicit about evidence, experiments, and stopping criteria.
         root = Path(__file__).resolve().parents[1]
         prompt = (root / ".github" / "prompts" / "scout.md").read_text()
         self.assertIn("Deduplication", prompt)
