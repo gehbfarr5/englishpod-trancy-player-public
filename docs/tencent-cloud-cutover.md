@@ -12,6 +12,30 @@ This repository is the intended public source of truth. Tencent CloudBase, COS, 
 - Historical OIDC validation applied to the old private repository only. This public repository's Tencent identity and secure course reads are not yet verified.
 - This public repository does not yet have verified Tencent Web deployment, WeChat upload credentials/runner, or production deployment.
 
+## Verified status (2026-10-22)
+
+- Public `main` is at `f92f67ab`. Merged-main CI passed after PR #3.
+- PR #3 moved the WeChat development upload job to GitHub-hosted `ubuntu-24.04`. Source validation passed; the credentialed upload job was skipped. No Mini Program code was uploaded and no DevTools preview was verified.
+- The Tencent role trust subject was changed to this repository's `main` on Oct 21. No GitHub Actions OIDC exchange or authenticated COS request has yet been recorded.
+- A read-only CloudBase inventory showed 365 lesson-detail objects and 365 lesson audio folders. The Oct 17 integrity report is historical; current object hashes have not been compared with the Web host's separate audio copy.
+- CloudBase still has no verified fresh function health result. A console test of the lesson-index function failed, and the console reports data-load failure with logging unavailable. Do not treat the function table's “normal” status as an end-to-end health check.
+- The current public repository has no Web deployment, Agent Scout/Builder, or Android/iOS simulator workflow. Native test harness and offline G4 validation files alone do not establish those workflows.
+- The private repository still contains open migration-related work and issue history. The remaining paths and records need an explicit migrate-or-retain decision before archival.
+- Storage access policy compatibility and least-privilege behavior remain unverified. Do not change live access settings until the client access path and rollback have been tested.
+
+## Remaining gates, in execution order
+
+1. Resolve and document the storage authorization model; retain a rollback path and do not publish licensed lesson data in GitHub or Actions artifacts.
+2. Add a protected, main-only OIDC probe; prove the new Tencent role can be assumed and use its least-privilege permissions without printing credentials or course contents.
+3. Run non-destructive CloudBase health checks for the index and a representative detail, with useful diagnostics available.
+4. Establish a reversible Web deployment candidate from the public repository; verify routes, course data/audio, cache/version behavior and rollback before any live switch.
+5. Configure the protected Mini Program upload credential in public-repository settings, run the manually gated development upload, then verify the resulting preview in WeChat DevTools.
+6. Migrate and review Agent Scout/Builder workflows for the public repository. Run a no-secret dry run, then a protected read-only Scout and reviewed draft Builder result; keep the model credential out of PR jobs and logs.
+7. Run Android Emulator and iOS Simulator checks on the current public SHA. Keep those results distinct from the recorded iPhone/WeChat and Pixel 3a physical-device checks.
+8. Inventory private-only records, releases, artifacts, workflows and secrets; migrate or document each retained item, then prove no live service or trigger depends on the private repository.
+
+The private repository remains the rollback record until these gates have evidence.
+
 ## Resource placement
 
 | Resource | Current owner/platform | Migration intent |
