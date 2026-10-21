@@ -1,23 +1,31 @@
 # G4 execution roadmap (public-safe)
 
-This public mirror carries source-level automation for the G4 target. A workflow pass is not a substitute for device or production measurements.
+This public repository carries source-level automation for the G4 target. A workflow pass is not a substitute for physical-device or production measurements.
 
 ## Automated work
 
-- Run Flutter, mini-program, Python, and web contract checks on GitHub-hosted runners.
+- Run Flutter, Mini Program, Python, and web contract checks on GitHub-hosted runners.
 - Validate offline first-content and catalog-scale benchmark inputs.
-- Keep regression evidence machine-readable and sanitized; do not upload raw device logs or credentials.
+- Keep regression evidence machine-readable and sanitized; do not upload raw device logs, licensed content, or credentials.
 - Restrict deployment and WeChat upload jobs to trusted default-branch runs and approved environments.
+- Run Android Emulator and iOS Simulator regression with isolated synthetic audio fixtures.
+
+## Current public evidence (2026-10-22)
+
+- G4 offline checks and Mini Program source checks pass on public main.
+- The Android Emulator and iOS Simulator workflow has been added. Its first run is still in progress; no native pass is claimed yet.
+- No current-SHA physical-device evidence, live Web deployment verification, or production measurements are recorded here.
 
 ## Acceptance still requires
 
+- Successful, machine-readable native simulator/emulator runs on the current public SHA.
 - Real device runs and sanitized evidence from the tester.
 - Measured first-content latency and catalog-scale measurements.
 - Two issue-backed improvement cycles with before/after evidence.
-- Successful GitHub Actions runs on the public repository.
+- Verified Web deployment, course-access behavior, and rollback where G4 acceptance depends on the live product.
 
 ## Resource configuration
 
-Tencent Cloud and WeChat credentials belong in repository or environment secrets, never in Git. Public workflows must not expose secrets to fork pull requests or run untrusted code on self-hosted runners.
+Tencent Cloud and WeChat credentials belong in protected repository or environment settings, never in Git. Public workflows must not expose secrets to fork pull requests or run untrusted code on self-hosted runners.
 
 Lesson transcripts and audio remain outside this repository. Confirm content distribution rights before publishing or redistributing lesson material.
