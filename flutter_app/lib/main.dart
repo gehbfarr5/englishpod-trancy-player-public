@@ -15,6 +15,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models/lesson_models.dart';
+import 'services/audio_error_policy.dart';
 import 'services/sentence_audio_handler.dart';
 import 'services/transcript_navigation.dart';
 import 'services/web_contract_player.dart';
@@ -4269,6 +4270,41 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
   bool _isDraggingSlider = false;
   int _audioLoadToken = 0;
 
+  // EP-PBC-001: progress snapshots are serialised in the order they were taken.
+  // A failed write must not poison the queue — the next snapshot rewrites the
+  // whole state, so a transient storage failure self-heals instead of dropping
+  // everything that follows it.
+  Future<void> _progressWrites = Future<void>.value();
+  int _progressRevision = 0;
+  bool _progressSaved = true;
+
+  /// Whether the last progress snapshot actually reached disk. Kept for the
+  /// existing status surface; no layout depends on it.
+  bool get progressSaved => _progressSaved;
+
+  /// Audio load timeout: a stalled request must fail like any other failure
+  /// instead of leaving the player half-loaded forever.
+  static const Duration _audioLoadTimeout = Duration(seconds: 20);
+
+  /// Starts playback and swallows the rejection.
+  ///
+  /// Browsers reject `play()` when no user gesture is present. Awaiting it
+  /// unguarded turns that expected state into an uncaught async error, which
+  /// also trips the Web boot smoke test. The player stream stays paused, so
+  /// the UI needs no extra state for the blocked case.
+  Future<void> _safePlay() async {
+    try {
+      await _globalPlayer.play();
+    } catch (error) {
+      final blocked = isAutoplayBlocked(error);
+      debugPrint(
+        blocked
+            ? 'Playback waits for user gesture: $error'
+            : 'Playback start failed: $error',
+      );
+    }
+  }
+
   // Loop 1: Single-sentence loop
   bool _singleSentenceLoop = false;
   // Course completion mode: false = Auto-Next Episode (default), true = Repeat Current Episode
@@ -5274,7 +5310,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
           await _globalPlayer.seek(
             Duration(milliseconds: (cur.start * 1000).round()),
           );
-          await _globalPlayer.play();
+          await _safePlay();
         }
       } else if (_repeatCurrentEpisode) {
         // Repeat Current Episode from beginning (locked seek + Replay 0% reset)
@@ -5424,16 +5460,32 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     return RegExp(r'\b(?:' + pattern + r')\b', caseSensitive: false);
   }
 
-  /// Flushes the in-memory `_progressMap` and `lastLessonId` directly to `SharedPreferences`
-  /// even if `_isAudioLoading` is currently active (e.g., when a user enters/restarts a lesson
-  /// at `0%` and immediately navigates back to the Library).
-  Future<void> _flushProgressToPrefs(String lastLessonId) async {
+  /// Flushes the in-memory `_progressMap` and `lastLessonId` to `SharedPreferences`,
+  /// even while `_isAudioLoading` is active (e.g. entering or restarting a lesson
+  /// at `0%` and immediately navigating back to the Library).
+  ///
+  /// The snapshot is queued behind every earlier one and encoded synchronously at
+  /// call time, so a later tick cannot retroactively change what an earlier write
+  /// persists. Writes therefore land in revision order even when the platform
+  /// store is slow, and a failure is recorded instead of breaking the queue.
+  Future<void> _flushProgressToPrefs(String lastLessonId) {
     _lastDiskFlushMs = DateTime.now().millisecondsSinceEpoch;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('ep_last_lesson_id', lastLessonId);
-    final encoded =
+    final int revision = ++_progressRevision;
+    final String lessonSnapshot = lastLessonId;
+    final String encoded =
         jsonEncode(_progressMap.map((k, v) => MapEntry(k, v.toJson())));
-    await prefs.setString('ep_study_progress_v1', encoded);
+    _progressWrites = _progressWrites.then((_) async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('ep_last_lesson_id', lessonSnapshot);
+        await prefs.setString('ep_study_progress_v1', encoded);
+        _progressSaved = true;
+      } catch (error) {
+        _progressSaved = false;
+        debugPrint('Progress snapshot $revision not persisted: $error');
+      }
+    });
+    return _progressWrites;
   }
 
   /// Updates in-memory `_progressMap` immediately (so switching tabs NEVER loses state)
@@ -5623,7 +5675,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
               !switchToPlayer ||
               _activeScreen == 'player');
       if (canAutoPlayNow && !_globalPlayer.playing && myToken == _audioLoadToken) {
-        unawaited(_globalPlayer.play());
+        unawaited(_safePlay());
       }
     } catch (_) {
       if (myToken == _audioLoadToken) {
@@ -5696,7 +5748,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
         _jumpToActiveSentenceImmediate();
       });
       if (autoPlayIfPaused && !_globalPlayer.playing) {
-        unawaited(_globalPlayer.play());
+        unawaited(_safePlay());
       }
       return;
     }
@@ -5945,10 +5997,27 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       if (myToken != _audioLoadToken) return;
 
       final audioPath = lesson.audio[track] ?? '';
-      final loadedDuration = await playback_platform.loadLessonAudio(
-        _globalPlayer, lesson.lessonId, audioPath,
-      );
+      Duration? loadedDuration;
+      Object? loadFailure;
+      for (int attempt = 0; attempt < 3; attempt++) {
+        if (myToken != _audioLoadToken) return;
+        try {
+          loadedDuration = await playback_platform
+              .loadLessonAudio(_globalPlayer, lesson.lessonId, audioPath)
+              .timeout(_audioLoadTimeout);
+          loadFailure = null;
+          break;
+        } catch (error) {
+          loadFailure = error;
+          // A missing or undecodable asset cannot be fixed by asking again.
+          if (isPermanentAudioError(error) || attempt == 2) break;
+          await Future<void>.delayed(
+            Duration(milliseconds: 500 * (attempt + 1)),
+          );
+        }
+      }
       if (myToken != _audioLoadToken) return;
+      if (loadFailure != null) throw loadFailure;
 
       await _globalPlayer.setSpeed(_currentSpeed);
       final effectiveDur = loadedDuration ?? _globalPlayer.duration;
@@ -6009,7 +6078,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
           myToken == _audioLoadToken &&
           (allowBackgroundAutoPlay || _activeScreen == 'player');
       if (canStartPlayback) {
-        unawaited(_globalPlayer.play());
+        unawaited(_safePlay());
       }
     } catch (e) {
       if (myToken == _audioLoadToken) {
@@ -6441,7 +6510,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     final targetMs = (targetSec * 1000).round();
     await _globalPlayer.seek(Duration(milliseconds: targetMs));
     if (!_globalPlayer.playing) {
-      unawaited(_globalPlayer.play());
+      unawaited(_safePlay());
     }
     await _saveProgressSnapshot(forceDiskFlush: true);
   }
@@ -7225,7 +7294,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
           _globalPlayer.pause();
           _saveProgressSnapshot(forceDiskFlush: true);
         } else {
-          _globalPlayer.play();
+          unawaited(_safePlay());
         }
       },
       onConfirmReplay: () => _openLessonFromLibrary(
@@ -8836,7 +8905,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
                       _globalPlayer.pause();
                       _saveProgressSnapshot(forceDiskFlush: true);
                     } else {
-                      _globalPlayer.play();
+                      unawaited(_safePlay());
                     }
                   },
                   onConfirmReplay: () => _restartCurrentTrackFromBeginning(),
