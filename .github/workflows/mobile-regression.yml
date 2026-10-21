@@ -57,6 +57,9 @@ jobs:
           mkdir -p "$NATIVE_REPORT_DIR"
           flutter --version > "$NATIVE_REPORT_DIR/toolchain.txt"
           cd flutter_app
+          # This sanitized source tree intentionally omits platform signing projects.
+          # Generate disposable, unsigned wrappers only on the hosted test runner.
+          flutter create --no-pub --platforms=android,ios --project-name=englishpod_trancy --org=example.com .
           flutter pub get
           cp pubspec.lock "$NATIVE_REPORT_DIR/pubspec.lock"
       - name: Enable Android acceleration
