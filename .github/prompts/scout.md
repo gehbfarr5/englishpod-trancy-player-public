@@ -6,7 +6,7 @@ Evidence rules:
 - Distinguish automated CI results, synthetic emulator/simulator evidence, and physical-device observations.
 - Synthetic audio tests do not prove real-device behavior, audible output, licensed-catalog integrity, or production health.
 - Use only the bounded native evidence summary supplied by the trusted workflow. A zero sample count means no qualifying sample.
-- Deduplicate each proposed improvement against open issues and merged pull requests. Never recommend work already implemented.
+- Deduplication: compare each proposed improvement against open issues and merged pull requests. Never recommend work already implemented.
 - Do not infer a pass from a workflow being green when a relevant test is skipped or missing.
 - Do not include secrets, credentials, private host details, licensed lesson content, or raw logs in the report.
 - If evidence is insufficient or no valuable task is clear, say so plainly. Do not create or promote issues.
