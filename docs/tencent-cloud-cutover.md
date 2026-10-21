@@ -16,7 +16,7 @@ This repository is the intended public source of truth. Tencent CloudBase, COS, 
 
 - Public `main` is at `f92f67ab`. Merged-main CI passed after PR #3.
 - PR #3 moved the WeChat development upload job to GitHub-hosted `ubuntu-24.04`. Source validation passed; the credentialed upload job was skipped. No Mini Program code was uploaded and no DevTools preview was verified.
-- The Tencent role trust subject was changed to this repository's `main` on Oct 21. No GitHub Actions OIDC exchange or authenticated COS request has yet been recorded.
+- The Tencent role trust subject targets this repository's `main`. PR #8 added a protected, manual-only role-exchange workflow; it has not run because the repository variables have not been verified. No authenticated COS request has been recorded.
 - A read-only CloudBase inventory showed 365 lesson-detail objects and 365 lesson audio folders. The Oct 17 integrity report is historical; current object hashes have not been compared with the Web host's separate audio copy.
 - CloudBase still has no verified fresh function health result. A console test of the lesson-index function failed, and the console reports data-load failure with logging unavailable. Do not treat the function table's “normal” status as an end-to-end health check.
 - The current public repository has no Web deployment, Agent Scout/Builder, or Android/iOS simulator workflow. Native test harness and offline G4 validation files alone do not establish those workflows.
@@ -26,7 +26,7 @@ This repository is the intended public source of truth. Tencent CloudBase, COS, 
 ## Remaining gates, in execution order
 
 1. Resolve and document the storage authorization model; retain a rollback path and do not publish licensed lesson data in GitHub or Actions artifacts.
-2. Add a protected, main-only OIDC probe; prove the new Tencent role can be assumed and use its least-privilege permissions without printing credentials or course contents.
+2. Configure the role/provider identifiers as repository variables, manually run the existing main-only OIDC probe, then add a separate scoped COS read check without printing credentials or course contents.
 3. Run non-destructive CloudBase health checks for the index and a representative detail, with useful diagnostics available.
 4. Establish a reversible Web deployment candidate from the public repository; verify routes, course data/audio, cache/version behavior and rollback before any live switch.
 5. Configure the protected Mini Program upload credential in public-repository settings, run the manually gated development upload, then verify the resulting preview in WeChat DevTools.
