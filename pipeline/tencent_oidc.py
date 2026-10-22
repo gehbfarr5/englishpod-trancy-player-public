@@ -50,7 +50,7 @@ def validate_context(env):
         raise AuthError("UNTRUSTED_TOKEN_ENDPOINT")
 
 
-def validate_claims(token, now=None):
+def claim_mismatches(token, now=None):
     # Tencent validates the signature. This check rejects unexpected contexts
     # locally before any token is sent to STS; it is not signature verification.
     parts = token.split(".")
@@ -58,11 +58,25 @@ def validate_claims(token, now=None):
         raise AuthError("INVALID_TOKEN")
     claims = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
     now = time.time() if now is None else now
-    if (claims.get("iss") != ISSUER or claims.get("aud") != AUDIENCE
-            or claims.get("sub") != SUBJECT
-            or claims.get("repository") != REPOSITORY
-            or claims.get("exp", 0) <= now):
-        raise AuthError("UNTRUSTED_TOKEN_CLAIMS")
+    mismatches = []
+    if claims.get("iss") != ISSUER:
+        mismatches.append("ISSUER")
+    if claims.get("aud") != AUDIENCE:
+        mismatches.append("AUDIENCE")
+    if claims.get("sub") != SUBJECT:
+        mismatches.append("SUBJECT")
+    if claims.get("repository") != REPOSITORY:
+        mismatches.append("REPOSITORY")
+    if not isinstance(claims.get("exp"), (int, float)) or claims["exp"] <= now:
+        mismatches.append("EXPIRY")
+    return mismatches
+
+
+def validate_claims(token, now=None):
+    mismatches = claim_mismatches(token, now=now)
+    if mismatches:
+        # Enumerate claim categories only; never include token or claim values.
+        raise AuthError("UNTRUSTED_TOKEN_CLAIMS_" + "_".join(mismatches))
 
 
 def verify_identity(credentials):
