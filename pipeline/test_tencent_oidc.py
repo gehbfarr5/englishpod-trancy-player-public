@@ -44,6 +44,10 @@ class OidcTests(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(auth.AuthError):
                 auth.validate_claims(token(**change))
 
+    def test_claim_diagnostics_report_names_without_values(self):
+        self.assertEqual(auth.claim_mismatches(token()), [])
+        self.assertEqual(auth.claim_mismatches(token(aud="sensitive-should-not-be-printed")), ["AUDIENCE"])
+
     def test_exchange_verifies_identity_before_export(self):
         credentials = dict(TmpSecretId="test-id", TmpSecretKey="test-secret", Token="test-session")
         with tempfile.TemporaryDirectory() as directory:
