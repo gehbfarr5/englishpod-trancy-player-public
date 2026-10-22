@@ -74,7 +74,7 @@ function wav(){
       if(refined)await page.getByRole('button',{name:'Change appearance',exact:true}).waitFor();
       console.log(`WEB_SCREEN_${theme}_library `+(await page.screenshot()).toString('base64'));
       const wake=async()=>{const reveal=page.getByRole('button',{name:'Show player controls',exact:true}).first();if(await reveal.count())await reveal.click({force:true});};
-      const more=async()=>{await wake();await page.getByRole('button',{name:'More',exact:true}).first().click({force:true});};
+      const more=async()=>{await wake();await page.getByRole('button',{name:'More',exact:true}).first().click({force:true});await page.waitForTimeout(400);};
       const closeMore=async()=>{await page.keyboard.press('Escape');await page.waitForTimeout(200);};
       if(v13)assert.equal(await page.evaluate(()=>window.acceptanceMedia.some(a=>!a.paused)),false,'Homepage emitted audio');
       if(v13)await page.getByLabel(/Open lesson 0001 · Podcast/).first().click({force:true});else await resume.click({force:true});
@@ -197,6 +197,9 @@ function wav(){
       await page.getByRole('button',{name:/Manual transcript reading\. Current sentence/}).waitFor();
       assert.deepEqual(await page.evaluate(()=>({loads:window.acceptanceLoads,players:window.acceptanceMedia.length,src:window.acceptanceMedia.find(a=>!a.paused).currentSrc})),count,'Manual reading resize reloaded media');
       const pbPosition=await page.evaluate(()=>window.acceptanceMedia.find(a=>!a.paused).currentTime);
+      await page.mouse.wheel(0, -500);
+      await page.waitForTimeout(200);
+      if(v13)await wake();
       await page.getByRole('button',{name:'Pause',exact:true}).first().click({force:true});
       await page.waitForFunction(()=>window.acceptanceMedia.every(a=>a.paused));
       if(v13)await wake();else await page.mouse.move(8,70); // Wake before navigating tabs.
