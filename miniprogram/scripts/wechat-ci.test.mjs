@@ -77,3 +77,18 @@ test('preview mode fails closed and emits sanitized diagnostics only', () => {
   assert.doesNotMatch(result.stderr, /-----BEGIN/);
   assert.doesNotMatch(result.stderr, /[A-Za-z0-9+/]{120,}={0,2}/);
 });
+
+test('proxy configuration is sanitized and never echoed in diagnostic logs', () => {
+  const env = {
+    ...process.env,
+    GITHUB_ACTIONS: 'false',
+    WECHAT_CI_PROXY: 'http://testuser:supersecretpass@127.0.0.1:8899',
+  };
+  delete env.WECHAT_CI_PRIVATE_KEY_B64;
+  const result = spawnSync(process.execPath, ['scripts/wechat-ci.mjs', 'preview'], {
+    cwd: projectPath, encoding: 'utf8', env,
+  });
+  assert.notEqual(result.status, 0);
+  assert.doesNotMatch(result.stderr, /supersecretpass/);
+  assert.doesNotMatch(result.stdout, /supersecretpass/);
+});

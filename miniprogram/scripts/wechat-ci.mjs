@@ -229,6 +229,13 @@ async function main() {
     const { default: ci } = await import('miniprogram-ci');
     note('phase=miniprogram-ci-loaded elapsedSec=' + elapsedSec());
 
+    if (process.env.WECHAT_CI_PROXY) {
+      if (typeof ci.proxy === 'function') {
+        ci.proxy(process.env.WECHAT_CI_PROXY);
+      }
+      note('phase=proxy-configured elapsedSec=' + elapsedSec());
+    }
+
     // The SDK prints its own boundary lines; use them to label the phases precisely
     // without depending on undocumented callbacks. Purely observational.
     const originalLog = console.log.bind(console);

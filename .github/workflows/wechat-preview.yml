@@ -10,13 +10,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'verify: offline checks; upload: WeChat development code'
+        description: 'verify: offline checks; preview: developer QR; upload: development code'
         type: choice
         required: true
         default: verify
-        options: [verify, upload]
+        options: [verify, preview, upload]
       confirm_wechat_code_upload:
-        description: 'For upload, type UPLOAD_WECHAT_DEV_CODE (never publishes production)'
+        description: 'For preview/upload, type UPLOAD_WECHAT_DEV_CODE (never publishes production)'
         type: string
         required: false
 
@@ -59,12 +59,12 @@ jobs:
           node miniprogram/scripts/wechat-ci.mjs verify
 
   transmit:
-    name: Manually authorized WeChat development-code upload
+    name: Manually authorized WeChat development upload / preview
     needs: verify
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
-      inputs.mode == 'upload' &&
+      (inputs.mode == 'upload' || inputs.mode == 'preview') &&
       inputs.confirm_wechat_code_upload == 'UPLOAD_WECHAT_DEV_CODE'
     runs-on: ubuntu-24.04
     environment: wechat-upload
@@ -85,12 +85,35 @@ jobs:
         run: npm ci
       - name: Confirm source content before WeChat request
         run: node miniprogram/scripts/wechat-package-audit.mjs
-      - name: Upload development code (never release)
+      - name: Transmit to WeChat (preview QR or development upload)
         env:
           WECHAT_CI_PRIVATE_KEY_B64: ${{ secrets.WECHAT_CI_PRIVATE_KEY_B64 }}
-          WECHAT_CI_MODE: upload
+          WECHAT_CI_PROXY: ${{ secrets.WECHAT_CI_PROXY }}
+          WECHAT_CI_MODE: ${{ inputs.mode }}
           WECHAT_CI_APPROVED: ${{ inputs.confirm_wechat_code_upload }}
           WECHAT_CI_ROBOT: ${{ vars.WECHAT_CI_ROBOT || '9' }}
           WECHAT_CI_TIMEOUT_MS: ${{ vars.WECHAT_CI_TIMEOUT_MS || '900000' }}
+          WECHAT_CI_OUTPUT_DIR: ${{ runner.temp }}/wechat-preview
           TMPDIR: ${{ runner.temp }}
-        run: timeout --signal=TERM --kill-after=20s 1200s node miniprogram/scripts/wechat-ci.mjs upload
+        run: timeout --signal=TERM --kill-after=20s 1200s node miniprogram/scripts/wechat-ci.mjs "$WECHAT_CI_MODE"
+      - name: Store developer preview QR privately for one week
+        if: inputs.mode == 'preview'
+        uses: actions/upload-artifact@v4
+        with:
+          name: EnglishPod-WeChat-DEV-PREVIEW-${{ github.sha }}
+          path: ${{ runner.temp }}/wechat-preview/preview.jpg
+          if-no-files-found: error
+          retention-days: 7
+      - name: Surface preview summary
+        if: inputs.mode == 'preview'
+        run: |
+          echo "### 🚀 WeChat Mini Program Developer Preview Generated" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Robot**: \`${{ vars.WECHAT_CI_ROBOT || '9' }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Preview Artifact**: Download the \`EnglishPod-WeChat-DEV-PREVIEW-${{ github.sha }}\` artifact to scan and test directly on authorized devices." >> $GITHUB_STEP_SUMMARY
+      - name: Trigger MiniTest cloud testing (optional)
+        if: inputs.mode == 'upload'
+        env:
+          MINITEST_TOKEN: ${{ secrets.MINITEST_TOKEN }}
+          MINITEST_PLAN_ID: ${{ vars.MINITEST_PLAN_ID }}
+        run: node miniprogram/scripts/wechat-minitest.mjs
