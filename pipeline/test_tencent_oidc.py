@@ -40,7 +40,7 @@ class OidcTests(unittest.TestCase):
         for change in [dict(iss="https://other"), dict(aud="other"), dict(sub="repo:other/repo"),
                        dict(repository="other/repo"),
                        dict(sub=f"repo:{auth.REPOSITORY}:ref:refs/heads/main"),
-                       dict(sub=auth.SUBJECT.replace("1400689349", "1400689350")), dict(exp=1)]:
+                       dict(sub=auth.SUBJECT.replace("1428251473", "1428251474")), dict(exp=1)]:
             with self.subTest(change=change), self.assertRaises(auth.AuthError):
                 auth.validate_claims(token(**change))
 

@@ -79,3 +79,15 @@ jobs:
           python-version: "3.12"
       - run: python3 pipeline/test_agent_run_outcome.py
       - run: python3 .github/scripts/tests/test_opencode.py
+
+  cloud-identity-probes:
+    name: Cloud identity probe policy tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: PYTHONPATH=pipeline python -m unittest pipeline/test_tencent_oidc.py pipeline/test_tencent_cos_probe.py

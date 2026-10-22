@@ -1,0 +1,29 @@
+name: Tencent COS Read Probe
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  cos-read:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    environment: tencent-read
+    permissions:
+      id-token: write
+    env:
+      TENCENT_COS_BUCKET: ${{ secrets.TENCENT_COS_BUCKET }}
+      TENCENT_COS_REGION: ap-shanghai
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned Tencent SDKs
+        run: python -m pip install --disable-pip-version-check tencentcloud-sdk-python-sts==3.0.1459 cos-python-sdk-v5==1.9.44
+      - name: Exchange OIDC token and verify caller identity
+        run: python pipeline/tencent_oidc.py
+      - name: Read verified object in memory and record size and SHA-256
+        run: python pipeline/tencent_cos_probe.py
