@@ -24,6 +24,7 @@ jobs:
           import json
           import os
           import sys
+          import time
           import urllib.error
           import urllib.parse
           import urllib.request
@@ -76,6 +77,7 @@ jobs:
                   "X-TC-Action": "AssumeRoleWithWebIdentity",
                   "X-TC-Version": "2018-08-13",
                   "X-TC-Region": "ap-shanghai",
+                  "X-TC-Timestamp": str(int(time.time())),
               },
               method="POST",
           )
