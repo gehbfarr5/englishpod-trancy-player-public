@@ -14,27 +14,29 @@ This repository is the intended public source of truth. Tencent CloudBase, COS, 
 
 ## Verified status (2026-10-22)
 
-- Public `main` is at `f92f67ab`. Merged-main CI passed after PR #3.
-- PR #3 moved the WeChat development upload job to GitHub-hosted `ubuntu-24.04`. Source validation passed; the credentialed upload job was skipped. No Mini Program code was uploaded and no DevTools preview was verified.
-- The Tencent role trust subject targets this repository's `main`. PR #8 added a protected, manual-only role-exchange workflow; it has not run because the repository variables have not been verified. No authenticated COS request has been recorded.
-- A read-only CloudBase inventory showed 365 lesson-detail objects and 365 lesson audio folders. The Oct 17 integrity report is historical; current object hashes have not been compared with the Web host's separate audio copy.
-- CloudBase still has no verified fresh function health result. A console test of the lesson-index function failed, and the console reports data-load failure with logging unavailable. Do not treat the function table's “normal” status as an end-to-end health check.
-- The current public repository has no Web deployment, Agent Scout/Builder, or Android/iOS simulator workflow. Native test harness and offline G4 validation files alone do not establish those workflows.
-- The private repository still contains open migration-related work and issue history. The remaining paths and records need an explicit migrate-or-retain decision before archival.
-- Storage access policy compatibility and least-privilege behavior remain unverified. Do not change live access settings until the client access path and rollback have been tested.
+- Public `main` is protected by required CI/native checks, PR-only updates, and rules preventing force-pushes and branch deletion. PR #13 (guarded Agent Scout/Builder workflows and policy tests) is merged at `6f381f5d`; PR #11 (playback reliability) is merged at `ef98c67e`.
+- Public continuation CI run #60 passed on PR #11's rebased head, including G4, Mini Program checks, Flutter/Web tests, and Agent policy tests. Mobile Regression run #24 passed Android and iOS simulator scenarios N01/N02 on the same tested tree `75062e4d9a4f492fe31fd0833c188c78a42ff503`. The iOS simulator was iPhone 17 / iOS 26.5; both platforms used synthetic WAV. This is simulator evidence only, not physical-device or licensed-catalog acceptance.
+- The Agent workflows are guarded and their policy tests pass. No real DeepSeek inference, read-only Scout report, or reviewed Builder draft is evidenced yet; these still require a protected main-branch run with the configured model credential and trusted environment.
+- The Tencent OIDC trust subject targets the public repository's `main`, but a successful protected-main token exchange and a separate scoped COS read are not yet verified. Do not infer resource access from the trust-policy configuration alone.
+- CloudBase health remains unverified. Prior read-only console observations reported a data-load failure and undeployed Studio workspace changes; no new deployment or end-to-end health result is recorded.
+- The public repository contains a WeChat source-validation/upload workflow, but no credentialed upload or WeChat DevTools preview is evidenced. Web deployment from this repository, route/audio/cache verification, rollback, and public deployment-environment restrictions also remain open.
+- The private inventory still includes 13 workflow files, 14 generated Web ZIP prereleases, and 72 branch refs. They have not all been migrated or dispositioned, and no-live-dependency proof is outstanding. Keep licensed artifacts and private-only history in the private repository until their inventory and retention review is complete.
+- The old private README notice PR could not pass its required checks because the checks failed before runner startup; no runner steps ran. The private repository remains unarchived.
+- Private PR #69 has been closed as migrated to public PR #11. Public issues #12, #14, #15, and #16 track remaining playback, Mini Program, physical WeChat, and signed-iOS work.
 
 ## Remaining gates, in execution order
 
-1. Resolve and document the storage authorization model; retain a rollback path and do not publish licensed lesson data in GitHub or Actions artifacts.
-2. Configure the role/provider identifiers as repository variables, manually run the existing main-only OIDC probe, then add a separate scoped COS read check without printing credentials or course contents.
-3. Run non-destructive CloudBase health checks for the index and a representative detail, with useful diagnostics available.
-4. Establish a reversible Web deployment candidate from the public repository; verify routes, course data/audio, cache/version behavior and rollback before any live switch.
-5. Configure the protected Mini Program upload credential in public-repository settings, run the manually gated development upload, then verify the resulting preview in WeChat DevTools.
-6. Migrate and review Agent Scout/Builder workflows for the public repository. Run a no-secret dry run, then a protected read-only Scout and reviewed draft Builder result; keep the model credential out of PR jobs and logs.
-7. Run Android Emulator and iOS Simulator checks on the current public SHA. Keep those results distinct from the recorded iPhone/WeChat and Pixel 3a physical-device checks.
-8. Inventory private-only records, releases, artifacts, workflows and secrets; migrate or document each retained item, then prove no live service or trigger depends on the private repository.
+1. Verify Tencent OIDC from a protected `main` workflow, then perform a separate scoped COS read and confirm least-privilege access. The trust subject points to public `main`; neither runtime result is currently evidenced.
+2. Diagnose the prior CloudBase data-load failure and undeployed Studio changes, then complete non-destructive index and representative-detail health checks with a usable diagnostic trail.
+3. Reconcile the Web host's separate audio directory against current COS object hashes. Complete content/license review and document resource ownership before any copy or publication.
+4. Build a reversible Web deployment candidate from this repository; verify routes, catalog/audio access, cache/version behavior, and rollback before changing live traffic.
+5. Configure the protected Mini Program upload credential, run the development upload from this repository, and verify its preview in WeChat DevTools.
+6. Exercise Scout/Builder on protected `main`: complete a no-secret dry run, a real read-only Scout report, and a reviewed draft Builder result. Keep model credentials out of PR jobs and logs.
+7. Complete physical acceptance on the recorded iPhone 17 (iOS 27.0.1, WeChat 8.0.79) and Pixel 3a. Simulator checks already pass and do not replace these checks; do not send licensed sample audio or learner telemetry to CI.
+8. Finish the private inventory of workflows, releases, artifacts, branches, secrets, and service triggers. Migrate or document each retained item and verify that no live service depends on the private repository. The private README notice remains blocked by required checks that failed before runner startup.
+9. Once the resource, workflow, inventory, and physical-device gates above have evidence, update the private repository landing page, archive the private repository, and verify its archived state.
 
-The private repository remains the rollback record until these gates have evidence.
+The private repository remains the rollback record until all preceding gates have evidence.
 
 ## Resource placement
 
