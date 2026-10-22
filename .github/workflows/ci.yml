@@ -90,4 +90,4 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: PYTHONPATH=pipeline python -m unittest pipeline/test_tencent_oidc.py pipeline/test_tencent_cos_probe.py
+      - run: PYTHONPATH=pipeline python -m unittest pipeline/test_tencent_oidc.py pipeline/test_tencent_cos_probe.py pipeline/test_web_delivery.py
