@@ -39,3 +39,15 @@
   * 当执行 `mode=upload` 且成功将代码传到微信开发版后，会自动触发 `miniprogram/scripts/wechat-minitest.mjs`。
   * 若未配置凭据，脚本会自动跳过（Graceful skip），不阻断流水线。
   * 若已配置凭据，云测将异步在腾讯云真机上执行测试，测试完成后可直接在云测控制台查阅报告。
+
+---
+
+## 4. 全链路自动化实测回执（2026-10-23）
+
+全套标准化无头 CI/CD 流水线已在 GitHub Actions 官方托管 Runner (`ubuntu-24.04`) 与腾讯云首尔出口代理配合下完成端到端闭环实测：
+
+| 验证项 | 工作流运行记录 | 测试模式 | 被测版本 & SHA | 执行耗时 | 结果与证据 |
+|---|---|---|---|---|---|
+| **开发者预览二维码** | [Run 39819027282](https://github.com/gehbfarr5/englishpod-trancy-player-public/actions/runs/39819027282) | `mode: preview` | `0.3.12` (`b0a625a`) | 19.9s | **PASS**: 成功通过首尔代理握手微信 CI，产出 `preview.jpg` 并作为 Artifact 保存，Step Summary 回显成功 |
+| **官方开发版上传** | [Run 39819830575](https://github.com/gehbfarr5/englishpod-trancy-player-public/actions/runs/39819830575) | `mode: upload` | `0.3.12` (`b0a625a`) | 15.0s | **PASS**: 成功编译并上传官方开发版代码（package groups=1，Robot 9），MiniTest 接入钩子触发并平稳挂起 |
+
