@@ -14,6 +14,11 @@ This repository is the intended public source of truth. Tencent CloudBase, COS, 
 
 ## Verified status (2026-10-22)
 
+- Fresh protected-main OIDC probe run `39704247372` on public main SHA `c56d6f509906b6c4373d0e473f72e92ccbd3d676` reached Tencent STS but failed with the sanitized error code `MissingParameter`, even with `DurationSeconds: 7200`. No temporary credentials were printed or used; COS access was not tested. Trust configuration is not runtime acceptance. The public repository currently has the two expected OIDC variables and no Actions secrets; no credential values are included here.
+- The latest public continuation CI on that SHA passed, but Mobile Regression run `39701028939` failed in the iOS Simulator scenario while Android passed. This is not physical-device acceptance; diagnose the failure before relying on current simulator coverage.
+- The authenticated Tencent console was read-only inspected through the local Chrome session and identified account A (account ID suffix 4397). The cutover document places COS, CloudBase and Mini Program resources in account B, so those resources were not inspected or changed. Do not infer account B state from account A.
+- A read-only GitHub inventory reconfirmed the private repository remains private and unarchived, with 13 active workflow definitions, 73 branches, 14 prerelease Web ZIPs, and one online, idle self-hosted runner. The private Web deployment workflow remains active and targets the shared-host runner label; no public production environment is configured yet. This is evidence of a still-configured deployment path, not proof of current live traffic, and it blocks runner retirement and archival pending dependency review.
+
 - Public `main` is protected by required CI/native checks, PR-only updates, and rules preventing force-pushes and branch deletion. PR #13 (guarded Agent Scout/Builder workflows and policy tests) is merged at `6f381f5d`; PR #11 (playback reliability) is merged at `ef98c67e`.
 - Public continuation CI run #60 passed on PR #11's rebased head, including G4, Mini Program checks, Flutter/Web tests, and Agent policy tests. Mobile Regression run #24 passed Android and iOS simulator scenarios N01/N02 on the same tested tree `75062e4d9a4f492fe31fd0833c188c78a42ff503`. The iOS simulator was iPhone 17 / iOS 26.5; both platforms used synthetic WAV. This is simulator evidence only, not physical-device or licensed-catalog acceptance.
 - The Agent workflows are guarded and their policy tests pass. No real DeepSeek inference, read-only Scout report, or reviewed Builder draft is evidenced yet; these still require a protected main-branch run with the configured model credential and trusted environment.
@@ -26,7 +31,7 @@ This repository is the intended public source of truth. Tencent CloudBase, COS, 
 
 ## Remaining gates, in execution order
 
-1. Verify Tencent OIDC from a protected `main` workflow, then perform a separate scoped COS read and confirm least-privilege access. The trust subject points to public `main`; neither runtime result is currently evidenced.
+1. Fix the sanitized STS `MissingParameter` failure and rerun Tencent OIDC from protected `main`, then perform a separate scoped COS read and confirm least-privilege access. The latest runtime probe failed; COS remains untested.
 2. Diagnose the prior CloudBase data-load failure and undeployed Studio changes, then complete non-destructive index and representative-detail health checks with a usable diagnostic trail.
 3. Reconcile the Web host's separate audio directory against current COS object hashes. Complete content/license review and document resource ownership before any copy or publication.
 4. Build a reversible Web deployment candidate from this repository; verify routes, catalog/audio access, cache/version behavior, and rollback before changing live traffic.
