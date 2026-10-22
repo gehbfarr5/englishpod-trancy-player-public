@@ -11,10 +11,10 @@ import urllib.parse
 import urllib.request
 
 ACCOUNT = "100053564397"
-REPOSITORY = "gehbfarr5/englishpod-trancy-player"
+REPOSITORY = "gehbfarr5/englishpod-trancy-player-public"
 ISSUER = "https://token.actions.githubusercontent.com"
 AUDIENCE = "sts.tencentcloudapi.com"
-SUBJECT_PREFIX = "repo:gehbfarr5@111337856/englishpod-trancy-player@1400689349"
+SUBJECT_PREFIX = "repo:gehbfarr5@111337856/englishpod-trancy-player-public@1428251473"
 SUBJECT = SUBJECT_PREFIX + ":ref:refs/heads/main"
 ROLE = f"qcs::cam::uin/{ACCOUNT}:roleName/englishpod-github-audio-read"
 PROVIDER = "englishpod-github-oidc"
@@ -114,7 +114,7 @@ def authenticate(env=os.environ):
     credentials = response["Credentials"]
     verify_identity(credentials)
     export_credentials(credentials, env["GITHUB_ENV"])
-    print(f"PASS: temporary CAM role authenticated to target account {ACCOUNT}; static keys unused.")
+    print("PASS: temporary CAM role authenticated; static keys unused.")
 
 
 if __name__ == "__main__":
