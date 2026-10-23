@@ -117,6 +117,13 @@ describe('TrackStateMachine · 倍速', () => {
     assert.equal(TrackStateMachine.formatRate(1.25), '1.25x');
     assert.equal(TrackStateMachine.formatRate(0.8), '0.8x');
   });
+
+  test('支持从已存偏好初始化倍速', () => {
+    const sm = new TrackStateMachine('pb', 1.25);
+    assert.equal(sm.getRate(), 1.25);
+    const smInvalid = new TrackStateMachine('pb', 3.5);
+    assert.equal(smInvalid.getRate(), 1.0);
+  });
 });
 
 describe('TrackStateMachine · 结束决策优先级', () => {

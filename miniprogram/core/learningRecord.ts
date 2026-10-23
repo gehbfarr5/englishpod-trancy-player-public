@@ -29,7 +29,7 @@
  * ============================================================================
  */
 
-import { AudioTrackKey, LessonProgressRecord, PROGRESS_NEAR_END_PCT } from './types';
+import { AudioTrackKey, LessonProgressRecord, PLAYBACK_RATES, PlaybackRate, PROGRESS_NEAR_END_PCT } from './types';
 
 /** 当前落盘 schema 版本（§4 `schemaVersion`；0.x 测试版不参与兼容）。 */
 export const LEARNING_SCHEMA_VERSION = 2;
@@ -88,6 +88,8 @@ export interface DevicePreferences {
   uiMode: 'standard' | 'immersive';
   /** 首次 `true`；只对 PB 生效（§3.2）。 */
   autoNextPodcastEnabled: boolean;
+  /** 播放倍速偏好（§4 / v1.3）。支持 0.8 | 0.9 | 1.0 | 1.1 | 1.25，默认 1.0。 */
+  playbackRate: PlaybackRate;
 }
 
 /** 恢复锚点（§4 `ResumeAnchor`）：最后成功打开的课，与是否播放无关（§4.1.7）。 */
@@ -450,6 +452,7 @@ export function createDefaultPreferences(): DevicePreferences {
     schemaVersion: LEARNING_SCHEMA_VERSION,
     uiMode: 'standard',
     autoNextPodcastEnabled: true,
+    playbackRate: 1.0,
   };
 }
 
@@ -460,10 +463,16 @@ export function normalizePreferences(raw: unknown): DevicePreferences {
     return base;
   }
   const obj = raw as Record<string, unknown>;
+  const rate =
+    typeof obj.playbackRate === 'number' &&
+    (PLAYBACK_RATES as readonly number[]).includes(obj.playbackRate)
+      ? (obj.playbackRate as PlaybackRate)
+      : base.playbackRate;
   return {
     schemaVersion: LEARNING_SCHEMA_VERSION,
     uiMode: obj.uiMode === 'immersive' ? 'immersive' : 'standard',
     autoNextPodcastEnabled: obj.autoNextPodcastEnabled === false ? false : true,
+    playbackRate: rate,
   };
 }
 

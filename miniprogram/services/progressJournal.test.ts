@@ -473,3 +473,19 @@ describe('progressJournal · 课程库投影', () => {
     assert.equal(views['0002'].isCompleted, true);
   });
 });
+
+describe('progressJournal · 设备偏好与倍速持久化', () => {
+  test('更新偏好后立即可读并持久化', () => {
+    const kv = createMemoryKeyValue();
+    const clock = createClock();
+    const { journal } = bootProcess(kv, clock);
+
+    assert.equal(journal.preferences().playbackRate, 1.0);
+    journal.updatePreferences({ playbackRate: 1.25 });
+    assert.equal(journal.preferences().playbackRate, 1.25);
+
+    // 新进程启动读取持久化偏好
+    const fresh = bootProcess(kv, clock);
+    assert.equal(fresh.journal.preferences().playbackRate, 1.25);
+  });
+});

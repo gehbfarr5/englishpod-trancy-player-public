@@ -67,10 +67,11 @@ export class TrackStateMachine {
   /** 整课重复开关。 */
   private repeatEpisode = false;
 
-  constructor(activeTrack: AudioTrackKey = 'pb') {
+  constructor(activeTrack: AudioTrackKey = 'pb', initialRate?: number) {
     this.activeTrack = activeTrack;
     this.snapshots = { pb: emptySnapshot(), dg: emptySnapshot() };
-    this.rateIndex = PLAYBACK_RATES.indexOf(1.0);
+    const rateIdx = initialRate !== undefined ? PLAYBACK_RATES.indexOf(initialRate as PlaybackRate) : -1;
+    this.rateIndex = rateIdx >= 0 ? rateIdx : PLAYBACK_RATES.indexOf(1.0);
   }
 
   /** 当前活动音轨。 */

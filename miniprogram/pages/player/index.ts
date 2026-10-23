@@ -402,7 +402,11 @@ Page<PageData, PageCustom>({
       }
     }
     this.adapter = USE_MOCK_DATA ? new MockCloudAdapter() : new WechatCloudAdapter();
-    this.machine = new TrackStateMachine();
+    const prefs = progressJournal.preferences();
+    this.machine = new TrackStateMachine('pb', prefs.playbackRate);
+    this.setData({
+      speedLabel: TrackStateMachine.formatRate(this.machine.getRate()),
+    });
     this.tracker = new HighlightCursorTracker();
 
     // 入口意图：普通列表 / 继续收听 / 页内手动切课（§2 行为矩阵）。
@@ -1954,6 +1958,7 @@ Page<PageData, PageCustom>({
     if (this.audio) {
       this.audio.setPlaybackRate(rate);
     }
+    progressJournal.updatePreferences({ playbackRate: rate });
     this.setData({ speedLabel: TrackStateMachine.formatRate(rate) });
     playbackSession.setLessonInfo({ lessonId: this.currentLessonId || '', rate });
   },
