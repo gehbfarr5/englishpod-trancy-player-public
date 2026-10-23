@@ -76,76 +76,74 @@
       </view>
     </view>
 
-    <!-- Podcast 音轨视口 (永久固定 ID: pbViewport) -->
+    <!-- Podcast 音轨视口 (永久固定 ID: pbViewport，采用 CSS 3D Transform 硬件加速) -->
     <view class="pl__layer {{activeTab === 'pb' ? 'is-active' : 'is-hidden'}}">
-      <scroll-view
+      <view
         id="pbViewport"
-        class="pl__body"
+        class="pl__body pl__body--transform"
         data-track="pb"
-        scroll-y
-        enhanced="{{true}}"
-        show-scrollbar="{{false}}"
-        scroll-top="{{playerScrollTopPb}}"
-        scroll-with-animation="{{scrollAnimated && activeTrack === 'pb'}}"
-        binddragstart="onTranscriptDragStart"
-        binddragend="onTranscriptDragEnd"
         bindtouchstart="onTranscriptTouchStart"
+        bindtouchmove="onTranscriptTouchMove"
         bindtouchend="onTranscriptTouchEnd"
-        bindscroll="onTranscriptScroll"
+        bindtouchcancel="onTranscriptTouchEnd"
       >
-        <!-- 内嵌课头：随台词自然滚动（100% 对齐 iOS _buildLessonInlineHeader） -->
-        <view class="pl__inline-header" wx:if="{{lessonTitle}}">
-          <text class="pl__inline-sub">{{lessonLevel}} · Podcast</text>
-          <text class="pl__inline-title">{{lessonTitle}}</text>
-        </view>
+        <view
+          class="pl__transform-content {{isTransitioningPb ? 'pl__transform-content--animated' : ''}}"
+          style="transform: translate3d(0, -{{translateYPb}}px, 0);"
+        >
+          <!-- 内嵌课头：随台词自然滚动（100% 对齐 iOS _buildLessonInlineHeader） -->
+          <view class="pl__inline-header" wx:if="{{lessonTitle}}">
+            <text class="pl__inline-sub">{{lessonLevel}} · Podcast</text>
+            <text class="pl__inline-title">{{lessonTitle}}</text>
+          </view>
 
-        <!-- 台本组件 -->
-        <transcript
-          id="transcript-pb"
-          blocks="{{blocksPb}}"
-          active-seg-idx="{{activeTrack === 'pb' ? activeSegIdx : -1}}"
-          collapsed-box-ids="{{collapsedBoxIds}}"
-          bind:lineTap="onLineTap"
-          bind:toggleBox="onToggleBox"
-        />
-        <view class="pl__body-pad"></view>
-      </scroll-view>
+          <!-- 台本组件 -->
+          <transcript
+            id="transcript-pb"
+            blocks="{{blocksPb}}"
+            active-seg-idx="{{activeTrack === 'pb' ? activeSegIdx : -1}}"
+            collapsed-box-ids="{{collapsedBoxIds}}"
+            bind:lineTap="onLineTap"
+            bind:toggleBox="onToggleBox"
+          />
+          <view class="pl__body-pad"></view>
+        </view>
+      </view>
     </view>
 
-    <!-- Dialogue 音轨视口 (永久固定 ID: dgViewport) -->
+    <!-- Dialogue 音轨视口 (永久固定 ID: dgViewport，采用 CSS 3D Transform 硬件加速) -->
     <view class="pl__layer {{activeTab === 'dg' ? 'is-active' : 'is-hidden'}}">
-      <scroll-view
+      <view
         id="dgViewport"
-        class="pl__body"
+        class="pl__body pl__body--transform"
         data-track="dg"
-        scroll-y
-        enhanced="{{true}}"
-        show-scrollbar="{{false}}"
-        scroll-top="{{playerScrollTopDg}}"
-        scroll-with-animation="{{scrollAnimated && activeTrack === 'dg'}}"
-        binddragstart="onTranscriptDragStart"
-        binddragend="onTranscriptDragEnd"
         bindtouchstart="onTranscriptTouchStart"
+        bindtouchmove="onTranscriptTouchMove"
         bindtouchend="onTranscriptTouchEnd"
-        bindscroll="onTranscriptScroll"
+        bindtouchcancel="onTranscriptTouchEnd"
       >
-        <!-- 内嵌课头：随台词自然滚动（100% 对齐 iOS _buildLessonInlineHeader） -->
-        <view class="pl__inline-header" wx:if="{{lessonTitle}}">
-          <text class="pl__inline-sub">{{lessonLevel}} · Dialogue</text>
-          <text class="pl__inline-title">{{lessonTitle}}</text>
-        </view>
+        <view
+          class="pl__transform-content {{isTransitioningDg ? 'pl__transform-content--animated' : ''}}"
+          style="transform: translate3d(0, -{{translateYDg}}px, 0);"
+        >
+          <!-- 内嵌课头：随台词自然滚动（100% 对齐 iOS _buildLessonInlineHeader） -->
+          <view class="pl__inline-header" wx:if="{{lessonTitle}}">
+            <text class="pl__inline-sub">{{lessonLevel}} · Dialogue</text>
+            <text class="pl__inline-title">{{lessonTitle}}</text>
+          </view>
 
-        <!-- 台本组件 -->
-        <transcript
-          id="transcript-dg"
-          blocks="{{blocksDg}}"
-          active-seg-idx="{{activeTrack === 'dg' ? activeSegIdx : -1}}"
-          collapsed-box-ids="{{collapsedBoxIds}}"
-          bind:lineTap="onLineTap"
-          bind:toggleBox="onToggleBox"
-        />
-        <view class="pl__body-pad"></view>
-      </scroll-view>
+          <!-- 台本组件 -->
+          <transcript
+            id="transcript-dg"
+            blocks="{{blocksDg}}"
+            active-seg-idx="{{activeTrack === 'dg' ? activeSegIdx : -1}}"
+            collapsed-box-ids="{{collapsedBoxIds}}"
+            bind:lineTap="onLineTap"
+            bind:toggleBox="onToggleBox"
+          />
+          <view class="pl__body-pad"></view>
+        </view>
+      </view>
     </view>
 
     <view class="pl__layer {{activeTab === 'vocab' ? 'is-active' : 'is-hidden'}}">

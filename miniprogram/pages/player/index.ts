@@ -157,6 +157,11 @@ interface PageData {
   playerScrollTop: number;
   playerScrollTopPb: number;
   playerScrollTopDg: number;
+  /** CSS 3D Transform 视口偏移（彻底消除 scroll-view 异步裁剪与回弹） */
+  translateYPb: number;
+  translateYDg: number;
+  isTransitioningPb: boolean;
+  isTransitioningDg: boolean;
   /** 首进或重锚期间的透明遮罩（对齐 iOS/Web 的首帧确定性落位，避免 00:00 闪跳）。 */
   isPendingAnchor: boolean;
   /** 双阶段装载门禁：落位完成前遮罩骨架屏，落定后平滑淡出（对齐成熟音乐/听书播放器规范）。 */
@@ -241,6 +246,9 @@ interface PageCustom {
   locateThrottleTimer?: ReturnType<typeof setTimeout> | null;
   locateTimer?: ReturnType<typeof setInterval> | null;
   isUserInteracting?: boolean;
+  touchStartY?: number;
+  touchStartTranslateY?: number;
+  isTouchDragging?: boolean;
   keepScreenOn?: boolean;
   /**
    * 台本行位置样本（BUG-004 首帧重锚用）。
@@ -284,7 +292,7 @@ interface PageCustom {
     contentHeight: number,
   ): void;
   /** 换轨后的重锚：按退避阶梯补试精确落位；全部失败则放开「找回当前句」条。 */
-  reanchorTranscript(segIdx: number): void;
+  reanchorTranscript(segIdx: number, onSettled?: (ok: boolean) => void): void;
   /** 取（或按课重建）台本布局缓存。 */
   transcriptLayoutFor(
     lessonId: string | undefined,
@@ -354,8 +362,9 @@ interface PageCustom {
   onVocabExample(event: WechatMiniprogram.CustomEvent<{ track: string; segIdx: number }>): void;
   onTranscriptDragStart(): void;
   onTranscriptDragEnd(): void;
-  onTranscriptTouchStart(): void;
-  onTranscriptTouchEnd(): void;
+  onTranscriptTouchStart(event?: WechatMiniprogram.TouchEvent): void;
+  onTranscriptTouchMove(event?: WechatMiniprogram.TouchEvent): void;
+  onTranscriptTouchEnd(event?: WechatMiniprogram.TouchEvent): void;
   onTranscriptScroll(event: WechatMiniprogram.ScrollViewScroll): void;
   onLocateTap(): void;
 }
@@ -382,6 +391,10 @@ Page<PageData, PageCustom>({
     playerScrollTop: 0,
     playerScrollTopPb: 0,
     playerScrollTopDg: 0,
+    translateYPb: 0,
+    translateYDg: 0,
+    isTransitioningPb: false,
+    isTransitioningDg: false,
     isPendingAnchor: false,
     isTranscriptReady: false,
     scrollAnimated: true,
@@ -753,6 +766,10 @@ Page<PageData, PageCustom>({
         playerScrollTop: activeInitialScroll,
         playerScrollTopPb: initialScrollPb,
         playerScrollTopDg: initialScrollDg,
+        translateYPb: initialScrollPb,
+        translateYDg: initialScrollDg,
+        isTransitioningPb: false,
+        isTransitioningDg: false,
         isPendingAnchor: shouldShieldAnchor,
         isTranscriptReady: !shouldShieldAnchor,
         scrollAnimated: false,
@@ -814,6 +831,8 @@ Page<PageData, PageCustom>({
               isTranscriptReady: true,
               isPendingAnchor: false,
               scrollAnimated: true,
+              isTransitioningPb: true,
+              isTransitioningDg: true,
             });
           }
         };
@@ -845,6 +864,8 @@ Page<PageData, PageCustom>({
               isTranscriptReady: true,
               isPendingAnchor: false,
               scrollAnimated: true,
+              isTransitioningPb: true,
+              isTransitioningDg: true,
             });
           }
         };
@@ -894,7 +915,13 @@ Page<PageData, PageCustom>({
         setTimeout(() => {
           if (this.loadToken !== token) return;
           if (!this.data.isTranscriptReady || this.data.isPendingAnchor) {
-            this.setData({ isTranscriptReady: true, isPendingAnchor: false, scrollAnimated: true });
+            this.setData({
+              isTranscriptReady: true,
+              isPendingAnchor: false,
+              scrollAnimated: true,
+              isTransitioningPb: true,
+              isTransitioningDg: true,
+            });
           }
         }, 360);
       }
@@ -1336,36 +1363,37 @@ Page<PageData, PageCustom>({
   },
 
   /**
-   * 原生直接落位视口（微信小程序官方 Base Library 2.14.4+ ScrollViewContext API）。
+   * 原生直接落位视口（基于 CSS 3D Transform 硬件加速）。
    *
-   * 彻底切断 WXML 属性绑定的 diff 夹持归零时序冲突，由引擎原生调度滚动。
+   * 彻底切断 scroll-view 异步裁剪归零时序冲突，由 GPU 原生硬件加速位移。
    */
   scrollViewportTo(
     track: AudioTrackKey,
     top: number,
     animated: boolean = false,
   ): void {
-    const viewportId = track === 'dg' ? '#dgViewport' : '#pbViewport';
-    const trackProp = track === 'dg' ? 'playerScrollTopDg' : 'playerScrollTopPb';
+    const isDg = track === 'dg';
+    const prop = isDg ? 'translateYDg' : 'translateYPb';
+    const animProp = isDg ? 'isTransitioningDg' : 'isTransitioningPb';
+    const trackProp = isDg ? 'playerScrollTopDg' : 'playerScrollTopPb';
+
+    this.lastPlayerScrollTop = top;
+    if (isDg) {
+      this.lastPlayerScrollTopDg = top;
+    } else {
+      this.lastPlayerScrollTopPb = top;
+    }
 
     const patch: Record<string, unknown> = {
       playerScrollTop: top,
       [trackProp]: top,
+      [prop]: top,
+      [animProp]: animated,
     };
     if (animated === false) {
       patch.scrollAnimated = false;
     }
     this.setData(patch);
-
-    wx.createSelectorQuery()
-      .select(viewportId)
-      .node()
-      .exec((res) => {
-        const item = res && (res[0] as { node?: { scrollTo?: (opts: { top: number; animated: boolean }) => void } } | null);
-        if (item && item.node && typeof item.node.scrollTo === 'function') {
-          item.node.scrollTo({ top, animated });
-        }
-      });
   },
 
   /**
@@ -1427,18 +1455,12 @@ Page<PageData, PageCustom>({
 
             const segs = this.currentSegments();
             const totalCount = segs.length;
-            const realScrollTop =
-              offset && typeof offset.scrollTop === 'number' && Number.isFinite(offset.scrollTop)
-                ? offset.scrollTop
-                : null;
+            const currentTranslate = currentTrack === 'dg' ? this.data.translateYDg : this.data.translateYPb;
             const headerOffset = Math.max(0, content.top - viewport.top);
-            const totalContentHeight =
-              offset && typeof offset.scrollHeight === 'number' && offset.scrollHeight > 0
-                ? offset.scrollHeight
-                : content.height + headerOffset;
-            // 统一到「滚动内容坐标系」：包含课头偏移，和 `scroll-top` 同源。
+            const totalContentHeight = content.height + headerOffset;
+            // 统一到「滚动内容坐标系」：包含课头偏移，和 `translateY` 同源。
             const itemTop =
-              rowRect.top - viewport.top + (realScrollTop ?? this.lastPlayerScrollTop ?? 0);
+              rowRect.top - viewport.top + (currentTranslate ?? this.lastPlayerScrollTop ?? 0);
             const itemHeight = rowRect.bottom - rowRect.top;
 
             // 量测结果既是本次落位依据，也是**下次换轨首帧**的估算样本（BUG-004）。
@@ -1465,32 +1487,12 @@ Page<PageData, PageCustom>({
               itemHeight,
               viewportHeight: viewport.height,
               totalContentHeight,
-              currentScrollTop: realScrollTop ?? this.lastPlayerScrollTop ?? 0,
+              currentScrollTop: currentTranslate ?? this.lastPlayerScrollTop ?? 0,
             });
 
             if (scrollResult.shouldScroll) {
               this.programmaticUntil = Math.max(this.programmaticUntil ?? 0, Date.now() + 1500);
-              this.lastPlayerScrollTop = scrollResult.targetScrollTop;
-              if (this.data.activeTrack === 'dg') {
-                this.lastPlayerScrollTopDg = scrollResult.targetScrollTop;
-              } else {
-                this.lastPlayerScrollTopPb = scrollResult.targetScrollTop;
-              }
-              const currentTrackTop =
-                this.data.activeTrack === 'dg' ? this.data.playerScrollTopDg : this.data.playerScrollTopPb;
-              // 同值不触发 scroll-view 重排（用户手动滑走后目标偏移可能与上次下发值相同），
-              // 由 core 给出「必要时先错 1px」的序列，避免找回/自动跟随静默失效。
-              const sequence = scrollTopSequence(
-                currentTrackTop ?? this.data.playerScrollTop,
-                scrollResult.targetScrollTop,
-              );
-              this.scrollViewportTo(this.data.activeTrack, sequence[0], opts.animated !== false);
-              if (sequence.length > 1) {
-                const settled = sequence[sequence.length - 1];
-                wx.nextTick(() => {
-                  this.scrollViewportTo(this.data.activeTrack, settled, opts.animated !== false);
-                });
-              }
+              this.scrollViewportTo(this.data.activeTrack, scrollResult.targetScrollTop, opts.animated !== false);
             }
             opts.onResult?.(true);
           },
@@ -1897,26 +1899,30 @@ Page<PageData, PageCustom>({
       switchPatch.playerScrollTop = anchorTop;
       if (track === 'dg') {
         switchPatch.playerScrollTopDg = anchorTop;
+        switchPatch.translateYDg = anchorTop;
+        switchPatch.isTransitioningDg = false;
         this.lastPlayerScrollTopDg = anchorTop;
       } else {
         switchPatch.playerScrollTopPb = anchorTop;
+        switchPatch.translateYPb = anchorTop;
+        switchPatch.isTransitioningPb = false;
         this.lastPlayerScrollTopPb = anchorTop;
       }
       this.lastPlayerScrollTop = anchorTop;
     }
     // 重锚期间不评估「找回当前句」的可见性（否则会闪一下定位条）。
     this.programmaticUntil = Math.max(this.programmaticUntil ?? 0, Date.now() + 900);
-    // 先单独关掉滚动动画：`scroll-with-animation` 与 `scroll-top` 若在同一次下发,
-    // 框架可能仍按旧设置做一次动画（实测会看到 1 帧滑行）。提前一拍关闭，落位就是硬跳。
-    if (this.data.scrollAnimated) {
-      this.setData({ scrollAnimated: false });
-    }
     this.setData(switchPatch, () => {
       this.traceReseat({ stage: 'switch', track, segIdx: switchSegIdx, anchorTop });
       if (anchorTop !== null) {
         this.scrollViewportTo(track, anchorTop, false);
       }
-      this.reanchorTranscript(switchSegIdx);
+      this.reanchorTranscript(switchSegIdx, () => {
+        // 校正完毕后，开启平滑过渡动画
+        this.setData({
+          [track === 'dg' ? 'isTransitioningDg' : 'isTransitioningPb']: true,
+        });
+      });
     });
 
     // 从切换的第一帧起就按**目标位置**渲染，并布防镇定窗口：`load()` 之后平台会先
@@ -2161,12 +2167,59 @@ Page<PageData, PageCustom>({
     // 拖拽手势抬手
   },
 
-  onTranscriptTouchStart(): void {
+  onTranscriptTouchStart(event?: WechatMiniprogram.TouchEvent): void {
     this.programmaticUntil = 0;
+    const touch = event && event.touches && event.touches[0];
+    if (!touch) return;
+    this.touchStartY = touch.clientY;
+    const isDg = this.data.activeTrack === 'dg';
+    this.touchStartTranslateY = isDg ? this.data.translateYDg : this.data.translateYPb;
+    this.isTouchDragging = true;
+    // 触摸开始时立即关闭 transition，跟手无延迟
+    const animProp = isDg ? 'isTransitioningDg' : 'isTransitioningPb';
+    this.setData({ [animProp]: false });
+  },
+
+  onTranscriptTouchMove(event?: WechatMiniprogram.TouchEvent): void {
+    if (!this.isTouchDragging || this.touchStartY === undefined || this.touchStartTranslateY === undefined) return;
+    const touch = event && event.touches && event.touches[0];
+    if (!touch) return;
+    const deltaY = touch.clientY - this.touchStartY;
+    const isDg = this.data.activeTrack === 'dg';
+    const targetY = Math.max(0, this.touchStartTranslateY - deltaY);
+    const prop = isDg ? 'translateYDg' : 'translateYPb';
+    const trackProp = isDg ? 'playerScrollTopDg' : 'playerScrollTopPb';
+
+    this.lastPlayerScrollTop = targetY;
+    if (isDg) {
+      this.lastPlayerScrollTopDg = targetY;
+    } else {
+      this.lastPlayerScrollTopPb = targetY;
+    }
+
+    this.setData({
+      [prop]: targetY,
+      [trackProp]: targetY,
+      playerScrollTop: targetY,
+    });
+
+    const now = Date.now();
+    const elapsed = now - (this.locateMeasureAt ?? 0);
+    const THROTTLE_MS = 60;
+    if (elapsed >= THROTTLE_MS) {
+      this.locateMeasureAt = now;
+      this.evaluateActiveVisibility();
+    }
   },
 
   onTranscriptTouchEnd(): void {
-    // 触控抬手
+    this.isTouchDragging = false;
+    this.touchStartY = undefined;
+    this.touchStartTranslateY = undefined;
+    const isDg = this.data.activeTrack === 'dg';
+    const animProp = isDg ? 'isTransitioningDg' : 'isTransitioningPb';
+    this.setData({ [animProp]: true });
+    this.evaluateActiveVisibility();
   },
 
   onTranscriptScroll(event: WechatMiniprogram.ScrollViewScroll): void {

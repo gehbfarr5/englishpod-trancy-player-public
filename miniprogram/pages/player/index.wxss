@@ -161,6 +161,26 @@
   vertical-align: top;
 }
 
+/* 基于 CSS 3D Transform 的现代台本硬件加速视口（彻底消除 scroll-view 异步裁剪闪跳） */
+.pl__body--transform {
+  overflow: hidden;
+  position: relative;
+  touch-action: pan-y;
+}
+
+.pl__transform-content {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+.pl__transform-content--animated {
+  /* 阻尼平滑过渡曲线，与腾讯系音乐/阅读类小程序一致 */
+  transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* 双阶段装载门禁：幕后测距与落位期间 100% 遮挡视口，落定后平滑淡出 */
 .pl__gate-skeleton {
   position: absolute;
