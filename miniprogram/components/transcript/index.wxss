@@ -46,6 +46,46 @@
   color: var(--ep-accent);
 }
 
+.tr__words {
+  display: block;
+  width: 100%;
+  font-size: 21.5px;
+  line-height: 1.40;
+  letter-spacing: -0.35px;
+  font-weight: var(--ep-fw-bold);
+  word-break: normal;
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+/* 基础句态（同句所有词共享，由 WXS 在视图层直出） */
+.word {
+  color: var(--ep-text-upcoming);
+  transition: color var(--ep-dur-mid) var(--ep-ease-smooth-out);
+  text-decoration: none;
+}
+
+.word.is-passed {
+  color: var(--ep-text-passed);
+}
+
+.word.is-active {
+  color: var(--ep-text-primary);
+}
+
+/* 词汇高亮（置于句态之后，优先覆盖颜色；同样句级） */
+.word.is-vocab {
+  color: var(--ep-vocab-hl-unplayed);
+}
+
+.word.is-vocab.vocab-passed {
+  color: var(--ep-vocab-hl-passed);
+}
+
+.word.is-vocab.vocab-active {
+  color: var(--ep-vocab-hl-active);
+}
+
 .tr__plain {
   width: 100%;
   box-sizing: border-box;

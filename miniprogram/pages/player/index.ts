@@ -264,6 +264,8 @@ interface PageCustom {
   transcriptViewportHeight?: number;
   /** 重锚轮次令牌：切轨/切课自增，作废上一轮未完成的重试。 */
   reanchorToken?: number;
+  /** 最近一次执行 tick 的时间戳，用于去重降频。 */
+  lastTickMs?: number;
   /** 诊断（`?diagnostics=1`）：记录每次重锚的首帧落位，供 e2e 断言。 */
   reseatTrace?: Array<Record<string, unknown>>;
 
@@ -273,7 +275,7 @@ interface PageCustom {
   prefetchAdjacentLessons(lessonId: string): void;
   startTick(): void;
   stopTick(): void;
-  tick(): void;
+  tick(force?: boolean): void;
   /** 供渲染使用的播放位置：镇定窗口内忽略换源瞬间的假 0（见 `core/switchSettle.ts`）。 */
   effectivePositionSec(): number;
   /** 布防换源镇定窗口；`targetSec <= 0` 时不布防。 */
@@ -598,12 +600,14 @@ Page<PageData, PageCustom>({
         }
         const base = this.clockSample ?? { positionSec, atMs: Date.now() };
         this.clockSample = correctSample(base, positionSec, Date.now(), this.currentDurationSec());
+        this.tick();
       },
       onPlay: () => {
         this.localDiagnostics?.playEvent();
         this.setData({ isPlaying: true });
         this.setKeepScreenOn(true);
         this.refreshTrackUnderline();
+        this.startTick();
       },
       onPause: () => {
         this.localDiagnostics?.pauseEvent();
@@ -611,10 +615,12 @@ Page<PageData, PageCustom>({
         this.setKeepScreenOn(false);
         this.commitProgress('pause');
         this.refreshTrackUnderline();
+        this.stopTick();
       },
       onEnded: () => this.handleEnded(),
       onSeeked: (positionSec: number) => {
         this.clockSample = { positionSec, atMs: Date.now() };
+        this.tick(true);
       },
       onCanplay: () => {
         // Issue #58 P0a：解除本轮加载锁（延迟 60ms，让紧随 canplay 的
@@ -981,6 +987,7 @@ Page<PageData, PageCustom>({
 
   startTick(): void {
     if (this.tickTimer) return;
+    if (!this.data.isPlaying) return;
     this.tickTimer = setInterval(() => this.tick(), TICK_MS);
   },
 
@@ -991,9 +998,13 @@ Page<PageData, PageCustom>({
     }
   },
 
-  tick(): void {
+  tick(force: boolean = false): void {
     if (!this.detail || !this.tracker) return;
     const now = Date.now();
+    if (!force && this.lastTickMs && now - this.lastTickMs < 80) {
+      return;
+    }
+    this.lastTickMs = now;
     // 换源瞬间的假 0 不能进入渲染（进度条归零 + 台本跳回首句 = 真机闪屏）。
     const pos = this.effectivePositionSec();
     const dur = this.currentDurationSec();
@@ -1310,10 +1321,14 @@ Page<PageData, PageCustom>({
   updateTransport(positionSec: number, durationSec: number): void {
     const pct =
       durationSec > 0 ? Math.min(100, Math.max(0, (positionSec / durationSec) * 100)) : 0;
-    this.setData({
-      positionLabel: formatTime(positionSec),
-      playerProgressPct: Math.round(pct),
-    });
+    const roundedPct = Math.round(pct);
+    const posLabel = formatTime(positionSec);
+    if (this.data.positionLabel !== posLabel || this.data.playerProgressPct !== roundedPct) {
+      this.setData({
+        positionLabel: posLabel,
+        playerProgressPct: roundedPct,
+      });
+    }
   },
 
   updateLocateCountdown(nowMs: number): void {
@@ -1342,10 +1357,14 @@ Page<PageData, PageCustom>({
     const playing = this.data.isPlaying;
     const track = this.data.activeTrack;
     const tab = this.data.activeTab;
-    this.setData({
-      showPbUnderline: playing && track === 'pb' && tab !== 'pb',
-      showDgUnderline: playing && track === 'dg' && tab !== 'dg',
-    });
+    const showPbUnderline = playing && track === 'pb' && tab !== 'pb';
+    const showDgUnderline = playing && track === 'dg' && tab !== 'dg';
+    if (this.data.showPbUnderline !== showPbUnderline || this.data.showDgUnderline !== showDgUnderline) {
+      this.setData({
+        showPbUnderline,
+        showDgUnderline,
+      });
+    }
   },
 
   expandBoxForSegment(segIdx: number): void {
@@ -1885,8 +1904,6 @@ Page<PageData, PageCustom>({
       tabIndex: tabIndexOf(track),
       trackLabel: trackLabelOf(track),
       blocks: this.blocksByTrack ? this.blocksByTrack[track] : [],
-      blocksPb: this.blocksByTrack ? this.blocksByTrack.pb : [],
-      blocksDg: this.blocksByTrack ? this.blocksByTrack.dg : [],
       activeSegIdx: switchSegIdx,
       collapsedBoxIds: [],
       durationLabel: formatTime(this.durations ? this.durations[track] : 0),

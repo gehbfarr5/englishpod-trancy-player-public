@@ -81,6 +81,24 @@ Component({
       return Math.min(1, Math.max(0, ratio));
     },
 
+    /**
+     * WXS 高频拖动开始通知（视图层直接触发）
+     */
+    onWxsScrubStart(detail: { ratio: number }): void {
+      const ratio = detail && typeof detail.ratio === 'number' ? detail.ratio : 0;
+      this.setData({ scrubbing: true, scrubPct: ratio * 100 });
+      this.triggerEvent('scrubStart', { ratio });
+    },
+
+    /**
+     * WXS 高频拖动结束通知（视图层松手时触发一次 seek）
+     */
+    onWxsScrubEnd(detail: { ratio: number }): void {
+      const ratio = detail && typeof detail.ratio === 'number' ? detail.ratio : 0;
+      this.setData({ scrubbing: false, scrubPct: ratio * 100, progressPct: ratio * 100 });
+      this.triggerEvent('scrubEnd', { ratio });
+    },
+
     onScrubStart(event: WechatMiniprogram.TouchEvent): void {
       const ratio = this.ratioFromTouch(event);
       this.setData({ scrubbing: true, scrubPct: ratio * 100 });
@@ -101,7 +119,7 @@ Component({
         return;
       }
       const ratio = this.ratioFromTouch(event);
-      this.setData({ scrubbing: false, scrubPct: ratio * 100 });
+      this.setData({ scrubbing: false, scrubPct: ratio * 100, progressPct: ratio * 100 });
       this.triggerEvent('scrubEnd', { ratio });
     },
 

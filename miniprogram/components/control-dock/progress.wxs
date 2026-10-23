@@ -1,0 +1,79 @@
+/**
+ * 底部控制坞进度条高频手势响应 (WXS)
+ *
+ * 遵循微信小程序最佳实践：
+ * 在视图层 (Render Layer) 独立捕获 touchmove 并直接操作 DOM 样式，
+ * 避免在 60fps 拖动过程中向逻辑层 (JS Layer) 频繁发送 setData，
+ * 彻底消除跨线程 IPC 通信拥堵。
+ */
+
+var isScrubbing = false;
+
+function touchstart(event, ownerInstance) {
+  isScrubbing = true;
+  var dataset = event.currentTarget.dataset;
+  var left = dataset.left || 20;
+  var width = dataset.width || 335;
+  var touch = (event.touches && event.touches[0]) || (event.changedTouches && event.changedTouches[0]);
+  if (!touch) return;
+
+  var ratio = (touch.clientX - left) / width;
+  if (ratio < 0) ratio = 0;
+  if (ratio > 1) ratio = 1;
+  var pct = ratio * 100;
+
+  var fill = ownerInstance.selectComponent('#scrubFill');
+  var thumb = ownerInstance.selectComponent('#scrubThumb');
+  if (fill) fill.setStyle({ width: pct + '%' });
+  if (thumb) thumb.setStyle({ left: pct + '%' });
+
+  ownerInstance.callMethod('onWxsScrubStart', { ratio: ratio });
+}
+
+function touchmove(event, ownerInstance) {
+  if (!isScrubbing) return;
+  var dataset = event.currentTarget.dataset;
+  var left = dataset.left || 20;
+  var width = dataset.width || 335;
+  var touch = (event.touches && event.touches[0]) || (event.changedTouches && event.changedTouches[0]);
+  if (!touch) return;
+
+  var ratio = (touch.clientX - left) / width;
+  if (ratio < 0) ratio = 0;
+  if (ratio > 1) ratio = 1;
+  var pct = ratio * 100;
+
+  var fill = ownerInstance.selectComponent('#scrubFill');
+  var thumb = ownerInstance.selectComponent('#scrubThumb');
+  if (fill) fill.setStyle({ width: pct + '%' });
+  if (thumb) thumb.setStyle({ left: pct + '%' });
+}
+
+function touchend(event, ownerInstance) {
+  if (!isScrubbing) return;
+  isScrubbing = false;
+  var dataset = event.currentTarget.dataset;
+  var left = dataset.left || 20;
+  var width = dataset.width || 335;
+  var touch = (event.changedTouches && event.changedTouches[0]) || (event.touches && event.touches[0]);
+  var ratio = 0;
+  if (touch) {
+    ratio = (touch.clientX - left) / width;
+    if (ratio < 0) ratio = 0;
+    if (ratio > 1) ratio = 1;
+  }
+
+  // 清除直接 inline style 覆盖，让后续数据绑定无缝接管
+  var fill = ownerInstance.selectComponent('#scrubFill');
+  var thumb = ownerInstance.selectComponent('#scrubThumb');
+  if (fill) fill.setStyle({ width: '' });
+  if (thumb) thumb.setStyle({ left: '' });
+
+  ownerInstance.callMethod('onWxsScrubEnd', { ratio: ratio });
+}
+
+module.exports = {
+  touchstart: touchstart,
+  touchmove: touchmove,
+  touchend: touchend
+};
