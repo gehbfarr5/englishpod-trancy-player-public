@@ -159,11 +159,27 @@
   padding: 16px 18px 0 18px;
   background-color: var(--bgColor);
   vertical-align: top;
-  transition: opacity var(--ep-dur-fast) var(--ep-ease-smooth-out);
 }
 
-.pl__body.is-pending-anchor {
+/* 双阶段装载门禁：幕后测距与落位期间 100% 遮挡视口，落定后平滑淡出 */
+.pl__gate-skeleton {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 10;
+  background-color: var(--bgColor);
+  padding: 16px 18px 0 18px;
+  box-sizing: border-box;
+  overflow: hidden;
+  transition: opacity 220ms var(--ep-ease-smooth-out);
+  pointer-events: auto;
+}
+
+.pl__gate-skeleton.is-dismissed {
   opacity: 0;
+  pointer-events: none;
 }
 
 .pl__body-pad {

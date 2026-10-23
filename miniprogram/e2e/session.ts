@@ -228,7 +228,12 @@ export async function tapTab(page: AutomatorPage, index: number): Promise<void> 
 
 /** 点击台本第 `segIdx` 句（真实触摸，等价于用户点字幕行）。 */
 export async function tapTranscriptRow(page: AutomatorPage, segIdx: number): Promise<boolean> {
-  const transcript = await page.$('#transcript');
+  const data = await page.data();
+  const track = String(data.activeTrack ?? 'pb');
+  let transcript = await page.$(`#transcript-${track}`);
+  if (!transcript) {
+    transcript = await page.$('#transcript');
+  }
   if (!transcript) {
     return false;
   }
@@ -242,7 +247,12 @@ export async function tapTranscriptRow(page: AutomatorPage, segIdx: number): Pro
 
 /** 读 scroll-view 的真实滚动偏移；读不到时返回 -1。 */
 export async function readRealScrollTop(page: AutomatorPage): Promise<number> {
-  const viewport = await page.$('#transcriptViewport');
+  const data = await page.data();
+  const track = String(data.activeTrack ?? 'pb');
+  let viewport = await page.$(`#${track}Viewport`);
+  if (!viewport) {
+    viewport = await page.$('#transcriptViewport');
+  }
   if (!viewport) {
     return -1;
   }
@@ -254,7 +264,11 @@ export async function readRealScrollTop(page: AutomatorPage): Promise<number> {
 /** 采集当前渲染事实。 */
 export async function readFacts(page: AutomatorPage): Promise<RenderFacts> {
   const data = await page.data();
-  const transcript: AutomatorElement | null = await page.$('#transcript');
+  const track = String(data.activeTrack ?? 'pb');
+  let transcript: AutomatorElement | null = await page.$(`#transcript-${track}`);
+  if (!transcript) {
+    transcript = await page.$('#transcript');
+  }
   const rows = transcript ? await transcript.$$('.tr__row') : [];
   const activeRows = transcript ? await transcript.$$('.is-active-line') : [];
   return {
@@ -284,8 +298,16 @@ export interface ActiveRowRect {
  * 不用 `scrollTop > 0` 判落位：短台本（如 DG）全部行本来就在首屏，滚动 0 也对。
  */
 export async function readActiveRowRect(page: AutomatorPage): Promise<ActiveRowRect | null> {
-  const transcript = await page.$('#transcript');
-  const viewport = await page.$('#transcriptViewport');
+  const data = await page.data();
+  const track = String(data.activeTrack ?? 'pb');
+  let transcript = await page.$(`#transcript-${track}`);
+  if (!transcript) {
+    transcript = await page.$('#transcript');
+  }
+  let viewport = await page.$(`#${track}Viewport`);
+  if (!viewport) {
+    viewport = await page.$('#transcriptViewport');
+  }
   if (!transcript || !viewport) {
     return null;
   }

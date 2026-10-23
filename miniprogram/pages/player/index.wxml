@@ -36,11 +36,51 @@
 
   <!-- 正文舞台：字幕 (Podcast / Dialogue 双视口独立保活) / 词汇（纯 CSS3 硬件加速切换） -->
   <view class="pl__stage">
-    <!-- Podcast 音轨视口 -->
+    <!-- 双阶段装载门禁骨架屏：首进测距与初始落位期间 100% 遮罩视口，落定后 220ms 平滑淡出 -->
+    <view class="pl__gate-skeleton {{isTranscriptReady || activeTab === 'vocab' ? 'is-dismissed' : ''}}">
+      <view class="pl__inline-header">
+        <view class="pl__sk-speaker" style="width: 120px;"></view>
+        <view class="pl__sk-line" style="width: 65%; height: 22px; margin-top: 4px;"></view>
+      </view>
+      <view class="pl__skeleton">
+        <view class="pl__sk-row pl__sk-row--active">
+          <view class="pl__sk-speaker" style="width: 52px;"></view>
+          <view class="pl__sk-line" style="width: 88%;"></view>
+          <view class="pl__sk-line" style="width: 54%;"></view>
+        </view>
+        <view class="pl__sk-row">
+          <view class="pl__sk-speaker" style="width: 64px;"></view>
+          <view class="pl__sk-line" style="width: 95%;"></view>
+          <view class="pl__sk-line" style="width: 78%;"></view>
+          <view class="pl__sk-line" style="width: 38%;"></view>
+        </view>
+        <view class="pl__sk-row">
+          <view class="pl__sk-speaker" style="width: 44px;"></view>
+          <view class="pl__sk-line" style="width: 68%;"></view>
+        </view>
+        <view class="pl__sk-row">
+          <view class="pl__sk-speaker" style="width: 58px;"></view>
+          <view class="pl__sk-line" style="width: 86%;"></view>
+          <view class="pl__sk-line" style="width: 62%;"></view>
+        </view>
+        <view class="pl__sk-row">
+          <view class="pl__sk-speaker" style="width: 50px;"></view>
+          <view class="pl__sk-line" style="width: 92%;"></view>
+          <view class="pl__sk-line" style="width: 82%;"></view>
+          <view class="pl__sk-line" style="width: 45%;"></view>
+        </view>
+        <view class="pl__sk-row">
+          <view class="pl__sk-speaker" style="width: 60px;"></view>
+          <view class="pl__sk-line" style="width: 76%;"></view>
+        </view>
+      </view>
+    </view>
+
+    <!-- Podcast 音轨视口 (永久固定 ID: pbViewport) -->
     <view class="pl__layer {{activeTab === 'pb' ? 'is-active' : 'is-hidden'}}">
       <scroll-view
-        id="{{activeTrack === 'pb' ? 'transcriptViewport' : 'transcriptViewport-pb'}}"
-        class="pl__body {{isPendingAnchor && activeTrack === 'pb' ? 'is-pending-anchor' : ''}}"
+        id="pbViewport"
+        class="pl__body"
         data-track="pb"
         scroll-y
         enhanced="{{true}}"
@@ -58,56 +98,10 @@
           <text class="pl__inline-sub">{{lessonLevel}} · Podcast</text>
           <text class="pl__inline-title">{{lessonTitle}}</text>
         </view>
-        <!-- 课头骨架占位（冷启动且标题尚未到达时） -->
-        <view class="pl__inline-header" wx:elif="{{playerLoading && blocksPb.length === 0}}">
-          <view class="pl__sk-speaker" style="width: 120px;"></view>
-          <view class="pl__sk-line" style="width: 65%; height: 22px; margin-top: 4px;"></view>
-        </view>
-
-        <!-- 骨架占位（高保真台词排版，错落有致的文本段落与说话人标签） -->
-        <view wx:if="{{playerLoading && blocksPb.length === 0}}" class="pl__skeleton">
-          <!-- 句段 1：模拟首句（带左侧高亮强调条） -->
-          <view class="pl__sk-row pl__sk-row--active">
-            <view class="pl__sk-speaker" style="width: 52px;"></view>
-            <view class="pl__sk-line" style="width: 88%;"></view>
-            <view class="pl__sk-line" style="width: 54%;"></view>
-          </view>
-          <!-- 句段 2：较长台词 -->
-          <view class="pl__sk-row">
-            <view class="pl__sk-speaker" style="width: 64px;"></view>
-            <view class="pl__sk-line" style="width: 95%;"></view>
-            <view class="pl__sk-line" style="width: 78%;"></view>
-            <view class="pl__sk-line" style="width: 38%;"></view>
-          </view>
-          <!-- 句段 3：短句互动 -->
-          <view class="pl__sk-row">
-            <view class="pl__sk-speaker" style="width: 44px;"></view>
-            <view class="pl__sk-line" style="width: 68%;"></view>
-          </view>
-          <!-- 句段 4：中等台词 -->
-          <view class="pl__sk-row">
-            <view class="pl__sk-speaker" style="width: 58px;"></view>
-            <view class="pl__sk-line" style="width: 86%;"></view>
-            <view class="pl__sk-line" style="width: 62%;"></view>
-          </view>
-          <!-- 句段 5：长句段落 -->
-          <view class="pl__sk-row">
-            <view class="pl__sk-speaker" style="width: 50px;"></view>
-            <view class="pl__sk-line" style="width: 92%;"></view>
-            <view class="pl__sk-line" style="width: 82%;"></view>
-            <view class="pl__sk-line" style="width: 45%;"></view>
-          </view>
-          <!-- 句段 6：结束句 -->
-          <view class="pl__sk-row">
-            <view class="pl__sk-speaker" style="width: 60px;"></view>
-            <view class="pl__sk-line" style="width: 76%;"></view>
-          </view>
-        </view>
 
         <!-- 台本组件 -->
         <transcript
-          wx:else
-          id="{{activeTrack === 'pb' ? 'transcript' : 'transcript-pb'}}"
+          id="transcript-pb"
           blocks="{{blocksPb}}"
           active-seg-idx="{{activeTrack === 'pb' ? activeSegIdx : -1}}"
           collapsed-box-ids="{{collapsedBoxIds}}"
@@ -118,11 +112,11 @@
       </scroll-view>
     </view>
 
-    <!-- Dialogue 音轨视口 -->
+    <!-- Dialogue 音轨视口 (永久固定 ID: dgViewport) -->
     <view class="pl__layer {{activeTab === 'dg' ? 'is-active' : 'is-hidden'}}">
       <scroll-view
-        id="{{activeTrack === 'dg' ? 'transcriptViewport' : 'transcriptViewport-dg'}}"
-        class="pl__body {{isPendingAnchor && activeTrack === 'dg' ? 'is-pending-anchor' : ''}}"
+        id="dgViewport"
+        class="pl__body"
         data-track="dg"
         scroll-y
         enhanced="{{true}}"
@@ -140,56 +134,10 @@
           <text class="pl__inline-sub">{{lessonLevel}} · Dialogue</text>
           <text class="pl__inline-title">{{lessonTitle}}</text>
         </view>
-        <!-- 课头骨架占位（冷启动且标题尚未到达时） -->
-        <view class="pl__inline-header" wx:elif="{{playerLoading && blocksDg.length === 0}}">
-          <view class="pl__sk-speaker" style="width: 120px;"></view>
-          <view class="pl__sk-line" style="width: 65%; height: 22px; margin-top: 4px;"></view>
-        </view>
-
-        <!-- 骨架占位（高保真台词排版，错落有致的文本段落与说话人标签） -->
-        <view wx:if="{{playerLoading && blocksDg.length === 0}}" class="pl__skeleton">
-          <!-- 句段 1：模拟首句（带左侧高亮强调条） -->
-          <view class="pl__sk-row pl__sk-row--active">
-            <view class="pl__sk-speaker" style="width: 52px;"></view>
-            <view class="pl__sk-line" style="width: 88%;"></view>
-            <view class="pl__sk-line" style="width: 54%;"></view>
-          </view>
-          <!-- 句段 2：较长台词 -->
-          <view class="pl__sk-row">
-            <view class="pl__sk-speaker" style="width: 64px;"></view>
-            <view class="pl__sk-line" style="width: 95%;"></view>
-            <view class="pl__sk-line" style="width: 78%;"></view>
-            <view class="pl__sk-line" style="width: 38%;"></view>
-          </view>
-          <!-- 句段 3：短句互动 -->
-          <view class="pl__sk-row">
-            <view class="pl__sk-speaker" style="width: 44px;"></view>
-            <view class="pl__sk-line" style="width: 68%;"></view>
-          </view>
-          <!-- 句段 4：中等台词 -->
-          <view class="pl__sk-row">
-            <view class="pl__sk-speaker" style="width: 58px;"></view>
-            <view class="pl__sk-line" style="width: 86%;"></view>
-            <view class="pl__sk-line" style="width: 62%;"></view>
-          </view>
-          <!-- 句段 5：长句段落 -->
-          <view class="pl__sk-row">
-            <view class="pl__sk-speaker" style="width: 50px;"></view>
-            <view class="pl__sk-line" style="width: 92%;"></view>
-            <view class="pl__sk-line" style="width: 82%;"></view>
-            <view class="pl__sk-line" style="width: 45%;"></view>
-          </view>
-          <!-- 句段 6：结束句 -->
-          <view class="pl__sk-row">
-            <view class="pl__sk-speaker" style="width: 60px;"></view>
-            <view class="pl__sk-line" style="width: 76%;"></view>
-          </view>
-        </view>
 
         <!-- 台本组件 -->
         <transcript
-          wx:else
-          id="{{activeTrack === 'dg' ? 'transcript' : 'transcript-dg'}}"
+          id="transcript-dg"
           blocks="{{blocksDg}}"
           active-seg-idx="{{activeTrack === 'dg' ? activeSegIdx : -1}}"
           collapsed-box-ids="{{collapsedBoxIds}}"
