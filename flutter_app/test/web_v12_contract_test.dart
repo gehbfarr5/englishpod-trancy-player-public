@@ -83,4 +83,32 @@ void main() {
     p.dispose();
   });
 
+  test('First audio course after web entry: natural PB end advances to next lesson at zero and continues playing without Replay button', () async {
+    final p = make();
+    // Cold start loads first lesson via EntryIntent.preload (no auto-play)
+    await p.open('0001', EntryIntent.preload);
+    expect(p.lesson!.lessonId, '0001');
+    expect(p.playing, false);
+    expect(p.ended, false);
+
+    // User taps play on the hero button
+    await p.setPlaying(true);
+    expect(p.playing, true);
+
+    // Natural playback progresses and reaches completion
+    p.tick(50);
+    p.tick(99);
+    expect(p.record('0001').completed, true);
+
+    await p.naturalEnd();
+
+    // Must advance to lesson 0002, position 0, playing true, ended false (no Replay button)
+    expect(p.lesson!.lessonId, '0002');
+    expect(p.position, 0);
+    expect(p.playing, true);
+    expect(p.wantsPlay, true);
+    expect(p.ended, false);
+    expect(p.record('0001').completed, true);
+    p.dispose();
+  });
 }
