@@ -288,16 +288,28 @@ class ContractPlayer extends ChangeNotifier {
       if (my == generation && intent == _playIntent && wantsPlay) await setPlaying(true);
       return;
     }
-    position = duration; ended = true; playing = false;
+    position = duration;
     if (track == 'pb') record(lesson!.lessonId).completed = true;
-    unawaited(checkpoint());
+    currentRecord.position = duration;
+    currentRecord.duration = duration;
+    currentRecord.ended = true;
+    unawaited(persist());
     if (trackLoop) {
+      ended = true;
+      playing = false;
       pendingZero = true;
       await seek(0, user: false);
       if (my == generation && intent == _playIntent && wantsPlay) await setPlaying(true);
     }
-    else if (track == 'pb' && autoNext && lessons.isNotEmpty) { await navigateAuto(); }
-    else { wantsPlay = false; _notify(); }
+    else if (track == 'pb' && autoNext && lessons.isNotEmpty) {
+      await navigateAuto();
+    }
+    else {
+      ended = true;
+      playing = false;
+      wantsPlay = false;
+      _notify();
+    }
   }
   Future<void> navigateAuto() => open(lessons[(lessonIndex + 1) % lessons.length].lessonId, EntryIntent.autoNext);
   void toggleSentenceLoop() { sentenceLoop = !sentenceLoop; if (sentenceLoop) { trackLoop = false; _loopIndex = activeIndex; } unawaited(persist()); _notify(); }
