@@ -159,6 +159,8 @@ interface PageData {
   playerScrollTopDg: number;
   /** 首进或重锚期间的透明遮罩（对齐 iOS/Web 的首帧确定性落位，避免 00:00 闪跳）。 */
   isPendingAnchor: boolean;
+  /** 双阶段装载门禁：落位完成前遮罩骨架屏，落定后平滑淡出（对齐成熟音乐/听书播放器规范）。 */
+  isTranscriptReady: boolean;
   /** 换轨重锚期间临时关掉滚动动画：校正必须「就在这一帧」，不能滑 300ms 被看见。 */
   scrollAnimated: boolean;
   activeSegIdx: number;
@@ -330,6 +332,7 @@ interface PageCustom {
   goNextLesson(): void;
   switchTab(tab: ViewTab): void;
   switchTrack(track: AudioTrackKey, seekSegIdx?: number): void;
+  scrollViewportTo(track: AudioTrackKey, top: number, animated?: boolean): void;
   handleEnded(): void;
 
   onBack(): void;
@@ -380,6 +383,7 @@ Page<PageData, PageCustom>({
     playerScrollTopPb: 0,
     playerScrollTopDg: 0,
     isPendingAnchor: false,
+    isTranscriptReady: false,
     scrollAnimated: true,
     activeSegIdx: 0,
     collapsedBoxIds: [],
@@ -632,7 +636,7 @@ Page<PageData, PageCustom>({
     // §5.2：切课期间 this.detail 会先换成新课，而音频仍是上一条；这段窗口内的
     // 任何提交都会把旧音频的位置串写到新课记录上，因此整体挂起。
     this.progressSuspended = true;
-    this.setData({ playerErrorMsg: '', ended: false });
+    this.setData({ isTranscriptReady: false, playerErrorMsg: '', ended: false });
 
     const cachedDetail = detailMemoryCache.get(lessonId);
     if (!cachedDetail) {
@@ -750,6 +754,7 @@ Page<PageData, PageCustom>({
         playerScrollTopPb: initialScrollPb,
         playerScrollTopDg: initialScrollDg,
         isPendingAnchor: shouldShieldAnchor,
+        isTranscriptReady: !shouldShieldAnchor,
         scrollAnimated: false,
         // §2 边界条：按钮可用性取**手动导航**规则（末课下一课禁用、不环绕），
         // 与自动连播的末课环绕是两件事（D7）。
@@ -802,6 +807,17 @@ Page<PageData, PageCustom>({
         this.clockSample = { positionSec: currentPos, atMs: Date.now() };
         // 复用源上前跳同样是异步生效的，期间平台可能短暂上报旧位置（0），布防镇定。
         this.armSettle(currentPos);
+        const dismissGate = (): void => {
+          if (this.loadToken !== token) return;
+          if (!this.data.isTranscriptReady || this.data.isPendingAnchor) {
+            this.setData({
+              isTranscriptReady: true,
+              isPendingAnchor: false,
+              scrollAnimated: true,
+            });
+          }
+        };
+
         // 锚点必须等于**本次要求**的媒体位置：若前跳被平台吞掉，后续倒退提交
         // 会被 `resume-seek-missed` 拦下，历史断点不会被写成 0:0x。
         progressJournal.setPlayheadAnchor(lessonId, initialTrack, effectiveMs);
@@ -810,9 +826,9 @@ Page<PageData, PageCustom>({
           this.tracker.update(currentPos);
           this.scrollToSegment(this.tracker.current().segIdx, {
             animated: false,
-            onResult: () => {
-              if (this.data.isPendingAnchor) {
-                this.setData({ isPendingAnchor: false, scrollAnimated: true });
+            onResult: (applied) => {
+              if (applied) {
+                dismissGate();
               }
             },
           });
@@ -822,6 +838,17 @@ Page<PageData, PageCustom>({
           this.startTick();
         }
       } else {
+        const dismissGate = (): void => {
+          if (this.loadToken !== token) return;
+          if (!this.data.isTranscriptReady || this.data.isPendingAnchor) {
+            this.setData({
+              isTranscriptReady: true,
+              isPendingAnchor: false,
+              scrollAnimated: true,
+            });
+          }
+        };
+
         // 新载入课程或切轨
         this.clockSample = { positionSec: initialPos, atMs: Date.now() };
         // `load()` 后到 seek 生效前平台会上报 0：布防镇定，避免进度条与台本闪回起点。
@@ -855,9 +882,9 @@ Page<PageData, PageCustom>({
         }
         this.scrollToSegment(this.tracker ? this.tracker.current().segIdx : initialSegIdx, {
           animated: false,
-          onResult: () => {
-            if (this.data.isPendingAnchor) {
-              this.setData({ isPendingAnchor: false, scrollAnimated: true });
+          onResult: (applied) => {
+            if (applied) {
+              dismissGate();
             }
           },
         });
@@ -865,10 +892,11 @@ Page<PageData, PageCustom>({
 
       if (shouldShieldAnchor) {
         setTimeout(() => {
-          if (this.data.isPendingAnchor) {
-            this.setData({ isPendingAnchor: false, scrollAnimated: true });
+          if (this.loadToken !== token) return;
+          if (!this.data.isTranscriptReady || this.data.isPendingAnchor) {
+            this.setData({ isTranscriptReady: true, isPendingAnchor: false, scrollAnimated: true });
           }
-        }, 120);
+        }, 360);
       }
 
       // §4.1.7：成功打开课程元数据即更新锚点，与是否播放无关。
@@ -898,6 +926,7 @@ Page<PageData, PageCustom>({
       this.progressSuspended = false;
       this.setData({
         playerLoading: false,
+        isTranscriptReady: true,
         playerErrorMsg: err instanceof Error ? err.message : 'Failed to load lesson',
       });
     }
@@ -1182,7 +1211,7 @@ Page<PageData, PageCustom>({
    * 16/60/200/400ms 补试。定位彻底失败时**必须**放开 `programmaticUntil`，
    * 否则「找回当前句」条被压住，用户连手动补救都没有（BUG-004 ⑤）。
    */
-  reanchorTranscript(segIdx: number): void {
+  reanchorTranscript(segIdx: number, onSettled?: (ok: boolean) => void): void {
     const token = (this.reanchorToken = (this.reanchorToken ?? 0) + 1);
     const delays = REANCHOR_RETRY_DELAYS_MS;
     this.programmaticUntil = Math.max(this.programmaticUntil ?? 0, Date.now() + 900);
@@ -1198,6 +1227,7 @@ Page<PageData, PageCustom>({
         this.setData({ scrollAnimated: true });
       }
       this.traceReseat({ stage: 'final', segIdx, attempt, ok });
+      onSettled?.(ok);
     };
 
     const run = (): void => {
@@ -1306,6 +1336,39 @@ Page<PageData, PageCustom>({
   },
 
   /**
+   * 原生直接落位视口（微信小程序官方 Base Library 2.14.4+ ScrollViewContext API）。
+   *
+   * 彻底切断 WXML 属性绑定的 diff 夹持归零时序冲突，由引擎原生调度滚动。
+   */
+  scrollViewportTo(
+    track: AudioTrackKey,
+    top: number,
+    animated: boolean = false,
+  ): void {
+    const viewportId = track === 'dg' ? '#dgViewport' : '#pbViewport';
+    const trackProp = track === 'dg' ? 'playerScrollTopDg' : 'playerScrollTopPb';
+
+    const patch: Record<string, unknown> = {
+      playerScrollTop: top,
+      [trackProp]: top,
+    };
+    if (animated === false) {
+      patch.scrollAnimated = false;
+    }
+    this.setData(patch);
+
+    wx.createSelectorQuery()
+      .select(viewportId)
+      .node()
+      .exec((res) => {
+        const item = res && (res[0] as { node?: { scrollTo?: (opts: { top: number; animated: boolean }) => void } } | null);
+        if (item && item.node && typeof item.node.scrollTo === 'function') {
+          item.node.scrollTo({ top, animated });
+        }
+      });
+  },
+
+  /**
    * Apple Podcasts 台词精准平滑停靠（Sweet Spot 32% + 自然触底 0 像素位移停靠）。
    *
    * @param opts.animated  是否带滚动动画（重锚校正必须 `false`，否则用户会看到一次滑动）
@@ -1319,7 +1382,9 @@ Page<PageData, PageCustom>({
       opts.onResult?.(false);
       return;
     }
-    const comp = this.selectComponent('#transcript') as unknown as {
+    const currentTrack = this.data.activeTrack;
+    const compId = currentTrack === 'dg' ? '#transcript-dg' : '#transcript-pb';
+    const comp = (this.selectComponent(compId) || this.selectComponent('#transcript')) as unknown as {
       measureRow(seg: number, cb: (rect: { top: number; bottom: number } | null) => void): void;
     } | null;
     if (!comp) {
@@ -1332,16 +1397,17 @@ Page<PageData, PageCustom>({
         opts.onResult?.(false);
         return;
       }
+      const viewportId = currentTrack === 'dg' ? '#dgViewport' : '#pbViewport';
       wx.createSelectorQuery()
-        .select('#transcriptViewport')
+        .select(viewportId)
         .boundingClientRect()
-        .select('#transcript')
+        .select(compId)
         .boundingClientRect()
         // 真实滚动事实：`scrollTop` 由平台给出，不再依赖页面自己对上次下发值的记忆
         // （BUG-001 的根因就是「以为还在上次下发的位置」）；`scrollHeight` 是
         // 含课头与底部留白的**可滚动内容总高**，比 `#transcript` 的高度更接近上界，
         // 用它才能把末尾几句滚进视口（否则短台本尾部会「当前句看不见」）。
-        .select('#transcriptViewport')
+        .select(viewportId)
         .fields({ scrollOffset: true })
         .exec(
           (
@@ -1418,21 +1484,11 @@ Page<PageData, PageCustom>({
                 currentTrackTop ?? this.data.playerScrollTop,
                 scrollResult.targetScrollTop,
               );
-              const patch: Record<string, unknown> = {
-                playerScrollTop: sequence[0],
-                [this.data.activeTrack === 'dg' ? 'playerScrollTopDg' : 'playerScrollTopPb']: sequence[0],
-              };
-              if (opts.animated === false) {
-                patch.scrollAnimated = false;
-              }
-              this.setData(patch);
+              this.scrollViewportTo(this.data.activeTrack, sequence[0], opts.animated !== false);
               if (sequence.length > 1) {
                 const settled = sequence[sequence.length - 1];
                 wx.nextTick(() => {
-                  this.setData({
-                    playerScrollTop: settled,
-                    [this.data.activeTrack === 'dg' ? 'playerScrollTopDg' : 'playerScrollTopPb']: settled,
-                  });
+                  this.scrollViewportTo(this.data.activeTrack, settled, opts.animated !== false);
                 });
               }
             }
@@ -1508,12 +1564,15 @@ Page<PageData, PageCustom>({
       return;
     }
 
-    const comp = this.selectComponent('#transcript') as unknown as {
+    const currentTrack = this.data.activeTrack;
+    const compId = currentTrack === 'dg' ? '#transcript-dg' : '#transcript-pb';
+    const viewportId = currentTrack === 'dg' ? '#dgViewport' : '#pbViewport';
+    const comp = (this.selectComponent(compId) || this.selectComponent('#transcript')) as unknown as {
       measureRow(seg: number, callback: (rect: { top: number; bottom: number } | null) => void): void;
     } | null;
 
     wx.createSelectorQuery()
-      .select('#transcriptViewport')
+      .select(viewportId)
       .boundingClientRect()
       .exec((res: Array<{ top: number; bottom: number; height: number } | null>) => {
         const viewport = res && res[0];
@@ -1854,6 +1913,9 @@ Page<PageData, PageCustom>({
     }
     this.setData(switchPatch, () => {
       this.traceReseat({ stage: 'switch', track, segIdx: switchSegIdx, anchorTop });
+      if (anchorTop !== null) {
+        this.scrollViewportTo(track, anchorTop, false);
+      }
       this.reanchorTranscript(switchSegIdx);
     });
 
