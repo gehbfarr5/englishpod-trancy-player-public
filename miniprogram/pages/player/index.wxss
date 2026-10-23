@@ -159,6 +159,11 @@
   padding: 16px 18px 0 18px;
   background-color: var(--bgColor);
   vertical-align: top;
+  transition: opacity var(--ep-dur-fast) var(--ep-ease-smooth-out);
+}
+
+.pl__body.is-pending-anchor {
+  opacity: 0;
 }
 
 .pl__body-pad {

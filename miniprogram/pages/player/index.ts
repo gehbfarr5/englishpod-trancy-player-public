@@ -152,7 +152,13 @@ interface PageData {
   showPbUnderline: boolean;
   showDgUnderline: boolean;
   blocks: TranscriptBlockVM[];
+  blocksPb: TranscriptBlockVM[];
+  blocksDg: TranscriptBlockVM[];
   playerScrollTop: number;
+  playerScrollTopPb: number;
+  playerScrollTopDg: number;
+  /** 首进或重锚期间的透明遮罩（对齐 iOS/Web 的首帧确定性落位，避免 00:00 闪跳）。 */
+  isPendingAnchor: boolean;
   /** 换轨重锚期间临时关掉滚动动画：校正必须「就在这一帧」，不能滑 300ms 被看见。 */
   scrollAnimated: boolean;
   activeSegIdx: number;
@@ -226,6 +232,8 @@ interface PageCustom {
   scrubbing?: boolean;
   programmaticUntil?: number;
   lastPlayerScrollTop?: number;
+  lastPlayerScrollTopPb?: number;
+  lastPlayerScrollTopDg?: number;
   locateDeadlineMs?: number;
   locateMeasureAt?: number;
   locateThrottleTimer?: ReturnType<typeof setTimeout> | null;
@@ -366,7 +374,12 @@ Page<PageData, PageCustom>({
     showPbUnderline: false,
     showDgUnderline: false,
     blocks: [],
+    blocksPb: [],
+    blocksDg: [],
     playerScrollTop: 0,
+    playerScrollTopPb: 0,
+    playerScrollTopDg: 0,
+    isPendingAnchor: false,
     scrollAnimated: true,
     activeSegIdx: 0,
     collapsedBoxIds: [],
@@ -519,12 +532,22 @@ Page<PageData, PageCustom>({
         navBarPx: navBarHeight,
         capsuleRightPadding: Math.max(capsuleRight, 96),
       });
+
+      if (!this.transcriptViewportHeight || this.transcriptViewportHeight <= 0) {
+        const estH = windowInfo.windowHeight - safeTop - navBarHeight - 180;
+        if (estH > 0) {
+          this.transcriptViewportHeight = estH;
+        }
+      }
     } catch {
       this.setData({
         safeTopPx: 44,
         navBarPx: 44,
         capsuleRightPadding: 96,
       });
+      if (!this.transcriptViewportHeight || this.transcriptViewportHeight <= 0) {
+        this.transcriptViewportHeight = 520;
+      }
     }
   },
 
@@ -698,6 +721,14 @@ Page<PageData, PageCustom>({
         this.tracker.update(initialPos);
       }
 
+      const activeSeg = this.tracker ? this.tracker.current().segIdx : initialSegIdx;
+      const pbResumeSeg = record.podcast ? record.podcast.committedSegmentIndex : 0;
+      const dgResumeSeg = record.dialogue ? record.dialogue.committedSegmentIndex : 0;
+      const initialScrollPb = this.estimateSwitchScrollTop('pb', pbResumeSeg) ?? 0;
+      const initialScrollDg = this.estimateSwitchScrollTop('dg', dgResumeSeg) ?? 0;
+      const activeInitialScroll = initialTrack === 'dg' ? initialScrollDg : initialScrollPb;
+      const shouldShieldAnchor = activeSeg > 0;
+
       this.setData({
         lessonTitle: detail.title,
         lessonLevel: detail.level,
@@ -706,13 +737,20 @@ Page<PageData, PageCustom>({
         activeTrack: initialTrack,
         tabIndex: tabIndexOf(initialTrack),
         blocks: this.blocksByTrack[initialTrack],
+        blocksPb: this.blocksByTrack.pb,
+        blocksDg: this.blocksByTrack.dg,
         vocabEntries: entries,
         expandedVocabIndex: -1,
         collapsedBoxIds: [],
-        activeSegIdx: this.tracker ? this.tracker.current().segIdx : initialSegIdx,
+        activeSegIdx: activeSeg,
         durationLabel: formatTime(this.durations[initialTrack]),
         positionLabel: formatTime(initialPos),
         playerProgressPct: 0,
+        playerScrollTop: activeInitialScroll,
+        playerScrollTopPb: initialScrollPb,
+        playerScrollTopDg: initialScrollDg,
+        isPendingAnchor: shouldShieldAnchor,
+        scrollAnimated: false,
         // §2 边界条：按钮可用性取**手动导航**规则（末课下一课禁用、不环绕），
         // 与自动连播的末课环绕是两件事（D7）。
         hasPrevLesson: plan.canGoPrev,
@@ -770,7 +808,14 @@ Page<PageData, PageCustom>({
         this.updateTransport(currentPos, this.durations[initialTrack]);
         if (this.tracker) {
           this.tracker.update(currentPos);
-          this.scrollToSegment(this.tracker.current().segIdx);
+          this.scrollToSegment(this.tracker.current().segIdx, {
+            animated: false,
+            onResult: () => {
+              if (this.data.isPendingAnchor) {
+                this.setData({ isPendingAnchor: false, scrollAnimated: true });
+              }
+            },
+          });
         }
         if (sessionActive.isPlaying) {
           this.setData({ isPlaying: true });
@@ -808,7 +853,22 @@ Page<PageData, PageCustom>({
             Math.round(initialPos * 1000),
           );
         }
-        this.scrollToSegment(this.tracker ? this.tracker.current().segIdx : initialSegIdx);
+        this.scrollToSegment(this.tracker ? this.tracker.current().segIdx : initialSegIdx, {
+          animated: false,
+          onResult: () => {
+            if (this.data.isPendingAnchor) {
+              this.setData({ isPendingAnchor: false, scrollAnimated: true });
+            }
+          },
+        });
+      }
+
+      if (shouldShieldAnchor) {
+        setTimeout(() => {
+          if (this.data.isPendingAnchor) {
+            this.setData({ isPendingAnchor: false, scrollAnimated: true });
+          }
+        }, 120);
       }
 
       // §4.1.7：成功打开课程元数据即更新锚点，与是否播放无关。
@@ -1345,14 +1405,22 @@ Page<PageData, PageCustom>({
             if (scrollResult.shouldScroll) {
               this.programmaticUntil = Math.max(this.programmaticUntil ?? 0, Date.now() + 1500);
               this.lastPlayerScrollTop = scrollResult.targetScrollTop;
+              if (this.data.activeTrack === 'dg') {
+                this.lastPlayerScrollTopDg = scrollResult.targetScrollTop;
+              } else {
+                this.lastPlayerScrollTopPb = scrollResult.targetScrollTop;
+              }
+              const currentTrackTop =
+                this.data.activeTrack === 'dg' ? this.data.playerScrollTopDg : this.data.playerScrollTopPb;
               // 同值不触发 scroll-view 重排（用户手动滑走后目标偏移可能与上次下发值相同），
               // 由 core 给出「必要时先错 1px」的序列，避免找回/自动跟随静默失效。
               const sequence = scrollTopSequence(
-                this.data.playerScrollTop,
+                currentTrackTop ?? this.data.playerScrollTop,
                 scrollResult.targetScrollTop,
               );
-              const patch: { playerScrollTop: number; scrollAnimated?: boolean } = {
+              const patch: Record<string, unknown> = {
                 playerScrollTop: sequence[0],
+                [this.data.activeTrack === 'dg' ? 'playerScrollTopDg' : 'playerScrollTopPb']: sequence[0],
               };
               if (opts.animated === false) {
                 patch.scrollAnimated = false;
@@ -1361,7 +1429,10 @@ Page<PageData, PageCustom>({
               if (sequence.length > 1) {
                 const settled = sequence[sequence.length - 1];
                 wx.nextTick(() => {
-                  this.setData({ playerScrollTop: settled });
+                  this.setData({
+                    playerScrollTop: settled,
+                    [this.data.activeTrack === 'dg' ? 'playerScrollTopDg' : 'playerScrollTopPb']: settled,
+                  });
                 });
               }
             }
@@ -1753,6 +1824,8 @@ Page<PageData, PageCustom>({
       tabIndex: tabIndexOf(track),
       trackLabel: trackLabelOf(track),
       blocks: this.blocksByTrack ? this.blocksByTrack[track] : [],
+      blocksPb: this.blocksByTrack ? this.blocksByTrack.pb : [],
+      blocksDg: this.blocksByTrack ? this.blocksByTrack.dg : [],
       activeSegIdx: switchSegIdx,
       collapsedBoxIds: [],
       durationLabel: formatTime(this.durations ? this.durations[track] : 0),
@@ -1763,6 +1836,13 @@ Page<PageData, PageCustom>({
     };
     if (anchorTop !== null) {
       switchPatch.playerScrollTop = anchorTop;
+      if (track === 'dg') {
+        switchPatch.playerScrollTopDg = anchorTop;
+        this.lastPlayerScrollTopDg = anchorTop;
+      } else {
+        switchPatch.playerScrollTopPb = anchorTop;
+        this.lastPlayerScrollTopPb = anchorTop;
+      }
       this.lastPlayerScrollTop = anchorTop;
     }
     // 重锚期间不评估「找回当前句」的可见性（否则会闪一下定位条）。
@@ -2029,8 +2109,16 @@ Page<PageData, PageCustom>({
 
   onTranscriptScroll(event: WechatMiniprogram.ScrollViewScroll): void {
     const top = event && event.detail ? event.detail.scrollTop : undefined;
+    const track =
+      ((event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.track) as AudioTrackKey) ||
+      this.data.activeTrack;
     if (typeof top === 'number' && Number.isFinite(top)) {
       this.lastPlayerScrollTop = top;
+      if (track === 'dg') {
+        this.lastPlayerScrollTopDg = top;
+      } else {
+        this.lastPlayerScrollTopPb = top;
+      }
     }
     // 编程式滚动保护期内（例如点击找回条、跳句、自动切句）：完全静默，绝不触碰找回条
     if (Date.now() < (this.programmaticUntil ?? 0)) return;
