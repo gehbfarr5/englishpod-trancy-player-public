@@ -142,12 +142,13 @@ describe('LearningStore · §4.1.9 损坏按课隔离', () => {
 });
 
 describe('LearningStore · 偏好与锚点', () => {
-  test('默认偏好：standard + 自动连播开启', () => {
+  test('默认偏好：standard + 自动连播开启 + 1.0x 倍速', () => {
     const store = new LearningStore(createMemoryKeyValue());
     assert.deepEqual(store.loadPreferences(), {
       schemaVersion: 2,
       uiMode: 'standard',
       autoNextPodcastEnabled: true,
+      playbackRate: 1.0,
     });
   });
 
@@ -155,11 +156,12 @@ describe('LearningStore · 偏好与锚点', () => {
     const kv = createMemoryKeyValue();
     const store = new LearningStore(kv);
     assert.equal(
-      store.savePreferences({ schemaVersion: 2, uiMode: 'immersive', autoNextPodcastEnabled: false }),
+      store.savePreferences({ schemaVersion: 2, uiMode: 'immersive', autoNextPodcastEnabled: false, playbackRate: 1.25 }),
       true,
     );
     assert.equal(store.loadPreferences().uiMode, 'immersive');
     assert.equal(store.loadPreferences().autoNextPodcastEnabled, false);
+    assert.equal(store.loadPreferences().playbackRate, 1.25);
     assert.ok(kv.data.has(PREFERENCES_KEY));
   });
 

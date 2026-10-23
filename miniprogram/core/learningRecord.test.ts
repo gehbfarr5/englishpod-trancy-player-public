@@ -332,6 +332,19 @@ describe('learningRecord · §4.1.9 损坏隔离与规整', () => {
       schemaVersion: 2,
       uiMode: 'standard',
       autoNextPodcastEnabled: true,
+      playbackRate: 1.0,
+    });
+    assert.deepEqual(normalizePreferences({ playbackRate: 1.25 }), {
+      schemaVersion: 2,
+      uiMode: 'standard',
+      autoNextPodcastEnabled: true,
+      playbackRate: 1.25,
+    });
+    assert.deepEqual(normalizePreferences({ playbackRate: 9.99 }), {
+      schemaVersion: 2,
+      uiMode: 'standard',
+      autoNextPodcastEnabled: true,
+      playbackRate: 1.0,
     });
     assert.equal(normalizeResumeAnchor({ lastOpenedLessonId: 42 }).lastOpenedLessonId, null);
   });
