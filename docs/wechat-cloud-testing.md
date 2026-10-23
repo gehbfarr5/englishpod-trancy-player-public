@@ -48,6 +48,8 @@
 
 | 验证项 | 工作流运行记录 | 测试模式 | 被测版本 & SHA | 执行耗时 | 结果与证据 |
 |---|---|---|---|---|---|
-| **开发者预览二维码** | [Run 39819027282](https://github.com/gehbfarr5/englishpod-trancy-player-public/actions/runs/39819027282) | `mode: preview` | `0.3.12` (`b0a625a`) | 19.9s | **PASS**: 成功通过首尔代理握手微信 CI，产出 `preview.jpg` 并作为 Artifact 保存，Step Summary 回显成功 |
-| **官方开发版上传** | [Run 39819830575](https://github.com/gehbfarr5/englishpod-trancy-player-public/actions/runs/39819830575) | `mode: upload` | `0.3.12` (`b0a625a`) | 15.0s | **PASS**: 成功编译并上传官方开发版代码（package groups=1，Robot 9），MiniTest 接入钩子触发并平稳挂起 |
+| **官方开发版上传 + OpenAPI 闭环** | [Run 39883149608](https://github.com/gehbfarr5/englishpod-trancy-player-public/actions/runs/39883149608) | `mode: upload` | `0.3.12` (`2235b69`) | 22.4s | **PASS**: 成功通过首尔白名单代理上传代码到微信官方平台，并通过 AppID + AppSecret 换取 OpenAPI `access_token` 完成平台状态巡检闭环 |
+| **开发者预览二维码 + 构件归档** | [Run 39883317942](https://github.com/gehbfarr5/englishpod-trancy-player-public/actions/runs/39883317942) | `mode: preview` | `0.3.12` (`2235b69`) | 21.0s | **PASS**: 成功生成开发版预览二维码，完成 OpenAPI 巡检，构件 `EnglishPod-WeChat-DEV-PREVIEW-2235b69826b4` 安全保留 7 天 |
+| **早期代理握手实测** | [Run 39819027282](https://github.com/gehbfarr5/englishpod-trancy-player-public/actions/runs/39819027282) | `mode: preview` | `0.3.12` (`b0a625a`) | 19.9s | **PASS**: 初始首尔代理连通性测试 |
+
 
