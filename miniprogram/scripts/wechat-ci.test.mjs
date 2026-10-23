@@ -92,3 +92,14 @@ test('proxy configuration is sanitized and never echoed in diagnostic logs', () 
   assert.doesNotMatch(result.stderr, /supersecretpass/);
   assert.doesNotMatch(result.stdout, /supersecretpass/);
 });
+
+test('wechat-server-api skips cleanly when secret is absent', () => {
+  const env = { ...process.env };
+  delete env.WECHAT_APPSECRET;
+  const result = spawnSync(process.execPath, ['scripts/wechat-server-api.mjs'], {
+    cwd: projectPath, encoding: 'utf8', env,
+  });
+  assert.equal(result.status, 0);
+  assert.match(result.stderr, /Skipping server OpenAPI check/);
+});
+

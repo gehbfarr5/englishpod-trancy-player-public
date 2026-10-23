@@ -96,6 +96,11 @@ jobs:
           WECHAT_CI_OUTPUT_DIR: ${{ runner.temp }}/wechat-preview
           TMPDIR: ${{ runner.temp }}
         run: timeout --signal=TERM --kill-after=20s 1200s node miniprogram/scripts/wechat-ci.mjs "$WECHAT_CI_MODE"
+      - name: Verify platform status via WeChat OpenAPI
+        env:
+          WECHAT_APPSECRET: ${{ secrets.WECHAT_APPSECRET }}
+          WECHAT_CI_PROXY: ${{ secrets.WECHAT_CI_PROXY }}
+        run: node miniprogram/scripts/wechat-server-api.mjs
       - name: Store developer preview QR privately for one week
         if: inputs.mode == 'preview'
         uses: actions/upload-artifact@v4
