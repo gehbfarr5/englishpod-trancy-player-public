@@ -24,7 +24,7 @@
 | **MINITEST_TEST_TYPE** | Variable，可选 | 默认 2（Minium）；也可用 3（录制回放）。云测控制台须已有对应计划。 |
 | **MINITEST_PLATFORMS** | Variable，可选 | 默认 ios,android。官方接口支持 ios、android。 |
 
-用户 Token、项目英文 ID 和测试计划 ID 是三类不同值，缺一时不能执行真实云测。未配置时，工作流会生成 NOT_RUN 摘要；这不是通过，也不能作为设备验收。
+用户 Token、项目英文 ID 和测试计划 ID 是三类不同值，缺一时不能执行真实云测。upload 模式要求 MiniTest 时，未配置将产生 NOT_RUN 摘要并使任务以失败状态（exit code 1）退出；未运行或失败均不能作为设备验收。
 
 ## 官方 API 执行契约
 

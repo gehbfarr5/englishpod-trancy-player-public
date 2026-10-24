@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   classifyTaskResult,
+  main,
   missingConfiguration,
   readConfig,
   runMiniTest,
@@ -184,4 +188,22 @@ test('HTTP and API errors do not expose upstream response content', async () => 
     runMiniTest({ config: config(), fetchImpl: async () => jsonResponse({}, 503) }),
     /status 503/,
   );
+});
+
+test('missing configuration causes main() to report NOT_RUN and return failure exit code 1', async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'minitest-test-'));
+  try {
+    const exitCode = await main({
+      MINITEST_OUTPUT_DIR: tempDir,
+    });
+    assert.equal(exitCode, 1);
+    const summary = JSON.parse(readFileSync(join(tempDir, 'minitest-summary.json'), 'utf8'));
+    assert.equal(summary.status, 'NOT_RUN');
+    assert.ok(Array.isArray(summary.missingConfiguration));
+    assert.ok(summary.missingConfiguration.includes('MINITEST_TOKEN'));
+    assert.ok(summary.missingConfiguration.includes('MINITEST_PROJECT_ID'));
+    assert.ok(summary.missingConfiguration.includes('MINITEST_PLAN_ID'));
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
