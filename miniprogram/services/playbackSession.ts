@@ -239,6 +239,11 @@ export class PlaybackSessionService {
     this.foregroundOwner = owner;
   }
 
+  /** 本轮音频是否正在加载中（beginAudioLoad 之后、endAudioLoad 解锁前）。 */
+  isAudioLoading(): boolean {
+    return this.loadScope !== null;
+  }
+
   /**
    * 进入音频加载锁（§4.1.2）。
    *

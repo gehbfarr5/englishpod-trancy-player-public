@@ -178,6 +178,15 @@ export class BackgroundAudioAdapter implements AudioAdapter {
     this.applyMetadata();
     this.applyRate();
 
+    // 换轨前若旧音频正在播放，立即暂停旧源，防止在解析新源/缓冲期间旧声音继续外放
+    if (!this.isPaused()) {
+      try {
+        this.manager.pause();
+      } catch {
+        // 容错忽略
+      }
+    }
+
     if (isCloudFileId(src)) {
       this.currentSrcKind = 'fileID';
       this.currentSrcDisplay = src;
@@ -307,8 +316,7 @@ export class BackgroundAudioAdapter implements AudioAdapter {
       } catch (err) {
         console.warn('[bgAudio] 补做 pendingPause 失败：', err);
       }
-    }
-    if (this.pendingPlay) {
+    } else if (this.pendingPlay) {
       this.pendingPlay = false;
       try {
         this.manager.play();
@@ -340,48 +348,49 @@ export class BackgroundAudioAdapter implements AudioAdapter {
   }
 
   handlePause(): void {
-    if (!this.destroyed) {
-      playbackSession.setIsPlaying(false);
-      this.events.onPause?.();
+    if (this.destroyed || this.isLoadPending()) {
+      return;
     }
+    playbackSession.setIsPlaying(false);
+    this.events.onPause?.();
   }
 
   /** BAM `onStop`：视为暂停（停止播放状态）。 */
   handleStop(): void {
-    if (!this.destroyed) {
-      playbackSession.setIsPlaying(false);
-      this.events.onPause?.();
+    if (this.destroyed || this.isLoadPending()) {
+      return;
     }
+    playbackSession.setIsPlaying(false);
+    this.events.onPause?.();
   }
 
   handleEnded(): void {
-    if (!this.destroyed) {
-      if (this.events.onEnded) {
-        this.events.onEnded();
-      } else {
-        playbackSession.handleNaturalEnded();
-      }
+    if (this.destroyed || this.isLoadPending()) {
+      return;
+    }
+    if (this.events.onEnded) {
+      this.events.onEnded();
+    } else {
+      playbackSession.handleNaturalEnded();
     }
   }
 
   handleTimeUpdate(): void {
-    if (!this.destroyed) {
-      const pos = this.getPositionSec();
-      const dur = this.getDurationSec();
-      if (!this.isLoadPending()) {
-        // 兜底：canplay 时若时长未知未能补做，首个已知时长的 timeUpdate 补做。
-        // 仅就绪后执行：canplay 前的 timeUpdate 属旧 src，不得消费本轮缓冲。
-        this.consumePendingSeek(dur);
-      }
-      playbackSession.onTimeUpdate(pos, dur);
-      this.events.onTimeUpdate?.(pos);
+    if (this.destroyed || this.isLoadPending()) {
+      return;
     }
+    const pos = this.getPositionSec();
+    const dur = this.getDurationSec();
+    this.consumePendingSeek(dur);
+    playbackSession.onTimeUpdate(pos, dur);
+    this.events.onTimeUpdate?.(pos);
   }
 
   handleSeeked(): void {
-    if (!this.destroyed) {
-      this.events.onSeeked?.(this.getPositionSec());
+    if (this.destroyed || this.isLoadPending()) {
+      return;
     }
+    this.events.onSeeked?.(this.getPositionSec());
   }
 
   handleWaiting(): void {

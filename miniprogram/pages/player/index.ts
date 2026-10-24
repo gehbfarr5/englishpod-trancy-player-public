@@ -13,6 +13,7 @@
 
 import { WechatCloudAdapter } from '../../adapters/wechat/cloud';
 import { createPlayerAudio } from '../../adapters/wechat/playerAudio';
+import { prefetchPlayableUrls } from '../../adapters/wechat/cloudAudioUrl';
 import { PlaybackDiagnosticSession } from '../../core/playbackDiagnostics';
 import { APP_DISPLAY_NAME, USE_MOCK_DATA } from '../../config/env';
 import { HighlightCursorTracker } from '../../core/highlightCursor';
@@ -570,6 +571,11 @@ Page<PageData, PageCustom>({
     this.audio = createPlayerAudio();
     this.audio.setEvents({
       onTimeUpdate: (positionSec: number) => {
+        // 音频加载锁定期（load 后、canplay 解锁前）：
+        // 平台上报的旧轨尾值或瞬时假 0 绝不校正新轨采样点，防止进度条与台本错乱。
+        if (playbackSession.isAudioLoading()) {
+          return;
+        }
         // 换源 / 切轨后的镇定窗口内，平台上报的是新 src 的假 0（或旧 src 的尾值），
         // 不能拿来校正采样点，否则整条渲染链（tick → 进度条 → 台本高亮）都会闪回起点。
         const settleUntilMs = Number.isFinite(this.settleUntilMs) ? (this.settleUntilMs as number) : 0;
@@ -617,6 +623,9 @@ Page<PageData, PageCustom>({
       },
       onWaiting: () => this.localDiagnostics?.waiting(),
       onError: (err) => {
+        if (this.audioLoadToken !== undefined) {
+          playbackSession.endAudioLoad(this.audioLoadToken);
+        }
         this.localDiagnostics?.error(err.errCode);
         this.saveLocalDiagnostics();
         this.setData({ playerErrorMsg: err.message, isPlaying: false });
@@ -859,7 +868,12 @@ Page<PageData, PageCustom>({
         this.armSettle(initialPos);
         this.updateTransport(initialPos, this.durations[initialTrack]);
         if (this.audio) {
-          const src = this.adapter.resolveAudioFileId(lessonId, initialTrack, detail.audio[initialTrack]);
+          // 批量预热两轨音频链接，消除切轨时的网络请求等待
+          const pbSrc = this.adapter.resolveAudioFileId(lessonId, 'pb', detail.audio['pb']);
+          const dgSrc = this.adapter.resolveAudioFileId(lessonId, 'dg', detail.audio['dg']);
+          void prefetchPlayableUrls([pbSrc, dgSrc]);
+
+          const src = initialTrack === 'dg' ? dgSrc : pbSrc;
           if (!src) {
             throw new Error('该课程音频地址不可用，请检查云端索引及音频文件。');
           }
@@ -870,13 +884,7 @@ Page<PageData, PageCustom>({
           if (this.machine) {
             this.audio.setPlaybackRate(this.machine.getRate());
           }
-          if (initialPos > 0) {
-            this.audio.seek(initialPos);
-          } else if (previousLessonId === lessonId) {
-            // 同一课重新装载（单课库末课循环 / 重播）：BAM 可能保留旧播放头，
-            // 必须显式回到 00:00，否则会「从头播放」失败（F13）。
-            this.audio.seek(0);
-          }
+          this.audio.seek(initialPos);
           // 记录播放头锚点：本次载入我们要求媒体停在哪里（0 = 确实有意从 00:00 开始）。
           progressJournal.setPlayheadAnchor(
             lessonId,
@@ -1867,6 +1875,7 @@ Page<PageData, PageCustom>({
       targetSec = segs[seekSegIdx].start;
     }
     this.tracker.update(targetSec);
+    this.clockSample = { positionSec: targetSec, atMs: Date.now() };
 
     // BUG-004 核心：`blocks` 与首帧滚动偏移必须在**同一次** setData 里替换。
     // 旧实现先下发 `playerScrollTop: 0` 再靠量测补充，必然先画一帧第 1 条。
@@ -1943,9 +1952,7 @@ Page<PageData, PageCustom>({
       track,
       durationSec: this.durations && this.durations[track] > 0 ? this.durations[track] : undefined,
     });
-    if (targetSec > 0) {
-      this.audio.seek(targetSec);
-    }
+    this.audio.seek(targetSec);
     // §2：同课切轨继承现有播放/暂停；意图位随之一致，避免后续加载用旧意图。
     this.playRequested = wasPlaying;
     if (wasPlaying) {
@@ -1954,7 +1961,6 @@ Page<PageData, PageCustom>({
       this.audio.pause();
     }
 
-    this.clockSample = { positionSec: targetSec, atMs: Date.now() };
     progressJournal.setPlayheadAnchor(
       this.detail.lessonId,
       track,
