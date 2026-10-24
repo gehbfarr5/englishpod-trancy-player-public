@@ -17,7 +17,7 @@ The original includes dual-audio rules. For the proposed new Mini Program scope,
 ## Reading order
 1. miniprogram-v1-product-spec-draft.md — proposed Mini Program scope; distinguishes user-confirmed decisions from suggestions and pending validation.
 2. playback-behavior-contract.md — preserved behavior baseline, especially progress and completion semantics.
-3. Official WeChat documents and feature evidence register (to be completed before implementation).
+3. miniprogram-platform-evidence.md — M0 evidence register; official page bodies remain unverified where automated retrieval failed.
 
 ## Remaining audit boundaries
 - Identify other missing non-sensitive Web/product documentation through a dedicated old/public inventory before declaring all migration documentation complete.
