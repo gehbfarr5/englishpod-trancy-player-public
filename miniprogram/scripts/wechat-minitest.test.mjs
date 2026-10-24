@@ -70,15 +70,24 @@ test('missing cloud configuration is explicit and prevents a device-validated cl
 });
 
 test('MiniTest requires status 12 and a perfect success rate for PASS', () => {
+  assert.deepEqual(classifyTaskResult({ data: { status: 0 } }), {
+    terminal: false, status: 'RUNNING', code: 0,
+  });
   assert.deepEqual(classifyTaskResult({ data: { status: 1 } }), {
     terminal: false, status: 'RUNNING', code: 1,
+  });
+  assert.deepEqual(classifyTaskResult({ data: { status: 2 } }), {
+    terminal: false, status: 'RUNNING', code: 2,
+  });
+  assert.deepEqual(classifyTaskResult({ data: { status: 3 } }), {
+    terminal: false, status: 'RUNNING', code: 3,
   });
   assert.deepEqual(classifyTaskResult({ data: { status: 12 } }), {
     terminal: true, status: 'COMPLETED', code: 12,
   });
   assert.equal(classifyTaskResult({ data: { status: 15 } }).status, 'FAIL');
-  assert.equal(classifyTaskResult({ data: { status: 12 } }).status, 'COMPLETED');
-  assert.throws(() => classifyTaskResult({ data: { status: 3 } }), /unknown task status/);
+  assert.equal(classifyTaskResult({ data: { status: 11 } }).status, 'FAIL');
+  assert.throws(() => classifyTaskResult({ data: { status: -1 } }), /cannot be negative/);
 });
 
 test('submits the documented form fields, polls to terminal PASS and verifies report references', async () => {

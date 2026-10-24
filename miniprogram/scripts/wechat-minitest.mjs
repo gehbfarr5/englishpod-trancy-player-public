@@ -122,13 +122,16 @@ function taskStatus(payload) {
   if (!data || typeof data !== 'object' || !Number.isInteger(Number(data.status))) {
     throw new Error('MiniTest task response did not contain a valid status.');
   }
-  return { code: Number(data.status), data };
+  const code = Number(data.status);
+  if (code < 0) {
+    throw new Error('MiniTest task status cannot be negative.');
+  }
+  return { code, data };
 }
 
 export function classifyTaskResult(payload) {
   const { code } = taskStatus(payload);
-  if (code === 1 || code === 2) return { terminal: false, status: 'RUNNING', code };
-  if (code < 10) throw new Error('MiniTest returned an unknown task status.');
+  if (code < 10) return { terminal: false, status: 'RUNNING', code };
   if (code !== 12) {
     return {
       terminal: true,
@@ -160,6 +163,8 @@ export async function waitForTask({
       full_info: 1,
     });
     const result = classifyTaskResult(payload);
+    const statusText = typeof payload.data?.status_text === 'string' ? ' (' + payload.data.status_text + ')' : '';
+    console.log('[wechat-minitest] task ' + taskId + ' status=' + result.status + ' code=' + result.code + statusText);
     if (result.terminal) return result;
     await sleepImpl(Math.min(config.pollIntervalMs, Math.max(0, config.timeoutMs - (now() - startedAt))));
   }
@@ -250,6 +255,7 @@ export async function runMiniTest({
   if (!Number.isInteger(Number(taskId)) || Number(taskId) <= 0) {
     throw new Error('MiniTest submission did not return a task ID.');
   }
+  console.log('[wechat-minitest] Submitted task ID: ' + taskId);
   const finalResult = await waitForTask({
     fetchImpl,
     config,
