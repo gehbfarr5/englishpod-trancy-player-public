@@ -4,6 +4,7 @@ import { playbackSession } from '../../services/playbackSession';
 import {
   M1ContentView,
   M1ExperimentState,
+  readM1ViewKey,
   SinglePodcastExperiment,
 } from '../../rebuild/singlePodcastExperiment';
 import { WechatM1BackgroundAudioPort } from '../../rebuild/wechatM1BackgroundAudioPort';
@@ -42,7 +43,7 @@ interface M1PageCustom {
   onStartPodcast(): void;
   onTogglePlayback(): void;
   onSeekChange(event: WechatMiniprogram.SliderChange): void;
-  onSelectView(event: WechatMiniprogram.CustomEvent<{ key: M1ContentView }>): void;
+  onSelectView(event: WechatMiniprogram.TouchEvent): void;
   onExitExperiment(): void;
 }
 
@@ -222,9 +223,11 @@ Page<M1PageData, M1PageCustom>({
     this.refreshState();
   },
 
-  onSelectView(event: WechatMiniprogram.CustomEvent<{ key: M1ContentView }>): void {
-    const key = event.detail.key;
-    if (!['pb', 'dg', 'vocab'].includes(key)) return;
+  onSelectView(event: WechatMiniprogram.TouchEvent): void {
+    // WXML bindtap passes a native tap event. data-key is exposed on
+    // currentTarget.dataset; event.detail is reserved for custom-event payloads.
+    const key = readM1ViewKey(event);
+    if (!key) return;
     this.experiment?.selectView(key);
     this.refreshState();
   },

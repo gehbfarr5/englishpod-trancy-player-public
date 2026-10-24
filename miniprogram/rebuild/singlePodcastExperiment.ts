@@ -1,5 +1,16 @@
 export type M1ContentView = 'pb' | 'dg' | 'vocab';
 
+export interface M1ViewTapEventLike {
+  currentTarget?: { dataset?: Record<string, unknown> };
+  detail?: unknown;
+}
+
+/** Read a view key from a WXML bindtap event's data-key attribute. */
+export function readM1ViewKey(event: M1ViewTapEventLike): M1ContentView | null {
+  const key = event.currentTarget?.dataset?.key;
+  return key === 'pb' || key === 'dg' || key === 'vocab' ? key : null;
+}
+
 export interface M1PlaybackSnapshot {
   readonly sourceLoaded: boolean;
   readonly positionSec: number;

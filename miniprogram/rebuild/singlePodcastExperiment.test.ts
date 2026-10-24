@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   M1MediaPort,
   M1PlaybackSnapshot,
+  readM1ViewKey,
   SinglePodcastExperiment,
 } from './singlePodcastExperiment';
 
@@ -39,6 +40,26 @@ class FakeMedia implements M1MediaPort {
     this.current = { ...this.current, positionSec };
   }
 }
+
+
+test('WXML bindtap view selection reads data-key from currentTarget.dataset', () => {
+  const media = new FakeMedia();
+  const experiment = new SinglePodcastExperiment(media);
+  const event = {
+    detail: {},
+    currentTarget: { dataset: { key: 'dg' } },
+  };
+  const key = readM1ViewKey(event);
+  assert.equal(key, 'dg');
+  if (key) experiment.selectView(key);
+  assert.equal(experiment.state().view, 'dg');
+  assert.deepEqual(media.calls, []);
+});
+
+test('invalid or missing tap datasets are ignored safely', () => {
+  assert.equal(readM1ViewKey({ detail: { key: 'dg' } }), null);
+  assert.equal(readM1ViewKey({ currentTarget: { dataset: { key: 'other' } } }), null);
+});
 
 test('content view changes never issue audio commands or mutate playback state', () => {
   const media = new FakeMedia();
