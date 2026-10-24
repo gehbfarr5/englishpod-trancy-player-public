@@ -55,7 +55,7 @@ jobs:
       - name: Audit source packaging, guard tests and verify offline
         run: |
           node miniprogram/scripts/wechat-package-audit.mjs
-          node --test miniprogram/scripts/wechat-ci.test.mjs
+          node --test miniprogram/scripts/wechat-ci.test.mjs miniprogram/scripts/wechat-minitest.test.mjs
           node miniprogram/scripts/wechat-ci.mjs verify
 
   transmit:
@@ -68,7 +68,7 @@ jobs:
       inputs.confirm_wechat_code_upload == 'UPLOAD_WECHAT_DEV_CODE'
     runs-on: ubuntu-24.04
     environment: wechat-upload
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
@@ -121,4 +121,19 @@ jobs:
         env:
           MINITEST_TOKEN: ${{ secrets.MINITEST_TOKEN }}
           MINITEST_PLAN_ID: ${{ vars.MINITEST_PLAN_ID }}
+          MINITEST_PROJECT_ID: ${{ vars.MINITEST_PROJECT_ID }}
+          MINITEST_TEST_TYPE: ${{ vars.MINITEST_TEST_TYPE || '2' }}
+          MINITEST_WX_VERSION: '3'
+          MINITEST_PLATFORMS: ${{ vars.MINITEST_PLATFORMS || 'ios,android' }}
+          MINITEST_COMMIT_SHA: ${{ github.sha }}
+          MINITEST_RUN_ID: ${{ github.run_id }}
+          MINITEST_OUTPUT_DIR: ${{ runner.temp }}/minitest
         run: node miniprogram/scripts/wechat-minitest.mjs
+      - name: Preserve sanitized MiniTest run summary
+        if: always() && inputs.mode == 'upload'
+        uses: actions/upload-artifact@v4
+        with:
+          name: EnglishPod-MiniTest-Summary-${{ github.sha }}
+          path: ${{ runner.temp }}/minitest/minitest-summary.json
+          if-no-files-found: warn
+          retention-days: 7

@@ -1,55 +1,55 @@
-# 微信小程序云测（MiniTest）接入与使用指南
+# 微信小程序云测（MiniTest）接入与结果判定
 
-> **适用范围**：EnglishPod 微信小程序（`gehbfarr5/englishpod-trancy-player-public`）  
-> **服务官方入口**：[微信公众平台](https://mp.weixin.qq.com/) → **开发** → **云测服务** (或直接访问 [minitest.weixin.qq.com](https://minitest.weixin.qq.com))
+> 适用范围：EnglishPod 微信小程序
+> 官方 API 契约核验日期：2026-10-24；腾讯文档标注最后更新：2026-08-21。
 
----
+## 官方资料
 
-## 1. 为什么接入小程序云测？
+- [MiniTest 第三方 API：测试任务](https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/api_plan.html)
+- [MiniTest API 接口说明](https://developers.weixin.qq.com/miniprogram/dev/devtools/minitest/api_exe.html)
+- [BackgroundAudioManager](https://developers.weixin.qq.com/miniprogram/dev/api/media/background-audio/BackgroundAudioManager.html)
+- [后台音频管理器 API](https://developers.weixin.qq.com/miniprogram/dev/api/media/background-audio/wx.getBackgroundAudioManager.html)
+- [小程序运行机制](https://developers.weixin.qq.com/miniprogram/dev/framework/runtime/operating-mechanism.html)
+- [合理使用 setData](https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips/runtime_setData.html)
 
-传统自动化测试或真机验证依赖开发者在本地连接物理机（或开着开发者工具）。
-微信官方提供的**小程序云测（MiniTest）**联合腾讯 WeTest，在腾讯云机房配备了上百款真实的 iPhone 和 Android 设备，每周提供 **150 分钟免费真机额度**。
+## GitHub Actions 配置
 
-接入后：
-* 代码通过 GitHub Actions 自动上传至开发版后，CI 可直接通过 HTTP API 触发云测任务。
-* 云端真机矩阵自动跑兼容性、防崩溃（Monkey 测试）以及核心用例。
-* 测试报告（含真实截图、耗时、JS 异常、网络请求）直接生成在线链接或结构化数据，供 Agent 和开发者复核，**彻底免去在身边物理机上手工反复测试**。
+在仓库 Settings → Secrets and variables → Actions 配置：
 
----
+| 名称 | 类型 | 用途 |
+| --- | --- | --- |
+| **MINITEST_TOKEN** | Secret | 腾讯 MiniTest 用户 Token。只从 Actions Secret 读取，不写入日志。 |
+| **MINITEST_PROJECT_ID** | Variable | MiniTest 项目英文 ID（group_en_id），不是小程序 AppID。 |
+| **MINITEST_PLAN_ID** | Variable | 云测控制台中的测试计划 ID，提交时映射到官方参数 test_plan_id。 |
+| **MINITEST_TEST_TYPE** | Variable，可选 | 默认 2（Minium）；也可用 3（录制回放）。云测控制台须已有对应计划。 |
+| **MINITEST_PLATFORMS** | Variable，可选 | 默认 ios,android。官方接口支持 ios、android。 |
 
-## 2. 首次开通与凭据获取（账号持有人操作）
+用户 Token、项目英文 ID 和测试计划 ID 是三类不同值，缺一时不能执行真实云测。未配置时，工作流会生成 NOT_RUN 摘要；这不是通过，也不能作为设备验收。
 
-1. **登录控制台**：
-   * 登录微信公众平台后台，进入「开发管理」→「云测服务」（首次进入按提示开通）。
-2. **创建测试计划**：
-   * 在云测后台选择「测试计划」→「新建计划」，选择测试类型（例如「Monkey 测试」或「录制回放/自定义用例」）。
-   * 记下生成的 `Plan ID`（测试计划编号）。
-3. **获取 API 授权 Token**：
-   * 在云测后台「用户设置」或「第三方接口 / OpenAPI」中生成授权 Token。
-4. **配置 GitHub 变量**：
-   * 在 GitHub 仓库设置 `Settings` → `Secrets and variables` → `Actions` 中添加：
-     * `MINITEST_TOKEN`（Secret）：云测 API Token。
-     * `MINITEST_PLAN_ID`（Variable）：刚才创建的测试计划 ID。
+## 官方 API 执行契约
 
----
+上传开发版成功后，miniprogram/scripts/wechat-minitest.mjs 按官方接口完成以下步骤：
 
-## 3. 流水线执行机制
+1. POST /thirdapi/plan，提交 token、group_en_id、test_type、wx_version=3（开发版）、平台列表和 test_plan_id；描述附带包版本、Git SHA 和 GitHub Run ID。腾讯要求项目已绑定小程序 AppID。
+2. 从响应中的 data.plan_id 取得本次测试任务 ID。这里的任务 ID 与测试计划 ID 不同。
+3. 以 GET /thirdapi/plan 查询任务，带 full_info=1。官方状态 1 为排队、2 为测试中；大于 10 表示终态，只有 12 表示正常结束，其他终态按未通过处理。
+4. 以 GET /thirdapi/plan_list 按提交描述中的 SHA 查询本次任务及 success_rate。只有任务 ID 匹配且成功率为 1.0 才记 PASS。任务完成但成功率缺失、查询超时、报告读取失败均不得记为通过。
+5. 以 GET /thirdapi/share_url 和 /thirdapi/report/static_resource 确认报告引用可用。分享 URL、下载 URL、Token 和原始报告内容不会写到公开日志或仓库。
 
-* 在 `.github/workflows/wechat-preview.yml` 中：
-  * 当执行 `mode=upload` 且成功将代码传到微信开发版后，会自动触发 `miniprogram/scripts/wechat-minitest.mjs`。
-  * 若未配置凭据，脚本会自动跳过（Graceful skip），不阻断流水线。
-  * 若已配置凭据，云测将异步在腾讯云真机上执行测试，测试完成后可直接在云测控制台查阅报告。
+官方第三方接口限制为每个项目每小时 1000 次；当前工作流按 15 秒间隔轮询，最多等待 30 分钟。开发版上传/云测任务所在工作流超时设置为 60 分钟。云测摘要 JSON 仅包含状态、版本、SHA、Run ID、任务 ID、平台、成功率和报告是否可读取，作为 7 天 GitHub Actions Artifact 保存。
 
----
+若需要查看截图、日志等详细资源，请使用 MiniTest 控制台中的任务 ID 和账号权限。不要把包含课程/账号内容的原始截图或报告压进公开仓库。腾讯云测能否观察真实音频输出、后台连续播放、锁屏控制、耳机操作和系统中断，必须分别核实；页面渲染通过、无崩溃或 MiniTest 任务结束不能替代这些证据。
 
-## 4. 全链路自动化实测回执（2026-10-23）
+## 对旧执行记录的重新判读
 
-全套标准化无头 CI/CD 流水线已在 GitHub Actions 官方托管 Runner (`ubuntu-24.04`) 与腾讯云首尔出口代理配合下完成端到端闭环实测：
+历史 [Run 39883149608](https://github.com/gehbfarr5/englishpod-trancy-player-public/actions/runs/39883149608) 的开发版上传和 OpenAPI 巡检成功，MiniTest 步骤也显示成功，但旧脚本使用的 URL、认证方式和字段与上述官方 API 不符；该 Run 不能证明腾讯云测任务已成功提交或设备用例已通过。历史预览 Run 39883317942 不执行 MiniTest。
 
-| 验证项 | 工作流运行记录 | 测试模式 | 被测版本 & SHA | 执行耗时 | 结果与证据 |
-|---|---|---|---|---|---|
-| **官方开发版上传 + OpenAPI 闭环** | [Run 39883149608](https://github.com/gehbfarr5/englishpod-trancy-player-public/actions/runs/39883149608) | `mode: upload` | `0.3.12` (`2235b69`) | 22.4s | **PASS**: 成功通过首尔白名单代理上传代码到微信官方平台，并通过 AppID + AppSecret 换取 OpenAPI `access_token` 完成平台状态巡检闭环 |
-| **开发者预览二维码 + 构件归档** | [Run 39883317942](https://github.com/gehbfarr5/englishpod-trancy-player-public/actions/runs/39883317942) | `mode: preview` | `0.3.12` (`2235b69`) | 21.0s | **PASS**: 成功生成开发版预览二维码，完成 OpenAPI 巡检，构件 `EnglishPod-WeChat-DEV-PREVIEW-2235b69826b4` 安全保留 7 天 |
-| **早期代理握手实测** | [Run 39819027282](https://github.com/gehbfarr5/englishpod-trancy-player-public/actions/runs/39819027282) | `mode: preview` | `0.3.12` (`b0a625a`) | 19.9s | **PASS**: 初始首尔代理连通性测试 |
+## 与播放器重建相关的平台事实
 
+- BackgroundAudioManager 是全局唯一实例；设置新的 src 会自动开始播放，因此切换 Podcast / Dialogue 台本或词汇视图不能更新 src。
+- 官方说明：小程序切到后台时，如果音频正在播放，可以继续播放；后台状态不能通过小程序 API 操纵播放状态。正式版使用后台音频还涉及 requiredBackgroundModes 审核。
+- 小程序进入后台约 5 秒后 JS 线程会挂起；使用后台音乐播放能力时可持续运行。设备资源紧张或长时间未使用时仍可能被回收，因此回前台需从真实媒体状态恢复界面。
+- onTimeUpdate 仅在小程序前台回调；onCanplay 只表示进入可播放状态，不保证之后连续流畅。
+- 官方 setData 指南要求控制组件树规模和更新频率，避免滚动回调高频 setData，也要求后台页面避免不必要的更新。
 
+这些规则约束新实现，但仍须通过 M1 云端/目标设备实验确认实际声音、后台、恢复及长音频行为；接口文档不是设备测试结果。
