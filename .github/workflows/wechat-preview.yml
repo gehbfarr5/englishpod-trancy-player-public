@@ -116,7 +116,7 @@ jobs:
           echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Robot**: \`${{ vars.WECHAT_CI_ROBOT || '9' }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Preview Artifact**: Download the \`EnglishPod-WeChat-DEV-PREVIEW-${{ github.sha }}\` artifact to scan and test directly on authorized devices." >> $GITHUB_STEP_SUMMARY
-      - name: Trigger MiniTest cloud testing (optional)
+      - name: Trigger MiniTest cloud testing
         if: inputs.mode == 'upload'
         env:
           MINITEST_TOKEN: ${{ secrets.MINITEST_TOKEN }}

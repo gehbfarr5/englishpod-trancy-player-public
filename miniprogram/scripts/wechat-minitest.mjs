@@ -317,15 +317,15 @@ function writeStepSummary(path, report) {
   appendFileSync(path, lines.join('\n'), 'utf8');
 }
 
-async function main(env = process.env) {
+export async function main(env = process.env) {
   const config = readConfig(env);
   const missing = missingConfiguration(config);
   if (missing.length) {
     const report = baseSummary(config, 'NOT_RUN', { missingConfiguration: missing });
     persistSummary(config.outputDir, report);
     writeStepSummary(config.summaryPath, report);
-    console.log('[wechat-minitest] NOT_RUN; missing required configuration: ' + missing.join(', '));
-    return 0;
+    console.error('[wechat-minitest] NOT_RUN; missing required configuration: ' + missing.join(', '));
+    return 1;
   }
   let report;
   try {
@@ -341,7 +341,7 @@ async function main(env = process.env) {
   console.log('[wechat-minitest] ' + report.status +
     (report.taskId ? ' taskId=' + report.taskId : '') +
     (Number.isFinite(report.successRate) ? ' successRate=' + report.successRate : ''));
-  return report.status === 'PASS' || report.status === 'NOT_RUN' ? 0 : 1;
+  return report.status === 'PASS' ? 0 : 1;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
