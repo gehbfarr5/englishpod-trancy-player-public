@@ -39,7 +39,7 @@ jobs:
   native:
     name: Native / ${{ matrix.platform }}
     needs: client_changes
-    if: ${{ always() && (needs.client_changes.result != 'success' || (matrix.platform == 'ios-simulator' && needs.client_changes.outputs.ios == 'true') || (matrix.platform == 'android-emulator' && needs.client_changes.outputs.android == 'true')) }}
+    if: ${{ always() && (needs.client_changes.result != 'success' || needs.client_changes.outputs.ios == 'true') }}
     strategy:
       fail-fast: false
       matrix:
