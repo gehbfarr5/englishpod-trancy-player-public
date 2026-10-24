@@ -91,8 +91,11 @@ export class PodcastSession {
     this.previousPosition = Math.min(positionMs, duration);
     this.media.seek(Math.min(positionMs, duration));
     // An explicit seek is a valid resume point, but never a completion event.
-    if (this.course) this.journal.commit({ lessonId: this.course.id, track: 'pb',
-      positionMs: Math.min(positionMs, duration), durationMs: duration, reason: 'userSeek' });
+    if (this.course) {
+      const result = this.journal.commit({ lessonId: this.course.id, track: 'pb',
+        positionMs: Math.min(positionMs, duration), durationMs: duration, reason: 'userSeek' });
+      this.saveFailed = result.failureReason === 'write-failed';
+    }
     this.emit();
   }
   async navigate(delta: -1 | 1) {
@@ -117,6 +120,7 @@ export class PodcastSession {
       if (this.wantsPlay) this.media.play(); else { this.awaitingPause = true; this.media.pause(); }
     } else if (event === 'error') {
       this.error = 'Podcast playback failed'; this.ready = false; this.wantsPlay = false;
+      this.media.pause();
     } else if (this.ready) {
       const state = this.media.snapshot();
       if (event === 'time') {
