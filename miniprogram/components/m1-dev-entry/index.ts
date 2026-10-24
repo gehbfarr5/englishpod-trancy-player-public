@@ -2,7 +2,7 @@ interface M1EntryData {
   visible: boolean;
 }
 
-Component<M1EntryData>({
+Component({
   data: {
     visible: false,
   },
