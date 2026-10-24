@@ -178,6 +178,7 @@
     duration-label="{{durationLabel}}"
     progress-pct="{{playerProgressPct}}"
     is-playing="{{isPlaying}}"
+    is-loading="{{isAudioLoading || playerLoading}}"
     ended="{{ended}}"
     single-sentence-loop="{{singleSentenceLoop}}"
     repeat-episode="{{repeatEpisode}}"

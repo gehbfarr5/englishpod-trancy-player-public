@@ -11,6 +11,8 @@ Component({
     progressPct: { type: Number, value: 0 },
     /** 是否正在播放。 */
     isPlaying: { type: Boolean, value: false },
+    /** 音频或资源是否正在加载/缓冲。 */
+    isLoading: { type: Boolean, value: false },
     /**
      * 当前音轨是否已自然结束并停住（EP-PBC-001 §3.2）。
      *

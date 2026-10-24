@@ -142,6 +142,7 @@ interface PageData {
   navBarPx: number;
   capsuleRightPadding: number;
   playerLoading: boolean;
+  isAudioLoading: boolean;
   playerErrorMsg: string;
   lessonTitle: string;
   lessonLevel: string;
@@ -367,6 +368,7 @@ Page<PageData, PageCustom>({
     navBarPx: 44,
     capsuleRightPadding: 96,
     playerLoading: true,
+    isAudioLoading: false,
     playerErrorMsg: '',
     lessonTitle: '',
     lessonLevel: '',
@@ -595,7 +597,7 @@ Page<PageData, PageCustom>({
       },
       onPlay: () => {
         this.localDiagnostics?.playEvent();
-        this.setData({ isPlaying: true });
+        this.setData({ isPlaying: true, isAudioLoading: false });
         this.setKeepScreenOn(true);
         this.refreshTrackUnderline();
         this.startTick();
@@ -619,16 +621,20 @@ Page<PageData, PageCustom>({
         if (this.audioLoadToken !== undefined) {
           playbackSession.endAudioLoad(this.audioLoadToken);
         }
+        this.setData({ isAudioLoading: false });
         this.localDiagnostics?.canplay();
       },
-      onWaiting: () => this.localDiagnostics?.waiting(),
+      onWaiting: () => {
+        this.localDiagnostics?.waiting();
+        this.setData({ isAudioLoading: true });
+      },
       onError: (err) => {
         if (this.audioLoadToken !== undefined) {
           playbackSession.endAudioLoad(this.audioLoadToken);
         }
         this.localDiagnostics?.error(err.errCode);
         this.saveLocalDiagnostics();
-        this.setData({ playerErrorMsg: err.message, isPlaying: false });
+        this.setData({ playerErrorMsg: err.message, isPlaying: false, isAudioLoading: false });
       },
     });
   },
@@ -649,9 +655,22 @@ Page<PageData, PageCustom>({
     // §5.2：切课期间 this.detail 会先换成新课，而音频仍是上一条；这段窗口内的
     // 任何提交都会把旧音频的位置串写到新课记录上，因此整体挂起。
     this.progressSuspended = true;
-    this.setData({ isTranscriptReady: false, playerErrorMsg: '', ended: false });
 
     const cachedDetail = detailMemoryCache.get(lessonId);
+    const pbActive = (mode === 'library' || mode === 'resume')
+      ? playbackSession.isLessonActive(lessonId, 'pb')
+      : { isActive: false, isPlaying: false, currentTime: 0, duration: 0 };
+    const dgActive = (mode === 'library' || mode === 'resume')
+      ? playbackSession.isLessonActive(lessonId, 'dg')
+      : { isActive: false, isPlaying: false, currentTime: 0, duration: 0 };
+    const isCurrentlyActiveLesson = pbActive.isActive || dgActive.isActive;
+
+    if (!isCurrentlyActiveLesson) {
+      this.setData({ isTranscriptReady: false, playerErrorMsg: '', ended: false });
+    } else {
+      this.setData({ isTranscriptReady: true, playerErrorMsg: '', ended: false });
+    }
+
     if (!cachedDetail) {
       if (this.lessonIndexItems) {
         const item = this.lessonIndexItems.find((l) => l.lessonId === lessonId);
@@ -707,9 +726,11 @@ Page<PageData, PageCustom>({
           playbackSession.setLessonInfo({ lessonId, singleSentenceLoop: false });
         }
       }
-      // 目标音轨没有 DG 音轨时回落到 PB（数据缺失保护，不改变矩阵语义）。
-      const initialTrack: AudioTrackKey =
-        plan.track === 'dg' && dgSegments.length > 0 ? 'dg' : 'pb';
+      // 目标音轨：若后台正在活跃播放该课某轨，则直接无缝继承活跃音轨，不强行切回 PB；
+      // 否则目标音轨没有 DG 音轨时回落到 PB（数据缺失保护，不改变矩阵语义）。
+      const initialTrack: AudioTrackKey = isCurrentlyActiveLesson
+        ? (dgActive.isActive ? 'dg' : 'pb')
+        : (plan.track === 'dg' && dgSegments.length > 0 ? 'dg' : 'pb');
       const initialPos = plan.startMs / 1000;
       const initialSegIdx =
         initialTrack === 'pb'
@@ -744,7 +765,7 @@ Page<PageData, PageCustom>({
       const initialScrollPb = this.estimateSwitchScrollTop('pb', pbResumeSeg) ?? 0;
       const initialScrollDg = this.estimateSwitchScrollTop('dg', dgResumeSeg) ?? 0;
       const activeInitialScroll = initialTrack === 'dg' ? initialScrollDg : initialScrollPb;
-      const shouldShieldAnchor = activeSeg > 0;
+      const shouldShieldAnchor = !isCurrentlyActiveLesson && activeSeg > 0;
 
       this.setData({
         lessonTitle: detail.title,
@@ -1890,6 +1911,7 @@ Page<PageData, PageCustom>({
       activeSegIdx: switchSegIdx,
       collapsedBoxIds: [],
       durationLabel: formatTime(this.durations ? this.durations[track] : 0),
+      isAudioLoading: true,
       // 换轨离开「已结束」态（DG 播完 → 切到 PB 不应再显示 ↺）。
       ended: false,
       // 校正必须发生在这一帧，不能被 300ms 滚动动画暴露出来。

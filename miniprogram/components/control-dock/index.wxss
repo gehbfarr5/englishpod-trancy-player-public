@@ -179,6 +179,21 @@
   mask-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgLTk2MCA5NjAgOTYwIj48cGF0aCBmaWxsPSIjMDAwIiBkPSJNNDgwLTgwcS03NSAwLTE0MC41LTI4LjV0LTExNC03N3EtNDguNS00OC41LTc3LTExNFQxMjAtNDQwaDgwcTAgMTE3IDgxLjUgMTk4LjVUNDgwLTE2MHExMTcgMCAxOTguNS04MS41VDc2MC00NDBxMC0xMTctODEuNS0xOTguNVQ0ODAtNzIwaC02bDYyIDYyLTU2IDU4LTE2MC0xNjAgMTYwLTE2MCA1NiA1OC02MiA2Mmg2cTc1IDAgMTQwLjUgMjguNXQxMTQgNzdxNDguNSA0OC41IDc3IDExNFQ4NDAtNDQwdC0yOC41IDE0MC41LTc3IDExNC0xMTQgNzdUNDgwLTgwWiIvPjwvc3ZnPg==');
 }
 
+.dock__play-icon.ic-loading {
+  -webkit-mask-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PGcgc3Ryb2tlPSIjMDAwIiBzdHJva2Utd2lkdGg9IjIuNSIgZmlsbD0ibm9uZSI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iOSIgc3Ryb2tlLW9wYWNpdHk9IjAuMjUiLz48cGF0aCBkPSJNMTIgM2E5IDkgMCAwIDEgOSA5IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L2c+PC9zdmc+');
+  mask-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PGcgc3Ryb2tlPSIjMDAwIiBzdHJva2Utd2lkdGg9IjIuNSIgZmlsbD0ibm9uZSI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iOSIgc3Ryb2tlLW9wYWNpdHk9IjAuMjUiLz48cGF0aCBkPSJNMTIgM2E5IDkgMCAwIDEgOSA5IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L2c+PC9zdmc+');
+  animation: ep-spin 0.8s linear infinite;
+}
+
+@keyframes ep-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .dock__play-label {
   margin-left: 8px;
   width: 58px;

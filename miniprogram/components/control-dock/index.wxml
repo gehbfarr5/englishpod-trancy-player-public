@@ -33,18 +33,19 @@
     </view>
 
     <view
-      class="dock__play m3-tactile-975"
+      class="dock__play m3-tactile-975 {{isLoading ? 'is-loading' : ''}}"
       hover-class="m3-press-975"
       hover-start-time="0"
       hover-stay-time="150"
       bindtap="onToggle"
     >
       <view class="dock__play-icon-box">
-        <view class="dock__play-icon ic-play {{ended || isPlaying ? 'is-out' : 'is-in'}}"></view>
-        <view class="dock__play-icon ic-pause {{ended ? 'is-out' : (isPlaying ? 'is-in' : 'is-out')}}"></view>
-        <view class="dock__play-icon ic-replay {{ended ? 'is-in' : 'is-out'}}"></view>
+        <view class="dock__play-icon ic-loading {{isLoading ? 'is-in' : 'is-out'}}"></view>
+        <view class="dock__play-icon ic-play {{isLoading || ended || isPlaying ? 'is-out' : 'is-in'}}"></view>
+        <view class="dock__play-icon ic-pause {{isLoading || ended ? 'is-out' : (isPlaying ? 'is-in' : 'is-out')}}"></view>
+        <view class="dock__play-icon ic-replay {{isLoading || !ended ? 'is-out' : 'is-in'}}"></view>
       </view>
-      <text class="dock__play-label">{{ended ? 'Replay' : (isPlaying ? 'Pause' : 'Play')}}</text>
+      <text class="dock__play-label">{{isLoading ? 'Loading' : (ended ? 'Replay' : (isPlaying ? 'Pause' : 'Play'))}}</text>
     </view>
 
     <view class="dock__round m3-tactile-90" hover-class="m3-press-90" hover-start-time="0" hover-stay-time="150" bindtap="onNextSentence">
