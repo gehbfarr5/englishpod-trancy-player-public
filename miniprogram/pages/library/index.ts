@@ -119,6 +119,14 @@ interface PageCustom {
   onContinueToggle(): void;
 }
 
+function playerPath(): string {
+  try {
+    const version = wx.getAccountInfoSync().miniProgram.envVersion;
+    if (version === 'develop' || version === 'trial') return '/pages/rebuildPlayer/index';
+  } catch { /* Production fallback retains the established entry. */ }
+  return '/pages/player/index';
+}
+
 Page<PageData, PageCustom>({
   data: {
     appName: APP_DISPLAY_NAME,
@@ -406,7 +414,7 @@ Page<PageData, PageCustom>({
     if (!lessonId) return;
     // §2：普通列表进入 → 目标 PB（未完成恢复 PB 断点，已完成 00:00）。
     wx.navigateTo({
-      url: `/pages/player/index?lessonId=${lessonId}&intent=library`,
+      url: `${playerPath()}?lessonId=${lessonId}&intent=library`,
     });
   },
 
@@ -415,11 +423,15 @@ Page<PageData, PageCustom>({
     if (!targetId) return;
     // §2：继续收听 → 最后打开课程的 PB（不改课程锚点）。
     wx.navigateTo({
-      url: `/pages/player/index?lessonId=${targetId}&intent=resume`,
+      url: `${playerPath()}?lessonId=${targetId}&intent=resume`,
     });
   },
 
   onContinueToggle(): void {
+    if (playerPath() === '/pages/rebuildPlayer/index') {
+      this.onContinueTap();
+      return;
+    }
     const session = playbackSession.getState();
     const targetId = this.getContinueLessonId();
     const action = resolveContinueToggleAction({
@@ -434,7 +446,7 @@ Page<PageData, PageCustom>({
       this.setData({ isPlaying: playbackSession.getState().isPlaying });
     } else if (action === 'navigate') {
       wx.navigateTo({
-        url: `/pages/player/index?lessonId=${targetId}&intent=resume`,
+        url: `${playerPath()}?lessonId=${targetId}&intent=resume`,
       });
     }
   },
