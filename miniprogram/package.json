@@ -1,12 +1,12 @@
 {
   "name": "englishpod-trancy-miniprogram",
-  "version": "0.3.13",
+  "version": "0.3.14",
   "private": true,
   "description": "EnglishPod Trancy Player 微信小程序端（原生小程序 + TypeScript）",
   "license": "MIT",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test core/learningRecord.test.ts core/progressEngine.test.ts core/lessonModel.test.ts core/timelineEngine.test.ts core/highlightCursor.test.ts core/trackStateMachine.test.ts core/entryPlan.test.ts core/resumeReconcile.test.ts core/switchSettle.test.ts core/playbackDiagnostics.test.ts core/transcriptView.test.ts core/locateBar.test.ts core/scrollAnim.test.ts core/transcriptAnchor.test.ts adapters/wechat/learningStore.test.ts adapters/wechat/cloud.test.ts adapters/wechat/cloudAudioUrl.test.ts adapters/wechat/brandCover.test.ts adapters/wechat/backgroundAudio.test.ts services/progressJournal.test.ts services/playbackSession.test.ts rebuild/singlePodcastExperiment.test.ts rebuild/m1PageLifecycle.test.ts scripts/wechat-minitest.test.mjs",
+    "test": "tsx --test core/learningRecord.test.ts core/progressEngine.test.ts core/lessonModel.test.ts core/timelineEngine.test.ts core/highlightCursor.test.ts core/trackStateMachine.test.ts core/entryPlan.test.ts core/resumeReconcile.test.ts core/switchSettle.test.ts core/playbackDiagnostics.test.ts core/transcriptView.test.ts core/locateBar.test.ts core/scrollAnim.test.ts core/transcriptAnchor.test.ts adapters/wechat/learningStore.test.ts adapters/wechat/cloud.test.ts adapters/wechat/cloudAudioUrl.test.ts adapters/wechat/brandCover.test.ts adapters/wechat/backgroundAudio.test.ts services/progressJournal.test.ts services/playbackSession.test.ts rebuild/singlePodcastExperiment.test.ts rebuild/m1PageLifecycle.test.ts scripts/wechat-minitest.test.mjs rebuild/podcastSession.test.ts rebuild/podcastRuntime.test.ts",
     "trace:highlight": "tsx scripts/trace-highlight.ts",
     "e2e": "tsx e2e/run.ts",
     "e2e:strict": "tsx e2e/run.ts --strict",
