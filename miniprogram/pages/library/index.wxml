@@ -50,6 +50,8 @@
       <text class="lib__well-hint">SCROLL TO BROWSE ↓</text>
     </view>
 
+    <m1-dev-entry />
+
     <!-- 加载骨架屏（首次无缓存时展示） -->
     <view wx:if="{{isIndexLoading && visibleLessons.length === 0}}" class="lib__skeleton">
       <view class="lib__sk-card" wx:for="{{[1, 2, 3, 4, 5, 6]}}" wx:key="*this">
