@@ -11,6 +11,7 @@ import {
 type M1Observer = () => void;
 let activePort: WechatM1BackgroundAudioPort | null = null;
 let handlersBound = false;
+let lastTimeUpdateSecond = -1;
 let sharedManager: WechatMiniprogram.BackgroundAudioManager | null = null;
 
 function bindHandlers(manager: WechatMiniprogram.BackgroundAudioManager): void {
@@ -21,7 +22,12 @@ function bindHandlers(manager: WechatMiniprogram.BackgroundAudioManager): void {
   manager.onStop(() => activePort?.notify());
   manager.onEnded(() => activePort?.notify());
   manager.onCanplay(() => activePort?.notify());
-  manager.onTimeUpdate(() => activePort?.notify());
+  manager.onTimeUpdate(() => {
+    const second = Math.floor(manager.currentTime || 0);
+    if (second === lastTimeUpdateSecond) return;
+    lastTimeUpdateSecond = second;
+    activePort?.notify();
+  });
   manager.onError((event) => activePort?.notifyError(event.errCode));
 }
 
