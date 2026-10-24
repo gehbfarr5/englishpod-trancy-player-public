@@ -76,6 +76,7 @@
         is-current="{{item.isCurrent}}"
         highlight="{{item.highlight}}"
         bar-value="{{item.barValue}}"
+        bar-percent="{{item.barPercent}}"
         bind:lessonTap="onLessonTap"
       />
     </view>

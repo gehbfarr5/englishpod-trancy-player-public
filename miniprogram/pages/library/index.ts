@@ -54,6 +54,7 @@ interface LessonCardModel {
   isCurrent: boolean;
   highlight: boolean;
   barValue: number;
+  barPercent: number;
 }
 
 /** 筛选 pill 模型。 */
@@ -337,6 +338,7 @@ Page<PageData, PageCustom>({
         isCurrent,
         highlight: isCurrent || status.highlight,
         barValue: status.barValue,
+        barPercent: Math.round(Math.max(0, Math.min(1, Number.isFinite(status.barValue) ? status.barValue : 0)) * 100),
       });
     }
     return result;
