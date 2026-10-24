@@ -60,3 +60,9 @@ test('failed course request preserves previously saved progress and is recoverab
  fail=false;await x.session.open('A');await x.session.event('ready',x.session.state().generation);
  assert.equal(x.session.state().error,'');assert.equal(x.state.playing,true);
 });
+test('playback errors stop the media and do not falsely mark a course complete',async()=>{
+ const x=setup();await x.session.open('A');const g=x.session.state().generation;
+ await x.session.event('ready',g);await x.session.event('error',g);
+ assert.equal(x.state.playing,false);assert.equal(x.session.state().ready,false);
+ assert.equal(x.journal.readRecord('A').lessonCompleted,false);
+});
