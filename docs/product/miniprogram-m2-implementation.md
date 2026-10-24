@@ -4,7 +4,7 @@
 
 ## Implementation
 
-Development/trial builds expose **Open rebuilt Podcast player** in the library. This enters `pages/rebuildPlayer/index`; it is a separate implementation, not the legacy dual-track player. Production is unchanged pending final replacement in M3/M4. Do not open the legacy player first: BackgroundAudioManager is global, so the rebuilt runtime refuses an already occupied source rather than taking it over.
+Development/trial builds route ordinary course and continue entries to the rebuilt player, and also expose **Open rebuilt Podcast player** in the library. This enters `pages/rebuildPlayer/index`; it is a separate implementation, not the legacy dual-track player. Production is unchanged pending final replacement in M3/M4. Do not open the legacy player first: BackgroundAudioManager is global, so the rebuilt runtime refuses an already occupied source rather than taking it over.
 
 `PodcastSession` owns course request generations, latest play/pause intent, entry policy, manual course boundaries, natural-end wraparound, and progress writes through the existing ProgressJournal. It offers no Dialogue audio interface. Content tabs only update page data. The runtime singleton survives page unload; pages detach observers. Cold runtime creation does not play; explicit course/continue actions do. Loading new sources uses startTime and ready-time seek. An unready source errors after 30 seconds and can be retried. All progress samples come from BackgroundAudioManager.currentTime/duration, including a 3-second checkpoint during active playback; elapsed wall time is never used as playback position.
 
