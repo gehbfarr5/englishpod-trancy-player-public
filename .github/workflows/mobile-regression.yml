@@ -23,7 +23,7 @@ jobs:
           - platform: android-emulator
             runner: ubuntu-24.04
           - platform: ios-simulator
-            runner: macos-26
+            runner: macos-26-intel
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     env:
