@@ -56,7 +56,8 @@ function formatTime(seconds: number): string {
 
 function isNonReleaseEnvironment(): boolean {
   try {
-    return wx.getAccountInfoSync().miniProgram.envVersion !== 'release';
+    const envVersion = wx.getAccountInfoSync().miniProgram.envVersion;
+    return envVersion === 'develop' || envVersion === 'trial';
   } catch {
     return false;
   }
