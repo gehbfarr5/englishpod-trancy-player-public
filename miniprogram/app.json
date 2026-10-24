@@ -2,7 +2,8 @@
   "pages": [
     "pages/library/index",
     "pages/player/index",
-    "pages/m1Experiment/index"
+    "pages/m1Experiment/index",
+    "pages/rebuildPlayer/index"
   ],
   "renderer": "webview",
   "darkmode": true,
