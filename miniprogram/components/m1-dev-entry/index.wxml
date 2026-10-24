@@ -1,4 +1,4 @@
 <view wx:if="{{visible}}" class="m1-entry">
-  <button class="m1-entry__button" bindtap="openExperiment">Open M1 audio experiment</button>
+  <button class="m1-entry__button" bindtap="openExperiment">Open rebuilt Podcast player</button>
   <text class="m1-entry__note">Development / trial builds only</text>
 </view>
