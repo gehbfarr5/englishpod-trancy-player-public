@@ -29,7 +29,7 @@
       <view class="m1-controls">
         <button
           class="m1-primary"
-          disabled="{{isLoadingLesson || isStarting || !sourceLoaded && !status}}"
+          disabled="{{isLoadingLesson || isStarting || !canStart}}"
           bindtap="onStartPodcast"
         >{{sourceLoaded ? 'Podcast loaded' : 'Play Podcast'}}</button>
         <button
