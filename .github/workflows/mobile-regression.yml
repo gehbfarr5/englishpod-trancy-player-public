@@ -1,9 +1,9 @@
 name: Mobile Regression
 
 on:
-  pull_request:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -14,8 +14,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  client_changes:
+    name: Detect affected clients
+    runs-on: ubuntu-latest
+    outputs:
+      ios: ${{ steps.detect.outputs.ios }}
+      android: ${{ steps.detect.outputs.android }}
+      web: ${{ steps.detect.outputs.web }}
+      miniprogram: ${{ steps.detect.outputs.miniprogram }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Detect client changes
+        id: detect
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          CLIENT_TEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CLIENT_TEST_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CLIENT_TEST_BEFORE_SHA: ${{ github.event.before }}
+        run: python3 pipeline/affected_clients.py
+
   native:
     name: Native / ${{ matrix.platform }}
+    needs: client_changes
+    if: ${{ always() && (needs.client_changes.result != 'success' || needs.client_changes.outputs.ios == 'true') }}
     strategy:
       fail-fast: false
       matrix:
@@ -97,10 +121,7 @@ jobs:
           code=1
           if [ -f "$NATIVE_REPORT_DIR/exit-code.txt" ]; then code=$(cat "$NATIVE_REPORT_DIR/exit-code.txt"); fi
           runtime="${NATIVE_RUNTIME:-Android API 35 x86_64}"
-          python3 pipeline/native_test_evidence.py finalize \
-            --response "$NATIVE_REPORT_DIR/response.json" \
-            --platform "$PLATFORM" --runtime "$runtime" --exit-code "$code" \
-            --sha "$(git rev-parse HEAD)" --output "$NATIVE_REPORT_DIR/report.json"
+          python3 pipeline/native_test_evidence.py finalize             --response "$NATIVE_REPORT_DIR/response.json"             --platform "$PLATFORM" --runtime "$runtime" --exit-code "$code"             --sha "$(git rev-parse HEAD)" --output "$NATIVE_REPORT_DIR/report.json"
           python3 -c 'import base64; from pathlib import Path; print("EP_NATIVE_REPORT_V1=" + base64.b64encode(Path("native-evidence/report.json").read_bytes()).decode())'
           cat "$NATIVE_REPORT_DIR/report.json" >> "$GITHUB_STEP_SUMMARY"
       - name: Preserve machine-readable report
