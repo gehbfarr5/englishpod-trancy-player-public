@@ -205,7 +205,7 @@ async function confirmReportResources(fetchImpl, config, taskId) {
   };
   const [sharePayload, resourcePayload] = await Promise.all([
     getJson(fetchImpl, '/share_url', fields),
-    getJson(fetchImpl, '/report/static_resource', { ...fields, need_image: 0, need_log: 0 }),
+    getJson(fetchImpl, '/report/static_resource', { ...fields, need_image: 0, need_log: 1 }),
   ]);
   if (typeof sharePayload.data?.share_url !== 'string' ||
       typeof resourcePayload.data?.download_url !== 'string') {
