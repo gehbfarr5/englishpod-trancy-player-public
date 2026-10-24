@@ -28,7 +28,10 @@ function bindHandlers(manager: WechatMiniprogram.BackgroundAudioManager): void {
     lastTimeUpdateSecond = second;
     activePort?.notify();
   });
-  manager.onError((event) => activePort?.notifyError(event.errCode));
+  manager.onError((event: WechatMiniprogram.GeneralCallbackResult) => {
+    const code = (event as WechatMiniprogram.GeneralCallbackResult & { errCode?: unknown }).errCode;
+    activePort?.notifyError(typeof code === 'number' ? code : -1);
+  });
 }
 
 export class WechatM1BackgroundAudioPort implements M1MediaPort {
