@@ -122,6 +122,7 @@ jobs:
           MINITEST_TOKEN: ${{ secrets.MINITEST_TOKEN }}
           MINITEST_PLAN_ID: ${{ vars.MINITEST_PLAN_ID }}
           MINITEST_PROJECT_ID: ${{ vars.MINITEST_PROJECT_ID }}
+          MINITEST_DEV_ACCOUNT_NO: ${{ vars.WECHAT_CI_ROBOT || '9' }}
           MINITEST_TEST_TYPE: ${{ vars.MINITEST_TEST_TYPE || '2' }}
           MINITEST_WX_VERSION: '3'
           MINITEST_PLATFORMS: ${{ vars.MINITEST_PLATFORMS || 'ios,android' }}
