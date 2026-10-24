@@ -34,6 +34,7 @@ export function readConfig(env = process.env) {
     appVersion: env.MINITEST_APP_VERSION || PACKAGE_VERSION || '',
     commitSha: env.MINITEST_COMMIT_SHA || '',
     runId: env.MINITEST_RUN_ID || '',
+    devAccountNo: env.MINITEST_DEV_ACCOUNT_NO || env.WECHAT_CI_ROBOT || '9',
     pollIntervalMs: boundedInteger(
       env.MINITEST_POLL_INTERVAL_MS,
       DEFAULT_POLL_INTERVAL_MS,
@@ -85,7 +86,8 @@ async function readApiResponse(response) {
     throw new Error('MiniTest returned an invalid response object.');
   }
   if (payload.rtn !== 0) {
-    throw new Error('MiniTest rejected the request with rtn=' + String(payload.rtn) + '.');
+    const errorMsg = typeof payload.msg === 'string' ? payload.msg.slice(0, 100) : '';
+    throw new Error('MiniTest rejected the request with rtn=' + String(payload.rtn) + (errorMsg ? ' (' + errorMsg + ')' : '') + '.');
   }
   return payload;
 }
@@ -230,7 +232,7 @@ export async function runMiniTest({
   sleepImpl = defaultSleep,
 }) {
   validateConfig(config);
-  const submitted = await postForm(fetchImpl, '/plan', {
+  const postFields = {
     token: config.token,
     group_en_id: config.groupEnId,
     test_type: config.testType,
@@ -239,7 +241,11 @@ export async function runMiniTest({
     test_plan_id: config.testPlanId,
     desc: 'EnglishPod Mini Program ' + config.appVersion + ' sha=' + config.commitSha +
       ' gha_run=' + config.runId,
-  });
+  };
+  if (config.wxVersion === 3 && config.devAccountNo) {
+    postFields.dev_account_no = config.devAccountNo;
+  }
+  const submitted = await postForm(fetchImpl, '/plan', postFields);
   const taskId = submitted.data?.plan_id;
   if (!Number.isInteger(Number(taskId)) || Number(taskId) <= 0) {
     throw new Error('MiniTest submission did not return a task ID.');

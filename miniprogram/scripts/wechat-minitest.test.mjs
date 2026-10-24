@@ -25,6 +25,7 @@ function config(overrides = {}) {
     appVersion: '0.3.12',
     commitSha: sha,
     runId: '12345',
+    devAccountNo: '9',
     pollIntervalMs: 15000,
     timeoutMs: 60000,
     outputDir: '',
@@ -131,6 +132,7 @@ test('submits the documented form fields, polls to terminal PASS and verifies re
   assert.equal(fields.get('wx_version'), '3');
   assert.equal(fields.get('platforms'), 'ios,android');
   assert.equal(fields.get('test_plan_id'), '45');
+  assert.equal(fields.get('dev_account_no'), '9');
   assert.match(fields.get('desc'), new RegExp(sha));
   assert.match(fields.get('desc'), /gha_run=12345/);
   assert.equal(submission.init.headers.Authorization, undefined);
