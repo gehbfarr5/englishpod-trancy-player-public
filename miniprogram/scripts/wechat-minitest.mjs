@@ -122,11 +122,7 @@ function taskStatus(payload) {
   if (!data || typeof data !== 'object' || !Number.isInteger(Number(data.status))) {
     throw new Error('MiniTest task response did not contain a valid status.');
   }
-  const code = Number(data.status);
-  if (code < 0) {
-    throw new Error('MiniTest task status cannot be negative.');
-  }
-  return { code, data };
+  return { code: Number(data.status), data };
 }
 
 export function classifyTaskResult(payload) {
