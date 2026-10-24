@@ -14,6 +14,7 @@ interface M1PageData {
   blockReason: string;
   isLoadingLesson: boolean;
   isStarting: boolean;
+  canStart: boolean;
   lessonTitle: string;
   status: string;
   positionSec: number;
@@ -67,6 +68,7 @@ Page<M1PageData, M1PageCustom>({
     blockReason: '',
     isLoadingLesson: true,
     isStarting: false,
+    canStart: false,
     lessonTitle: 'Lesson 0001',
     status: 'Preparing isolated M1 experiment…',
     positionSec: 0,
@@ -146,6 +148,7 @@ Page<M1PageData, M1PageCustom>({
       this.source = source;
       this.setData({
         isLoadingLesson: false,
+        canStart: true,
         lessonTitle: lesson.title || detail.title || 'Lesson 0001',
         pbSegments: detail.tracks.pb,
         dgSegments: detail.tracks.dg,
@@ -196,10 +199,10 @@ Page<M1PageData, M1PageCustom>({
       // BackgroundAudioManager starts when src is assigned. Do not issue a
       // second play() command in the same user action.
       this.experiment.startPodcast(this.source, this.data.lessonTitle);
-      this.setData({ isStarting: false });
+      this.setData({ isStarting: false, canStart: false });
       this.refreshState();
     } catch {
-      this.setData({ isStarting: false, status: 'Podcast could not be started.' });
+      this.setData({ isStarting: false, canStart: true, status: 'Podcast could not be started.' });
     }
   },
 
