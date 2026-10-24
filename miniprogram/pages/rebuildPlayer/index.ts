@@ -13,13 +13,17 @@ Page<Data, Custom>({
  data: { titles: [], selected: 0, title: 'EnglishPod', position: 0, duration: 0, playing: false,
  loading: true, error: '', view: 'pb', detail: null, completed: false },
  visible: true, disposed: false, detailGeneration: 0,
- async onLoad() {
+ async onLoad(query: Record<string, string | undefined>) {
   try {
    if (wx.getAccountInfoSync().miniProgram.envVersion === 'release') throw new Error('Development build required');
    this.runtime = await getPodcastRuntime();
    if (this.disposed) return;
    this.setData({titles: this.runtime.index.map(x => `${x.lessonId} ${x.title}`), loading: false});
    this.detach = this.runtime.session.subscribe(() => this.refresh());
+   const lessonId = query?.lessonId;
+   if (lessonId && this.runtime.index.some(item => item.lessonId === lessonId)) {
+     await this.runtime.session.open(lessonId, query.intent === 'resume' ? 'resume' : 'library');
+   }
   } catch (error) {
    if (!this.disposed) this.setData({loading: false, error: error instanceof Error ? error.message : 'Loading failed'});
   }
