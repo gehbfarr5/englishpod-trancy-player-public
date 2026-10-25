@@ -79,6 +79,15 @@ export async function openLesson(
   options: { track?: 'pb' | 'dg'; pause?: boolean; timeoutMs?: number } = {},
 ): Promise<AutomatorPage> {
   const timeoutMs = options.timeoutMs ?? 20_000;
+  await mp.evaluate(function (id: string) {
+    try {
+      wx.removeStorageSync('ep_learning_v2_record_' + id);
+      var pj = require('./services/progressJournal');
+      if (pj && pj.progressJournal && typeof pj.progressJournal.resetLesson === 'function') {
+        pj.progressJournal.resetLesson(id);
+      }
+    } catch {}
+  }, lessonId);
   const page = await mp.reLaunch(`/pages/player/index?lessonId=${lessonId}&intent=library`);
   await waitForBlocks(page, timeoutMs);
 
@@ -245,10 +254,14 @@ export async function tapTranscriptRow(page: AutomatorPage, segIdx: number): Pro
   return true;
 }
 
-/** 读 scroll-view 的真实滚动偏移；读不到时返回 -1。 */
+/** 读视口的真实滚动位移（兼容 CSS Transform 视口与 scroll-view）；读不到时返回 -1。 */
 export async function readRealScrollTop(page: AutomatorPage): Promise<number> {
   const data = await page.data();
   const track = String(data.activeTrack ?? 'pb');
+  const translateYProp = track === 'dg' ? 'translateYDg' : 'translateYPb';
+  if (typeof data[translateYProp] === 'number') {
+    return Number(data[translateYProp]);
+  }
   let viewport = await page.$(`#${track}Viewport`);
   if (!viewport) {
     viewport = await page.$('#transcriptViewport');

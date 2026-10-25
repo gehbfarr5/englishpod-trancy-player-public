@@ -4,18 +4,21 @@
   Row2：上句（跳段） · 播放/暂停 · 下句（跳段）
   Row3：上一课 / 下一课 / 单句循环 / 整课重复 / 倍速
 -->
+<wxs module="prog" src="./progress.wxs" />
 <view class="dock">
-  <!-- Row 1：进度条 -->
+  <!-- Row 1：进度条（经 WXS 视图层直接绑定，零 IPC 开销） -->
   <view
     class="scrub"
-    bindtouchstart="onScrubStart"
-    bindtouchmove="onScrubMove"
-    bindtouchend="onScrubEnd"
-    bindtouchcancel="onScrubEnd"
+    data-left="{{trackLeft}}"
+    data-width="{{trackWidth}}"
+    bindtouchstart="{{prog.touchstart}}"
+    bindtouchmove="{{prog.touchmove}}"
+    bindtouchend="{{prog.touchend}}"
+    bindtouchcancel="{{prog.touchend}}"
   >
     <view class="scrub__track" id="scrubTrack">
-      <view class="scrub__fill" style="width: {{scrubbing ? scrubPct : progressPct}}%;"></view>
-      <view class="scrub__thumb" style="left: {{scrubbing ? scrubPct : progressPct}}%;"></view>
+      <view class="scrub__fill" id="scrubFill" style="width: {{scrubbing ? scrubPct : progressPct}}%;"></view>
+      <view class="scrub__thumb" id="scrubThumb" style="left: {{scrubbing ? scrubPct : progressPct}}%;"></view>
     </view>
   </view>
   <view class="scrub__times">
@@ -30,18 +33,19 @@
     </view>
 
     <view
-      class="dock__play m3-tactile-975"
+      class="dock__play m3-tactile-975 {{isLoading ? 'is-loading' : ''}}"
       hover-class="m3-press-975"
       hover-start-time="0"
       hover-stay-time="150"
       bindtap="onToggle"
     >
       <view class="dock__play-icon-box">
-        <view class="dock__play-icon ic-play {{ended || isPlaying ? 'is-out' : 'is-in'}}"></view>
-        <view class="dock__play-icon ic-pause {{ended ? 'is-out' : (isPlaying ? 'is-in' : 'is-out')}}"></view>
-        <view class="dock__play-icon ic-replay {{ended ? 'is-in' : 'is-out'}}"></view>
+        <view class="dock__play-icon ic-loading {{isLoading ? 'is-in' : 'is-out'}}"></view>
+        <view class="dock__play-icon ic-play {{isLoading || ended || isPlaying ? 'is-out' : 'is-in'}}"></view>
+        <view class="dock__play-icon ic-pause {{isLoading || ended ? 'is-out' : (isPlaying ? 'is-in' : 'is-out')}}"></view>
+        <view class="dock__play-icon ic-replay {{isLoading || !ended ? 'is-out' : 'is-in'}}"></view>
       </view>
-      <text class="dock__play-label">{{ended ? 'Replay' : (isPlaying ? 'Pause' : 'Play')}}</text>
+      <text class="dock__play-label">{{isLoading ? 'Loading' : (ended ? 'Replay' : (isPlaying ? 'Pause' : 'Play'))}}</text>
     </view>
 
     <view class="dock__round m3-tactile-90" hover-class="m3-press-90" hover-start-time="0" hover-stay-time="150" bindtap="onNextSentence">

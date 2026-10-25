@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { clearTempUrlCache, isCloudFileId, resolvePlayableUrl } from './cloudAudioUrl';
+import { clearTempUrlCache, isCloudFileId, prefetchPlayableUrls, resolvePlayableUrl } from './cloudAudioUrl';
 
 const FILE_ID = 'cloud://env.bucket/audio/0001/pb.m4a';
 const HTTPS = 'https://bucket.tcb.qcloud.la/audio/0001/pb.m4a';
@@ -84,5 +84,31 @@ describe('resolvePlayableUrl', () => {
     installCloudMock({ fail: true });
     clearTempUrlCache();
     await assert.rejects(() => resolvePlayableUrl(FILE_ID), /解析|解析|getTempFileURL|failure/);
+  });
+});
+
+describe('prefetchPlayableUrls', () => {
+  test('批量预热两轨音频链接，后续单轨请求 0 次网络直出', async () => {
+    const mock = installCloudMock();
+    clearTempUrlCache();
+    const pbFile = 'cloud://env.bucket/audio/0001/pb.mp3';
+    const dgFile = 'cloud://env.bucket/audio/0001/dg.mp3';
+
+    await prefetchPlayableUrls([pbFile, dgFile]);
+    assert.equal(mock.calls(), 1, '批量请求 1 次');
+
+    // 随后切轨按单源请求，直接命中内存缓存
+    const pbUrl = await resolvePlayableUrl(pbFile);
+    const dgUrl = await resolvePlayableUrl(dgFile);
+    assert.equal(pbUrl, HTTPS);
+    assert.equal(dgUrl, HTTPS);
+    assert.equal(mock.calls(), 1, '缓存命中，网络请求仍为 1');
+  });
+
+  test('非 fileID 或已缓存项目自动过滤，无缺失时不发网络请求', async () => {
+    const mock = installCloudMock();
+    clearTempUrlCache();
+    await prefetchPlayableUrls(['https://example.com/audio.mp3', null, '']);
+    assert.equal(mock.calls(), 0, '无需发起请求');
   });
 });

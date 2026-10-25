@@ -3,8 +3,7 @@
     "pinned-top-deck": "/components/pinned-top-deck/index",
     "continue-card": "/components/continue-card/index",
     "filter-pills": "/components/filter-pills/index",
-    "lesson-card": "/components/lesson-card/index",
-    "m1-dev-entry": "/components/m1-dev-entry/index"
+    "lesson-card": "/components/lesson-card/index"
   },
   "navigationStyle": "custom",
   "disableScroll": true

@@ -13,6 +13,7 @@
 
 import { WechatCloudAdapter } from '../../adapters/wechat/cloud';
 import { createPlayerAudio } from '../../adapters/wechat/playerAudio';
+import { prefetchPlayableUrls } from '../../adapters/wechat/cloudAudioUrl';
 import { PlaybackDiagnosticSession } from '../../core/playbackDiagnostics';
 import { APP_DISPLAY_NAME, USE_MOCK_DATA } from '../../config/env';
 import { HighlightCursorTracker } from '../../core/highlightCursor';
@@ -141,6 +142,7 @@ interface PageData {
   navBarPx: number;
   capsuleRightPadding: number;
   playerLoading: boolean;
+  isAudioLoading: boolean;
   playerErrorMsg: string;
   lessonTitle: string;
   lessonLevel: string;
@@ -256,6 +258,8 @@ interface PageCustom {
   transcriptViewportHeight?: number;
   /** 重锚轮次令牌：切轨/切课自增，作废上一轮未完成的重试。 */
   reanchorToken?: number;
+  /** 最近一次执行 tick 的时间戳，用于去重降频。 */
+  lastTickMs?: number;
   /** 诊断（`?diagnostics=1`）：记录每次重锚的首帧落位，供 e2e 断言。 */
   reseatTrace?: Array<Record<string, unknown>>;
 
@@ -265,7 +269,7 @@ interface PageCustom {
   prefetchAdjacentLessons(lessonId: string): void;
   startTick(): void;
   stopTick(): void;
-  tick(): void;
+  tick(force?: boolean): void;
   /** 供渲染使用的播放位置：镇定窗口内忽略换源瞬间的假 0（见 `core/switchSettle.ts`）。 */
   effectivePositionSec(): number;
   /** 布防换源镇定窗口；`targetSec <= 0` 时不布防。 */
@@ -284,7 +288,7 @@ interface PageCustom {
     contentHeight: number,
   ): void;
   /** 换轨后的重锚：按退避阶梯补试精确落位；全部失败则放开「找回当前句」条。 */
-  reanchorTranscript(segIdx: number): void;
+  reanchorTranscript(segIdx: number, onSettled?: (ok: boolean) => void): void;
   /** 取（或按课重建）台本布局缓存。 */
   transcriptLayoutFor(
     lessonId: string | undefined,
@@ -354,8 +358,6 @@ interface PageCustom {
   onVocabExample(event: WechatMiniprogram.CustomEvent<{ track: string; segIdx: number }>): void;
   onTranscriptDragStart(): void;
   onTranscriptDragEnd(): void;
-  onTranscriptTouchStart(): void;
-  onTranscriptTouchEnd(): void;
   onTranscriptScroll(event: WechatMiniprogram.ScrollViewScroll): void;
   onLocateTap(): void;
 }
@@ -366,6 +368,7 @@ Page<PageData, PageCustom>({
     navBarPx: 44,
     capsuleRightPadding: 96,
     playerLoading: true,
+    isAudioLoading: false,
     playerErrorMsg: '',
     lessonTitle: '',
     lessonLevel: '',
@@ -570,6 +573,11 @@ Page<PageData, PageCustom>({
     this.audio = createPlayerAudio();
     this.audio.setEvents({
       onTimeUpdate: (positionSec: number) => {
+        // 音频加载锁定期（load 后、canplay 解锁前）：
+        // 平台上报的旧轨尾值或瞬时假 0 绝不校正新轨采样点，防止进度条与台本错乱。
+        if (playbackSession.isAudioLoading()) {
+          return;
+        }
         // 换源 / 切轨后的镇定窗口内，平台上报的是新 src 的假 0（或旧 src 的尾值），
         // 不能拿来校正采样点，否则整条渲染链（tick → 进度条 → 台本高亮）都会闪回起点。
         const settleUntilMs = Number.isFinite(this.settleUntilMs) ? (this.settleUntilMs as number) : 0;
@@ -585,12 +593,14 @@ Page<PageData, PageCustom>({
         }
         const base = this.clockSample ?? { positionSec, atMs: Date.now() };
         this.clockSample = correctSample(base, positionSec, Date.now(), this.currentDurationSec());
+        this.tick();
       },
       onPlay: () => {
         this.localDiagnostics?.playEvent();
-        this.setData({ isPlaying: true });
+        this.setData({ isPlaying: true, isAudioLoading: false });
         this.setKeepScreenOn(true);
         this.refreshTrackUnderline();
+        this.startTick();
       },
       onPause: () => {
         this.localDiagnostics?.pauseEvent();
@@ -598,10 +608,12 @@ Page<PageData, PageCustom>({
         this.setKeepScreenOn(false);
         this.commitProgress('pause');
         this.refreshTrackUnderline();
+        this.stopTick();
       },
       onEnded: () => this.handleEnded(),
       onSeeked: (positionSec: number) => {
         this.clockSample = { positionSec, atMs: Date.now() };
+        this.tick(true);
       },
       onCanplay: () => {
         // Issue #58 P0a：解除本轮加载锁（延迟 60ms，让紧随 canplay 的
@@ -609,13 +621,20 @@ Page<PageData, PageCustom>({
         if (this.audioLoadToken !== undefined) {
           playbackSession.endAudioLoad(this.audioLoadToken);
         }
+        this.setData({ isAudioLoading: false });
         this.localDiagnostics?.canplay();
       },
-      onWaiting: () => this.localDiagnostics?.waiting(),
+      onWaiting: () => {
+        this.localDiagnostics?.waiting();
+        this.setData({ isAudioLoading: true });
+      },
       onError: (err) => {
+        if (this.audioLoadToken !== undefined) {
+          playbackSession.endAudioLoad(this.audioLoadToken);
+        }
         this.localDiagnostics?.error(err.errCode);
         this.saveLocalDiagnostics();
-        this.setData({ playerErrorMsg: err.message, isPlaying: false });
+        this.setData({ playerErrorMsg: err.message, isPlaying: false, isAudioLoading: false });
       },
     });
   },
@@ -636,9 +655,22 @@ Page<PageData, PageCustom>({
     // §5.2：切课期间 this.detail 会先换成新课，而音频仍是上一条；这段窗口内的
     // 任何提交都会把旧音频的位置串写到新课记录上，因此整体挂起。
     this.progressSuspended = true;
-    this.setData({ isTranscriptReady: false, playerErrorMsg: '', ended: false });
 
     const cachedDetail = detailMemoryCache.get(lessonId);
+    const pbActive = (mode === 'library' || mode === 'resume')
+      ? playbackSession.isLessonActive(lessonId, 'pb')
+      : { isActive: false, isPlaying: false, currentTime: 0, duration: 0 };
+    const dgActive = (mode === 'library' || mode === 'resume')
+      ? playbackSession.isLessonActive(lessonId, 'dg')
+      : { isActive: false, isPlaying: false, currentTime: 0, duration: 0 };
+    const isCurrentlyActiveLesson = pbActive.isActive || dgActive.isActive;
+
+    if (!isCurrentlyActiveLesson) {
+      this.setData({ isTranscriptReady: false, playerErrorMsg: '', ended: false });
+    } else {
+      this.setData({ isTranscriptReady: true, playerErrorMsg: '', ended: false });
+    }
+
     if (!cachedDetail) {
       if (this.lessonIndexItems) {
         const item = this.lessonIndexItems.find((l) => l.lessonId === lessonId);
@@ -694,9 +726,11 @@ Page<PageData, PageCustom>({
           playbackSession.setLessonInfo({ lessonId, singleSentenceLoop: false });
         }
       }
-      // 目标音轨没有 DG 音轨时回落到 PB（数据缺失保护，不改变矩阵语义）。
-      const initialTrack: AudioTrackKey =
-        plan.track === 'dg' && dgSegments.length > 0 ? 'dg' : 'pb';
+      // 目标音轨：若后台正在活跃播放该课某轨，则直接无缝继承活跃音轨，不强行切回 PB；
+      // 否则目标音轨没有 DG 音轨时回落到 PB（数据缺失保护，不改变矩阵语义）。
+      const initialTrack: AudioTrackKey = isCurrentlyActiveLesson
+        ? (dgActive.isActive ? 'dg' : 'pb')
+        : (plan.track === 'dg' && dgSegments.length > 0 ? 'dg' : 'pb');
       const initialPos = plan.startMs / 1000;
       const initialSegIdx =
         initialTrack === 'pb'
@@ -731,7 +765,7 @@ Page<PageData, PageCustom>({
       const initialScrollPb = this.estimateSwitchScrollTop('pb', pbResumeSeg) ?? 0;
       const initialScrollDg = this.estimateSwitchScrollTop('dg', dgResumeSeg) ?? 0;
       const activeInitialScroll = initialTrack === 'dg' ? initialScrollDg : initialScrollPb;
-      const shouldShieldAnchor = activeSeg > 0;
+      const shouldShieldAnchor = !isCurrentlyActiveLesson && activeSeg > 0;
 
       this.setData({
         lessonTitle: detail.title,
@@ -855,7 +889,12 @@ Page<PageData, PageCustom>({
         this.armSettle(initialPos);
         this.updateTransport(initialPos, this.durations[initialTrack]);
         if (this.audio) {
-          const src = this.adapter.resolveAudioFileId(lessonId, initialTrack, detail.audio[initialTrack]);
+          // 批量预热两轨音频链接，消除切轨时的网络请求等待
+          const pbSrc = this.adapter.resolveAudioFileId(lessonId, 'pb', detail.audio['pb']);
+          const dgSrc = this.adapter.resolveAudioFileId(lessonId, 'dg', detail.audio['dg']);
+          void prefetchPlayableUrls([pbSrc, dgSrc]);
+
+          const src = initialTrack === 'dg' ? dgSrc : pbSrc;
           if (!src) {
             throw new Error('该课程音频地址不可用，请检查云端索引及音频文件。');
           }
@@ -866,13 +905,7 @@ Page<PageData, PageCustom>({
           if (this.machine) {
             this.audio.setPlaybackRate(this.machine.getRate());
           }
-          if (initialPos > 0) {
-            this.audio.seek(initialPos);
-          } else if (previousLessonId === lessonId) {
-            // 同一课重新装载（单课库末课循环 / 重播）：BAM 可能保留旧播放头，
-            // 必须显式回到 00:00，否则会「从头播放」失败（F13）。
-            this.audio.seek(0);
-          }
+          this.audio.seek(initialPos);
           // 记录播放头锚点：本次载入我们要求媒体停在哪里（0 = 确实有意从 00:00 开始）。
           progressJournal.setPlayheadAnchor(
             lessonId,
@@ -894,7 +927,11 @@ Page<PageData, PageCustom>({
         setTimeout(() => {
           if (this.loadToken !== token) return;
           if (!this.data.isTranscriptReady || this.data.isPendingAnchor) {
-            this.setData({ isTranscriptReady: true, isPendingAnchor: false, scrollAnimated: true });
+            this.setData({
+              isTranscriptReady: true,
+              isPendingAnchor: false,
+              scrollAnimated: true,
+            });
           }
         }, 360);
       }
@@ -954,6 +991,7 @@ Page<PageData, PageCustom>({
 
   startTick(): void {
     if (this.tickTimer) return;
+    if (!this.data.isPlaying) return;
     this.tickTimer = setInterval(() => this.tick(), TICK_MS);
   },
 
@@ -964,9 +1002,13 @@ Page<PageData, PageCustom>({
     }
   },
 
-  tick(): void {
+  tick(force: boolean = false): void {
     if (!this.detail || !this.tracker) return;
     const now = Date.now();
+    if (!force && this.lastTickMs && now - this.lastTickMs < 80) {
+      return;
+    }
+    this.lastTickMs = now;
     // 换源瞬间的假 0 不能进入渲染（进度条归零 + 台本跳回首句 = 真机闪屏）。
     const pos = this.effectivePositionSec();
     const dur = this.currentDurationSec();
@@ -1283,10 +1325,14 @@ Page<PageData, PageCustom>({
   updateTransport(positionSec: number, durationSec: number): void {
     const pct =
       durationSec > 0 ? Math.min(100, Math.max(0, (positionSec / durationSec) * 100)) : 0;
-    this.setData({
-      positionLabel: formatTime(positionSec),
-      playerProgressPct: Math.round(pct),
-    });
+    const roundedPct = Math.round(pct);
+    const posLabel = formatTime(positionSec);
+    if (this.data.positionLabel !== posLabel || this.data.playerProgressPct !== roundedPct) {
+      this.setData({
+        positionLabel: posLabel,
+        playerProgressPct: roundedPct,
+      });
+    }
   },
 
   updateLocateCountdown(nowMs: number): void {
@@ -1315,10 +1361,14 @@ Page<PageData, PageCustom>({
     const playing = this.data.isPlaying;
     const track = this.data.activeTrack;
     const tab = this.data.activeTab;
-    this.setData({
-      showPbUnderline: playing && track === 'pb' && tab !== 'pb',
-      showDgUnderline: playing && track === 'dg' && tab !== 'dg',
-    });
+    const showPbUnderline = playing && track === 'pb' && tab !== 'pb';
+    const showDgUnderline = playing && track === 'dg' && tab !== 'dg';
+    if (this.data.showPbUnderline !== showPbUnderline || this.data.showDgUnderline !== showDgUnderline) {
+      this.setData({
+        showPbUnderline,
+        showDgUnderline,
+      });
+    }
   },
 
   expandBoxForSegment(segIdx: number): void {
@@ -1336,36 +1386,34 @@ Page<PageData, PageCustom>({
   },
 
   /**
-   * 原生直接落位视口（微信小程序官方 Base Library 2.14.4+ ScrollViewContext API）。
+   * 原生直接落位视口（微信原生增强型 scroll-view）。
    *
-   * 彻底切断 WXML 属性绑定的 diff 夹持归零时序冲突，由引擎原生调度滚动。
+   * 视口独立常驻，通过 scroll-top 与 scroll-with-animation 原生驱动平滑停靠。
    */
   scrollViewportTo(
     track: AudioTrackKey,
     top: number,
     animated: boolean = false,
   ): void {
-    const viewportId = track === 'dg' ? '#dgViewport' : '#pbViewport';
-    const trackProp = track === 'dg' ? 'playerScrollTopDg' : 'playerScrollTopPb';
+    const isDg = track === 'dg';
+    const trackProp = isDg ? 'playerScrollTopDg' : 'playerScrollTopPb';
+
+    this.lastPlayerScrollTop = top;
+    if (isDg) {
+      this.lastPlayerScrollTopDg = top;
+    } else {
+      this.lastPlayerScrollTopPb = top;
+    }
+
+    const current = isDg ? this.data.playerScrollTopDg : this.data.playerScrollTopPb;
+    const effectiveTop = Math.abs(current - top) < 0.5 ? (top > 1 ? top - 0.5 : top + 0.5) : top;
 
     const patch: Record<string, unknown> = {
-      playerScrollTop: top,
-      [trackProp]: top,
+      playerScrollTop: effectiveTop,
+      [trackProp]: effectiveTop,
+      scrollAnimated: animated,
     };
-    if (animated === false) {
-      patch.scrollAnimated = false;
-    }
     this.setData(patch);
-
-    wx.createSelectorQuery()
-      .select(viewportId)
-      .node()
-      .exec((res) => {
-        const item = res && (res[0] as { node?: { scrollTo?: (opts: { top: number; animated: boolean }) => void } } | null);
-        if (item && item.node && typeof item.node.scrollTo === 'function') {
-          item.node.scrollTo({ top, animated });
-        }
-      });
   },
 
   /**
@@ -1427,18 +1475,14 @@ Page<PageData, PageCustom>({
 
             const segs = this.currentSegments();
             const totalCount = segs.length;
-            const realScrollTop =
-              offset && typeof offset.scrollTop === 'number' && Number.isFinite(offset.scrollTop)
+            const currentScroll =
+              offset && typeof offset.scrollTop === 'number'
                 ? offset.scrollTop
-                : null;
+                : (currentTrack === 'dg' ? this.data.playerScrollTopDg : this.data.playerScrollTopPb);
             const headerOffset = Math.max(0, content.top - viewport.top);
-            const totalContentHeight =
-              offset && typeof offset.scrollHeight === 'number' && offset.scrollHeight > 0
-                ? offset.scrollHeight
-                : content.height + headerOffset;
-            // 统一到「滚动内容坐标系」：包含课头偏移，和 `scroll-top` 同源。
+            const totalContentHeight = content.height + headerOffset;
             const itemTop =
-              rowRect.top - viewport.top + (realScrollTop ?? this.lastPlayerScrollTop ?? 0);
+              rowRect.top - viewport.top + (currentScroll ?? this.lastPlayerScrollTop ?? 0);
             const itemHeight = rowRect.bottom - rowRect.top;
 
             // 量测结果既是本次落位依据，也是**下次换轨首帧**的估算样本（BUG-004）。
@@ -1465,32 +1509,12 @@ Page<PageData, PageCustom>({
               itemHeight,
               viewportHeight: viewport.height,
               totalContentHeight,
-              currentScrollTop: realScrollTop ?? this.lastPlayerScrollTop ?? 0,
+              currentScrollTop: currentScroll ?? this.lastPlayerScrollTop ?? 0,
             });
 
             if (scrollResult.shouldScroll) {
               this.programmaticUntil = Math.max(this.programmaticUntil ?? 0, Date.now() + 1500);
-              this.lastPlayerScrollTop = scrollResult.targetScrollTop;
-              if (this.data.activeTrack === 'dg') {
-                this.lastPlayerScrollTopDg = scrollResult.targetScrollTop;
-              } else {
-                this.lastPlayerScrollTopPb = scrollResult.targetScrollTop;
-              }
-              const currentTrackTop =
-                this.data.activeTrack === 'dg' ? this.data.playerScrollTopDg : this.data.playerScrollTopPb;
-              // 同值不触发 scroll-view 重排（用户手动滑走后目标偏移可能与上次下发值相同），
-              // 由 core 给出「必要时先错 1px」的序列，避免找回/自动跟随静默失效。
-              const sequence = scrollTopSequence(
-                currentTrackTop ?? this.data.playerScrollTop,
-                scrollResult.targetScrollTop,
-              );
-              this.scrollViewportTo(this.data.activeTrack, sequence[0], opts.animated !== false);
-              if (sequence.length > 1) {
-                const settled = sequence[sequence.length - 1];
-                wx.nextTick(() => {
-                  this.scrollViewportTo(this.data.activeTrack, settled, opts.animated !== false);
-                });
-              }
+              this.scrollViewportTo(this.data.activeTrack, scrollResult.targetScrollTop, opts.animated !== false);
             }
             opts.onResult?.(true);
           },
@@ -1872,6 +1896,7 @@ Page<PageData, PageCustom>({
       targetSec = segs[seekSegIdx].start;
     }
     this.tracker.update(targetSec);
+    this.clockSample = { positionSec: targetSec, atMs: Date.now() };
 
     // BUG-004 核心：`blocks` 与首帧滚动偏移必须在**同一次** setData 里替换。
     // 旧实现先下发 `playerScrollTop: 0` 再靠量测补充，必然先画一帧第 1 条。
@@ -1883,11 +1908,10 @@ Page<PageData, PageCustom>({
       tabIndex: tabIndexOf(track),
       trackLabel: trackLabelOf(track),
       blocks: this.blocksByTrack ? this.blocksByTrack[track] : [],
-      blocksPb: this.blocksByTrack ? this.blocksByTrack.pb : [],
-      blocksDg: this.blocksByTrack ? this.blocksByTrack.dg : [],
       activeSegIdx: switchSegIdx,
       collapsedBoxIds: [],
       durationLabel: formatTime(this.durations ? this.durations[track] : 0),
+      isAudioLoading: true,
       // 换轨离开「已结束」态（DG 播完 → 切到 PB 不应再显示 ↺）。
       ended: false,
       // 校正必须发生在这一帧，不能被 300ms 滚动动画暴露出来。
@@ -1906,17 +1930,15 @@ Page<PageData, PageCustom>({
     }
     // 重锚期间不评估「找回当前句」的可见性（否则会闪一下定位条）。
     this.programmaticUntil = Math.max(this.programmaticUntil ?? 0, Date.now() + 900);
-    // 先单独关掉滚动动画：`scroll-with-animation` 与 `scroll-top` 若在同一次下发,
-    // 框架可能仍按旧设置做一次动画（实测会看到 1 帧滑行）。提前一拍关闭，落位就是硬跳。
-    if (this.data.scrollAnimated) {
-      this.setData({ scrollAnimated: false });
-    }
     this.setData(switchPatch, () => {
       this.traceReseat({ stage: 'switch', track, segIdx: switchSegIdx, anchorTop });
       if (anchorTop !== null) {
         this.scrollViewportTo(track, anchorTop, false);
       }
-      this.reanchorTranscript(switchSegIdx);
+      this.reanchorTranscript(switchSegIdx, () => {
+        // 校正完毕后，开启平滑过渡动画
+        this.setData({ scrollAnimated: true });
+      });
     });
 
     // 从切换的第一帧起就按**目标位置**渲染，并布防镇定窗口：`load()` 之后平台会先
@@ -1952,9 +1974,7 @@ Page<PageData, PageCustom>({
       track,
       durationSec: this.durations && this.durations[track] > 0 ? this.durations[track] : undefined,
     });
-    if (targetSec > 0) {
-      this.audio.seek(targetSec);
-    }
+    this.audio.seek(targetSec);
     // §2：同课切轨继承现有播放/暂停；意图位随之一致，避免后续加载用旧意图。
     this.playRequested = wasPlaying;
     if (wasPlaying) {
@@ -1963,7 +1983,6 @@ Page<PageData, PageCustom>({
       this.audio.pause();
     }
 
-    this.clockSample = { positionSec: targetSec, atMs: Date.now() };
     progressJournal.setPlayheadAnchor(
       this.detail.lessonId,
       track,
@@ -2154,19 +2173,12 @@ Page<PageData, PageCustom>({
   },
 
   onTranscriptDragStart(): void {
+    this.isUserInteracting = true;
     this.programmaticUntil = 0;
   },
 
   onTranscriptDragEnd(): void {
-    // 拖拽手势抬手
-  },
-
-  onTranscriptTouchStart(): void {
-    this.programmaticUntil = 0;
-  },
-
-  onTranscriptTouchEnd(): void {
-    // 触控抬手
+    this.isUserInteracting = false;
   },
 
   onTranscriptScroll(event: WechatMiniprogram.ScrollViewScroll): void {

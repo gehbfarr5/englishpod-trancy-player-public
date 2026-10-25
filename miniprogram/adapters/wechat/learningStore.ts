@@ -246,6 +246,13 @@ export class LearningStore {
     return entry ? entry.persisted : false;
   }
 
+  /** 重置某课的内存镜像与持久存储（单测与 e2e 清场用）。 */
+  resetLesson(lessonId: string): void {
+    if (!lessonId) return;
+    this.mirror.delete(lessonId);
+    this.kv.remove(RECORD_KEY_PREFIX + lessonId);
+  }
+
   /** 枚举本命名空间下已存在的课程 ID（升序，含内存镜像中的）。 */
   knownLessonIds(): string[] {
     const ids = new Set<string>(this.mirror.keys());
