@@ -39,11 +39,13 @@ Page<Data, Custom>({
    if (this.disposed) return;
    const lessonId = query?.lessonId;
    const shared = query?.intent === 'share';
+   const activeBeforeEntry = this.runtime.session.state();
+   const preserveActiveShare = Boolean(shared && lessonId && activeBeforeEntry.course?.id === lessonId && activeBeforeEntry.ready);
    this.setData({
     titles: this.runtime.index.map(item => `${item.lessonId} ${item.title}`),
     loading: false,
     surface: lessonId ? 'player' : 'catalog',
-    shareEntry: Boolean(shared && lessonId),
+    shareEntry: Boolean(shared && lessonId && !preserveActiveShare),
    });
    this.refreshCourses();
    this.detach = this.runtime.session.subscribe(() => this.refresh());

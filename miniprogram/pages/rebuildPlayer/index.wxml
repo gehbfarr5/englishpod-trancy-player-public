@@ -49,7 +49,7 @@
       <text class="player-title">{{title}}</text>
       <view class="playback-status">
         <view class="status-dot {{playing ? 'is-playing' : ''}}"></view>
-        <text>{{shareEntry ? '分享课程 · 点击播放开始' : (loading ? '正在准备课程' : (playing ? '正在播放 Podcast' : (completed ? '本课已完成 · 可再次收听' : 'Podcast')))}} </text>
+        <text>{{loading ? '正在准备课程' : (playing ? '正在播放 Podcast' : (shareEntry ? '分享课程 · 点击播放开始' : (completed ? '本课已完成 · 可再次收听' : 'Podcast')))}} </text>
       </view>
     </view>
 
