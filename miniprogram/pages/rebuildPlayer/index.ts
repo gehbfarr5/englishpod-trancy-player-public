@@ -2,16 +2,21 @@ import { getPodcastRuntime, PodcastRuntime } from '../../rebuild/wechatPodcastRu
 import { progressJournal } from '../../services/progressJournal';
 import { readM1ViewKey, M1ContentView } from '../../rebuild/singlePodcastExperiment';
 import { LessonDetail } from '../../core/types';
+interface CourseOption { id: string; title: string; level: string }
 interface Data { titles: string[]; selected: number; title: string; position: number; duration: number;
- playing: boolean; loading: boolean; error: string; view: M1ContentView; detail: LessonDetail | null; completed: boolean }
+ playing: boolean; loading: boolean; error: string; view: M1ContentView; detail: LessonDetail | null; completed: boolean;
+ query: string; courses: CourseOption[]; courseCount: number; activeSegment: number; transcriptTarget: string }
 interface Custom { runtime?: PodcastRuntime; detach?: () => void; visible: boolean; disposed: boolean;
- onChoose(event: WechatMiniprogram.PickerChange): void; onContinue(): void; onToggle(): void;
+ onChoose(event: WechatMiniprogram.CustomEvent<{ id: string }>): void; onContinue(): void; onToggle(): void;
  onSeek(event: WechatMiniprogram.SliderChange): void; onPrev(): void; onNext(): void;
- onView(event: WechatMiniprogram.TouchEvent): void;
- detailId?: string; detailGeneration: number; refresh(): void; loadDetail(id: string): Promise<void> }
+ onView(event: WechatMiniprogram.TouchEvent): void; onSearch(event: WechatMiniprogram.Input): void;
+ onMoreCourses(): void; onTranscriptTap(event: WechatMiniprogram.CustomEvent<{ start: number }>): void; onLocate(): void;
+ detailId?: string; detailGeneration: number; refresh(): void; loadDetail(id: string): Promise<void>;
+ refreshCourses(): void; activeSegment(position:number):number }
 Page<Data, Custom>({
  data: { titles: [], selected: 0, title: 'EnglishPod', position: 0, duration: 0, playing: false,
- loading: true, error: '', view: 'pb', detail: null, completed: false },
+ loading: true, error: '', view: 'pb', detail: null, completed: false, query: '', courses: [], courseCount: 30,
+ activeSegment: -1, transcriptTarget: '' },
  visible: true, disposed: false, detailGeneration: 0,
  async onLoad(query: Record<string, string | undefined>) {
   try {
@@ -19,6 +24,7 @@ Page<Data, Custom>({
    this.runtime = await getPodcastRuntime();
    if (this.disposed) return;
    this.setData({titles: this.runtime.index.map(x => `${x.lessonId} ${x.title}`), loading: false});
+   this.refreshCourses();
    this.detach = this.runtime.session.subscribe(() => this.refresh());
    const lessonId = query?.lessonId;
    if (lessonId && this.runtime.index.some(item => item.lessonId === lessonId)) {
@@ -39,7 +45,8 @@ Page<Data, Custom>({
    selected: Math.max(0, this.runtime.index.findIndex(x => x.lessonId === id)),
    position: state.playback.positionMs / 1000, duration: state.playback.durationMs / 1000,
    playing: state.playback.playing, loading: Boolean(state.pendingId) || Boolean(id && !state.ready && !state.error),
-   error: state.error || (state.saveFailed ? 'Progress could not be saved; retry when storage is available.' : ''), completed: id ? progressJournal.readRecord(id).lessonCompleted : false });
+   error: state.error || (state.saveFailed ? 'Progress could not be saved; retry when storage is available.' : ''), completed: id ? progressJournal.readRecord(id).lessonCompleted : false,
+   activeSegment: this.activeSegment(state.playback.positionMs / 1000) });
   if (id && id !== this.detailId) void this.loadDetail(id);
  },
  async loadDetail(id: string) {
@@ -51,9 +58,31 @@ Page<Data, Custom>({
    if (!this.disposed && generation === this.detailGeneration) this.setData({detail});
   } catch { if (!this.disposed && generation === this.detailGeneration) this.setData({error:'Transcript unavailable'}); }
  },
- onChoose(event: WechatMiniprogram.PickerChange) {
-  const item = this.runtime?.index[Number(event.detail.value)];
-  if (item) void this.runtime?.session.open(item.lessonId);
+ refreshCourses() {
+  if (!this.runtime) return;
+  const q = this.data.query.trim().toLowerCase();
+  const matches = this.runtime.index.filter(item => !q || item.lessonId.includes(q) || item.title.toLowerCase().includes(q) || (item.level || '').toLowerCase().includes(q));
+  const courses = matches.slice(0, this.data.courseCount).map(item => ({id:item.lessonId,title:item.title,level:item.level || ''}));
+  const currentId = this.runtime.session.state().course?.id;
+  this.setData({courses, selected:Math.max(0,this.runtime.index.findIndex(item => item.lessonId === currentId))});
+ },
+ activeSegment(position: number): number {
+  const segments = this.data.detail?.tracks.pb || [];
+  const found = segments.find(segment => !segment.isSection && position >= segment.start && position < segment.end);
+  return found?.id ?? -1;
+ },
+ onChoose(event: WechatMiniprogram.CustomEvent<{ id: string }>) {
+  const id = event.detail.id;
+  if (id) void this.runtime?.session.open(id);
+ },
+ onSearch(event: WechatMiniprogram.Input) { this.setData({query:event.detail.value,courseCount:30}); this.refreshCourses(); },
+ onMoreCourses() { this.setData({courseCount:this.data.courseCount + 30}); this.refreshCourses(); },
+ onTranscriptTap(event: WechatMiniprogram.CustomEvent<{ start: number }>) {
+  // Explicit sentence replay seeks within the single PB track and preserves play/pause intent.
+  this.runtime?.session.seek(Number(event.detail.start) * 1000);
+ },
+ onLocate() {
+  if (this.data.activeSegment >= 0) this.setData({transcriptTarget:`pb-segment-${this.data.activeSegment}`});
  },
  onContinue() {
   const id = progressJournal.lastOpenedLessonId() || this.runtime?.index[0]?.lessonId;
