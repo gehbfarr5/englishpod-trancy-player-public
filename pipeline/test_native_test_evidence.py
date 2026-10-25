@@ -19,7 +19,7 @@ SHA = 'a' * 40
 def report():
     return dict(schema='ep-native-regression-v1', sha=SHA, runId='123', runAttempt=1, platform='ios-simulator',
                 resourceKind='synthetic-wav', runtime='iOS 27.0 iPhone 17', exitCode=0, status='PASS',
-                scenarios=[{'id': i, 'status': 'PASS', 'elapsedMs': 100} for i in ('N01', 'N02')])
+                scenarios=[{'id': i, 'status': 'PASS', 'elapsedMs': 100} for i in ('N01', 'N02', 'N03')])
 
 
 def archive(data, name='report.json'):

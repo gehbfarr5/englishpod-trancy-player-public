@@ -18,9 +18,9 @@ process = subprocess.Popen([
     '--target=integration_test/native_regression_test.dart', '-d', os.environ['NATIVE_DEVICE'],
 ], start_new_session=True)
 try:
-    result = process.wait(timeout=1200)
+    result = process.wait(timeout=600)
 except subprocess.TimeoutExpired:
-    print('Native build/test command exceeded 20 minutes; no PASS claimed.', flush=True)
+    print('Native build/test command exceeded 10 minutes; no PASS claimed.', flush=True)
     os.killpg(process.pid, signal.SIGTERM)
     try:
         process.wait(timeout=20)

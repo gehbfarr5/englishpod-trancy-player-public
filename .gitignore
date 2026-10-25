@@ -3,4 +3,11 @@ __pycache__/
 *.pyc
 .DS_Store
 miniprogram/e2e/artifacts/
+flutter_app/.dart_tool/
+flutter_app/.flutter-plugins*
+flutter_app/build/
+flutter_app/assets/audio/
+flutter_app/assets/lessons_safe/
+native-evidence/
+
 

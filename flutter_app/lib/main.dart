@@ -16,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models/lesson_models.dart';
 import 'services/audio_error_policy.dart';
+import 'services/playback_contract_policy.dart';
 import 'services/sentence_audio_handler.dart';
 import 'services/transcript_navigation.dart';
 import 'services/web_contract_player.dart';
@@ -3722,31 +3723,21 @@ LessonProgressRecord nextLessonProgressSnapshot({
   required bool markPbComplete,
   required int nowMs,
 }) {
-  // Real-time completion and percentage depend only on Podcast ('pb').
-  int updatedPct = prev.progressPct;
-  if (markPbComplete) {
-    updatedPct = 100;
-  } else if (track == 'pb' && durationSec > 1.0) {
-    if (currentPositionSec < 3.0) {
-      updatedPct = 0;
-    } else {
-      updatedPct =
-          ((currentPositionSec / durationSec) * 100).floor().clamp(0, 100);
-    }
-  }
-  final updatedCompleted =
-      prev.isCompleted || markPbComplete || updatedPct >= 95;
-  final updatedStarted = prev.hasStarted ||
-      updatedCompleted ||
-      updatedPct > 0 ||
-      playing ||
-      viewingPlayer ||
-      currentPositionSec > 0.5;
+  final evaluated = PlaybackContractPolicy.evaluateProgress(
+    wasPreviouslyCompleted: prev.isCompleted,
+    wasPreviouslyStarted: prev.hasStarted,
+    previousPct: prev.progressPct,
+    track: track,
+    currentPositionSec: currentPositionSec,
+    durationSec: durationSec,
+    naturalEnded: markPbComplete,
+    isSeeking: false,
+  );
 
   return prev.copyWith(
-    isCompleted: updatedCompleted,
-    hasStarted: updatedStarted,
-    progressPct: updatedPct,
+    isCompleted: evaluated.isCompleted,
+    hasStarted: evaluated.hasStarted || viewingPlayer || playing,
+    progressPct: evaluated.progressPct,
     lastTrack: track,
     pbPosSec: track == 'pb' ? currentPositionSec : prev.pbPosSec,
     pbSegIdx: track == 'pb' ? currentSegmentIndex : prev.pbSegIdx,
@@ -5303,25 +5294,37 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
         forceDiskFlush: true,
         markPbComplete: _currentTrack == 'pb',
       );
-      if (_singleSentenceLoop) {
-        final segs = _activeSegments;
-        if (segs.isNotEmpty) {
-          final cur = segs[_activeSegIndex.clamp(0, segs.length - 1)];
-          await _globalPlayer.seek(
-            Duration(milliseconds: (cur.start * 1000).round()),
+      final action = PlaybackContractPolicy.evaluateNaturalEnd(
+        track: _currentTrack,
+        singleSentenceLoop: _singleSentenceLoop,
+        trackLoop: _repeatCurrentEpisode,
+        autoNextEnabled: true,
+      );
+      switch (action) {
+        case NaturalEndAction.loopSentence:
+          final segs = _activeSegments;
+          if (segs.isNotEmpty) {
+            final cur = segs[_activeSegIndex.clamp(0, segs.length - 1)];
+            await _globalPlayer.seek(
+              Duration(milliseconds: (cur.start * 1000).round()),
+            );
+            await _safePlay();
+          }
+          break;
+        case NaturalEndAction.loopCurrentTrack:
+          await _restartCurrentTrackFromBeginning(
+            showToast: false,
+            allowBackgroundAutoPlay: true,
           );
-          await _safePlay();
-        }
-      } else if (_repeatCurrentEpisode) {
-        // Repeat Current Episode from beginning (locked seek + Replay 0% reset)
-        await _restartCurrentTrackFromBeginning(
-          showToast: false,
-          allowBackgroundAutoPlay: true,
-        );
-      } else {
-        // Default: Auto-advance and continue playing Next Podcast Episode
-        // Pass saveOutgoing: false so the just-saved 100% completion is never overwritten!
-        await _switchEpisode(1, autoPlay: true, saveOutgoing: false);
+          break;
+        case NaturalEndAction.advanceAutoNext:
+          // Auto-advance to next episode PB 00:00 (loops to first if last)
+          await _switchEpisode(1, autoPlay: true, saveOutgoing: false, isAutoNext: true);
+          break;
+        case NaturalEndAction.stopPlayback:
+          unawaited(_globalPlayer.pause());
+          if (mounted) setState(() => _isPlaying = false);
+          break;
       }
     } finally {
       Future.delayed(const Duration(milliseconds: 500), () {
@@ -5708,13 +5711,11 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     _hideReturnBanner();
 
     final rec = _progressMap[lessonId];
-    // Whenever a lesson is currently in the finished state (`progressPct >= 95`),
-    // re-entering it (whether from the Course List or Pinned Top Live Card)
-    // automatically begins a fresh replay cycle at `00:00` (`Replay 0%`)!
-    final bool isReenteringFinishedLesson =
-        rec != null && rec.progressPct >= 95;
+    // Per EP-PBC-001 Section 2: Completed lessons re-enter PB at 00:00; uncompleted restore PB breakpoint.
+    final bool isFinishedOrCompleted =
+        rec != null && (rec.isCompleted || rec.progressPct >= 95);
     final bool shouldStartAtZero =
-        startFromBeginning || isReenteringFinishedLesson;
+        startFromBeginning || isFinishedOrCompleted;
 
     final bool isAlreadyLoadedLesson = _currentLesson?.lessonId == lessonId;
     if (isAlreadyLoadedLesson) {
@@ -5815,26 +5816,45 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     LessonProgressRecord? rec, {
     required bool shouldStartAtZero,
   }) {
-    if (shouldStartAtZero) return 'pb';
-    return (rec?.lastTrack == 'dg') ? 'dg' : 'pb';
+    // Per EP-PBC-001 Section 2: Library entry always targets 'pb'
+    return 'pb';
   }
 
   Future<void> _switchEpisode(
     int delta, {
     bool autoPlay = true,
     bool saveOutgoing = true,
+    bool isAutoNext = false,
   }) async {
     if (_useWeb) { await _web?.navigate(delta); return; }
     if (_lessons.isEmpty) return;
+
+    final curLid = _currentLesson?.lessonId ?? _lastPlayedLessonId;
+    final lessonIds = _lessons.map((l) => l.lessonId).toList();
+    final intent = isAutoNext
+        ? CourseEntryIntent.autoNext
+        : (delta < 0 ? CourseEntryIntent.manualPrev : CourseEntryIntent.manualNext);
+
+    final decision = PlaybackContractPolicy.evaluateTransition(
+      intent: intent,
+      currentLessonId: curLid,
+      targetLessonId: '',
+      currentTrack: _currentTrack,
+      lessonIdOrder: lessonIds,
+      isCurrentlyPlaying: _isPlaying,
+      isTargetCompleted: false,
+      savedPbSec: 0,
+      savedDgSec: 0,
+      pbDurationSec: 0,
+      dgDurationSec: 0,
+    );
+
+    if (decision.isNoOp) return;
+    final targetLessonId = decision.targetLessonId;
+
     if (saveOutgoing) {
       await _saveProgressSnapshot(forceDiskFlush: true);
     }
-    int curIdx = _lessons.indexWhere(
-      (l) => l.lessonId == (_currentLesson?.lessonId ?? _lastPlayedLessonId),
-    );
-    if (curIdx < 0) curIdx = 0;
-    final nextIdx = (curIdx + delta + _lessons.length) % _lessons.length;
-    final targetLessonId = _lessons[nextIdx].lessonId;
 
     _hideReturnBanner();
     _isAudioLoading = true;
@@ -5842,11 +5862,10 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     unawaited(_globalPlayer.pause());
 
     final rec = _progressMap[targetLessonId];
-    final bool isTargetFinished = rec != null && rec.progressPct >= 95;
-    final bool wasCompleted = (rec?.isCompleted ?? false) || isTargetFinished;
-    if (isTargetFinished) {
-      _progressMap[targetLessonId] = rec.copyWith(
-        isCompleted: wasCompleted,
+    final bool isCompleted = (rec?.isCompleted ?? false) || (rec?.progressPct ?? 0) >= 95;
+    if (isCompleted) {
+      _progressMap[targetLessonId] = (rec ?? const LessonProgressRecord()).copyWith(
+        isCompleted: true,
         hasStarted: true,
         progressPct: 0,
         lastTrack: 'pb',
@@ -5872,7 +5891,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
         _playerTab = nextTrack;
       }
       _lastPlayedLessonId = targetLessonId;
-      if (isTargetFinished) {
+      if (isCompleted) {
         _currentPositionSec = 0.0;
         _activeSegIndex = 0;
       }
@@ -5888,8 +5907,8 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       targetLessonId,
       track: nextTrack,
       autoPlay: autoPlay,
-      resumeSavedPosition: !isTargetFinished,
-      allowBackgroundAutoPlay: true,
+      resumeSavedPosition: !isCompleted,
+      allowBackgroundAutoPlay: false,
     );
   }
 

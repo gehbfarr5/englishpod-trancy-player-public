@@ -23,6 +23,8 @@ def main():
     model = next((t for t in phones if t['name'] == 'iPhone 17'), phones[0])
     device = run('create', 'EnglishPodRegression', model['identifier'], runtime['identifier']).strip()
     run('boot', device)
+    # Open Simulator GUI on macOS runner to ensure CoreSimulator logging stream is active
+    subprocess.run(['open', '-a', 'Simulator', '--args', '-CurrentDeviceUDID', device], check=False)
     subprocess.run(['xcrun', 'simctl', 'bootstatus', device, '-b'], check=True)
     with open(os.environ['GITHUB_ENV'], 'a') as env:
         env.write(f"NATIVE_DEVICE={device}\nNATIVE_RUNTIME={runtime['name']} {model['name']}\n")

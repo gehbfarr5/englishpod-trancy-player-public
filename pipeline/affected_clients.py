@@ -17,10 +17,13 @@ ALL_CLIENTS_ON_CHANGE = {
 }
 FLUTTER_SHARED_PATHS = {
     ".github/scripts/run-native-regression.sh",
+    ".github/scripts/run-ios-device-regression.sh",
+    ".github/workflows/ios-device-regression.yml",
     "pipeline/native_test_evidence.py",
     "pipeline/prepare_native_test_assets.py",
     "pipeline/prepare_flutter_lessons.py",
     "pipeline/select_ios_simulator.py",
+    "pipeline/select_ios_device.py",
 }
 
 
