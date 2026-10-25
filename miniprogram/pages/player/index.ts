@@ -360,6 +360,8 @@ interface PageCustom {
   onTranscriptDragEnd(): void;
   onTranscriptScroll(event: WechatMiniprogram.ScrollViewScroll): void;
   onLocateTap(): void;
+  onShareAppMessage(): WechatMiniprogram.Page.ICustomShareContent;
+  onShareTimeline(): WechatMiniprogram.Page.ICustomTimelineContent;
 }
 
 Page<PageData, PageCustom>({
@@ -726,11 +728,8 @@ Page<PageData, PageCustom>({
           playbackSession.setLessonInfo({ lessonId, singleSentenceLoop: false });
         }
       }
-      // 目标音轨：若后台正在活跃播放该课某轨，则直接无缝继承活跃音轨，不强行切回 PB；
-      // 否则目标音轨没有 DG 音轨时回落到 PB（数据缺失保护，不改变矩阵语义）。
-      const initialTrack: AudioTrackKey = isCurrentlyActiveLesson
-        ? (dgActive.isActive ? 'dg' : 'pb')
-        : (plan.track === 'dg' && dgSegments.length > 0 ? 'dg' : 'pb');
+      // 页面已精简：仅响应 Podcast (pb) 音轨与文本台本
+      const initialTrack: AudioTrackKey = 'pb';
       const initialPos = plan.startMs / 1000;
       const initialSegIdx =
         initialTrack === 'pb'
@@ -743,17 +742,9 @@ Page<PageData, PageCustom>({
           segIdx: record.podcast ? record.podcast.committedSegmentIndex : 0,
           durationSec: this.durations.pb,
         });
-        this.machine.setSnapshot('dg', {
-          positionSec: progressJournal.resolveResumeMs(lessonId, 'dg') / 1000,
-          segIdx: record.dialogue ? record.dialogue.committedSegmentIndex : 0,
-          durationSec: this.durations.dg,
-        });
-        if (initialTrack === 'dg') {
-          this.machine.switchTrack('dg');
-        }
       }
 
-      const initialSegs = initialTrack === 'dg' ? dgSegments : pbSegments;
+      const initialSegs = pbSegments;
       if (this.tracker) {
         this.tracker.setSegments(initialSegs);
         this.tracker.update(initialPos);
@@ -761,10 +752,8 @@ Page<PageData, PageCustom>({
 
       const activeSeg = this.tracker ? this.tracker.current().segIdx : initialSegIdx;
       const pbResumeSeg = record.podcast ? record.podcast.committedSegmentIndex : 0;
-      const dgResumeSeg = record.dialogue ? record.dialogue.committedSegmentIndex : 0;
       const initialScrollPb = this.estimateSwitchScrollTop('pb', pbResumeSeg) ?? 0;
-      const initialScrollDg = this.estimateSwitchScrollTop('dg', dgResumeSeg) ?? 0;
-      const activeInitialScroll = initialTrack === 'dg' ? initialScrollDg : initialScrollPb;
+      const activeInitialScroll = initialScrollPb;
       const shouldShieldAnchor = !isCurrentlyActiveLesson && activeSeg > 0;
 
       this.setData({
@@ -786,7 +775,7 @@ Page<PageData, PageCustom>({
         playerProgressPct: 0,
         playerScrollTop: activeInitialScroll,
         playerScrollTopPb: initialScrollPb,
-        playerScrollTopDg: initialScrollDg,
+        playerScrollTopDg: 0,
         isPendingAnchor: shouldShieldAnchor,
         isTranscriptReady: !shouldShieldAnchor,
         scrollAnimated: false,
@@ -889,12 +878,10 @@ Page<PageData, PageCustom>({
         this.armSettle(initialPos);
         this.updateTransport(initialPos, this.durations[initialTrack]);
         if (this.audio) {
-          // 批量预热两轨音频链接，消除切轨时的网络请求等待
           const pbSrc = this.adapter.resolveAudioFileId(lessonId, 'pb', detail.audio['pb']);
-          const dgSrc = this.adapter.resolveAudioFileId(lessonId, 'dg', detail.audio['dg']);
-          void prefetchPlayableUrls([pbSrc, dgSrc]);
+          void prefetchPlayableUrls([pbSrc]);
 
-          const src = initialTrack === 'dg' ? dgSrc : pbSrc;
+          const src = pbSrc;
           if (!src) {
             throw new Error('该课程音频地址不可用，请检查云端索引及音频文件。');
           }
@@ -2071,10 +2058,26 @@ Page<PageData, PageCustom>({
     wx.navigateBack();
   },
 
-  onTabTap(event: WechatMiniprogram.TouchEvent): void {
-    const tab = event.currentTarget.dataset.tab as ViewTab | undefined;
-    if (!tab) return;
-    this.switchTab(tab);
+  onShareAppMessage(): WechatMiniprogram.Page.ICustomShareContent {
+    const title = this.data.lessonTitle || 'EnglishPod';
+    const id = this.currentLessonId || '';
+    return {
+      title: `跟我一起听《${title}》`,
+      path: `/pages/player/index?lessonId=${id}&intent=share`,
+    };
+  },
+
+  onShareTimeline(): WechatMiniprogram.Page.ICustomTimelineContent {
+    const title = this.data.lessonTitle || 'EnglishPod';
+    const id = this.currentLessonId || '';
+    return {
+      title: `EnglishPod: ${title}`,
+      query: `lessonId=${id}&intent=share`,
+    };
+  },
+
+  onTabTap(): void {
+    // 页面已精简为纯粹响应 Podcast 音频与台词，无需切换音轨
   },
 
   onToggle(): void {
