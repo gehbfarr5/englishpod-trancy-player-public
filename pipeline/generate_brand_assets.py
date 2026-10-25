@@ -19,6 +19,7 @@ _REPO_ROOT = os.path.dirname(_PIPELINE_DIR)
 REF_CLEAN_IMAGE = os.environ.get("EP_REF_SMILEY", "")
 FLUTTER_ROOT = os.environ.get("FLUTTER_ROOT", os.path.join(_REPO_ROOT, "flutter_app"))
 ANDROID_RES = os.path.join(FLUTTER_ROOT, "android/app/src/main/res")
+IOS_APPICON_DIR = os.path.join(FLUTTER_ROOT, "ios/Runner/Assets.xcassets/AppIcon.appiconset")
 BRANDING_ASSETS_DIR = os.path.join(FLUTTER_ROOT, "assets/branding")
 # 预览图输出目录：默认落在品牌素材目录下（不再指向本机 brain 目录）
 ARTIFACT_DIR = os.environ.get("EP_ARTIFACT_DIR", BRANDING_ASSETS_DIR)
@@ -242,13 +243,389 @@ def trace_contours_to_svg_path(
     return " ".join(path_parts)
 
 
-def main():
-    if not REF_CLEAN_IMAGE or not os.path.isfile(REF_CLEAN_IMAGE):
-        raise SystemExit(
-            "❌ 未提供参考笑脸原图：请设置环境变量 EP_REF_SMILEY 指向该 jpg 文件。\n"
-            f"   当前值：{REF_CLEAN_IMAGE!r}"
+def resolve_alpha_mask(img_path: str = REF_CLEAN_IMAGE) -> Image.Image:
+    """
+    Returns a clean alpha mask for the hand-drawn smiley.
+    If img_path is specified and exists, extracts from the grayscale image.
+    Otherwise, extracts from the tracked brand_icon_dark.png asset or known cache.
+    """
+    if img_path and os.path.isfile(img_path):
+        return extract_clean_alpha_mask(img_path)
+    cached_clean = "/Users/jin/.gemini/antigravity/brain/dbe5f4bf-eb6b-4c13-b330-0dabe1072b07/hand_drawn_smiley_clean_1791036590416.jpg"
+    if os.path.isfile(cached_clean):
+        return extract_clean_alpha_mask(cached_clean)
+    dark_asset = os.path.join(BRANDING_ASSETS_DIR, "brand_icon_dark.png")
+    if os.path.isfile(dark_asset):
+        im = Image.open(dark_asset).convert("RGB")
+        w, h = im.size
+        src = im.load()
+        mask = Image.new("L", (w, h), 0)
+        dst = mask.load()
+        for y in range(h):
+            for x in range(w):
+                g = src[x, y][1]
+                if g > 0:
+                    dst[x, y] = min(255, int(round(g * (255.0 / 215.0))))
+        return mask
+    raise FileNotFoundError("Unable to resolve hand-drawn smiley reference image or asset.")
+
+
+def generate_ios_app_icons(alpha_mask: Image.Image, output_dir: str = IOS_APPICON_DIR):
+    """
+    Generates all iOS AppIcon.appiconset assets and Contents.json:
+    - Universal 1024x1024 (Light: #CC785C on #FFFFFF, Dark: #1ED760 on #000000, Tinted: #1ED760 on #000000)
+    - Full device scale variants across iPhone and iPad densities
+    - Contents.json configuring modern Xcode 16 / iOS 18+ luminosity appearances
+    """
+    import json
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 1. Universal & Marketing 1024x1024 assets
+    light_1024 = render_tinted_smiley(
+        alpha_mask,
+        canvas_size=1024,
+        fg_rgb=LIGHT_ACCENT,
+        bg_rgba=(*LIGHT_BG, 255),
+        smiley_scale=0.72,
+    )
+    light_1024.convert("RGB").save(os.path.join(output_dir, "Icon-App-1024x1024@1x.png"), "PNG", optimize=True)
+
+    dark_1024 = render_tinted_smiley(
+        alpha_mask,
+        canvas_size=1024,
+        fg_rgb=DARK_ACCENT,
+        bg_rgba=(*DARK_BG, 255),
+        smiley_scale=0.72,
+    )
+    dark_1024.convert("RGB").save(os.path.join(output_dir, "Icon-App-1024x1024-Dark@1x.png"), "PNG", optimize=True)
+    dark_1024.convert("RGB").save(os.path.join(output_dir, "Icon-App-1024x1024-Tinted@1x.png"), "PNG", optimize=True)
+
+    # 2. Density-specific device variants
+    device_sizes = {
+        ("20x20", "1x"): 20,
+        ("20x20", "2x"): 40,
+        ("20x20", "3x"): 60,
+        ("29x29", "1x"): 29,
+        ("29x29", "2x"): 58,
+        ("29x29", "3x"): 87,
+        ("40x40", "1x"): 40,
+        ("40x40", "2x"): 80,
+        ("40x40", "3x"): 120,
+        ("60x60", "2x"): 120,
+        ("60x60", "3x"): 180,
+        ("76x76", "1x"): 76,
+        ("76x76", "2x"): 152,
+        ("83.5x83.5", "2x"): 167,
+    }
+
+    for (size, scale), px in device_sizes.items():
+        # Light variant (#CC785C on #FFFFFF)
+        light_img = render_tinted_smiley(
+            alpha_mask,
+            canvas_size=px,
+            fg_rgb=LIGHT_ACCENT,
+            bg_rgba=(*LIGHT_BG, 255),
+            smiley_scale=0.70,
         )
-    alpha_mask = extract_clean_alpha_mask(REF_CLEAN_IMAGE)
+        light_img.convert("RGB").save(os.path.join(output_dir, f"Icon-App-{size}@{scale}.png"), "PNG", optimize=True)
+
+        # Dark variant (#1ED760 on #000000)
+        dark_img = render_tinted_smiley(
+            alpha_mask,
+            canvas_size=px,
+            fg_rgb=DARK_ACCENT,
+            bg_rgba=(*DARK_BG, 255),
+            smiley_scale=0.70,
+        )
+        dark_img.convert("RGB").save(os.path.join(output_dir, f"Icon-App-{size}-Dark@{scale}.png"), "PNG", optimize=True)
+
+    # 3. Write structured Contents.json
+    contents = {
+        "images": [
+            {
+                "size": "20x20",
+                "idiom": "iphone",
+                "filename": "Icon-App-20x20@2x.png",
+                "scale": "2x"
+            },
+            {
+                "size": "20x20",
+                "idiom": "iphone",
+                "filename": "Icon-App-20x20-Dark@2x.png",
+                "scale": "2x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "20x20",
+                "idiom": "iphone",
+                "filename": "Icon-App-20x20@3x.png",
+                "scale": "3x"
+            },
+            {
+                "size": "20x20",
+                "idiom": "iphone",
+                "filename": "Icon-App-20x20-Dark@3x.png",
+                "scale": "3x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "29x29",
+                "idiom": "iphone",
+                "filename": "Icon-App-29x29@1x.png",
+                "scale": "1x"
+            },
+            {
+                "size": "29x29",
+                "idiom": "iphone",
+                "filename": "Icon-App-29x29-Dark@1x.png",
+                "scale": "1x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "29x29",
+                "idiom": "iphone",
+                "filename": "Icon-App-29x29@2x.png",
+                "scale": "2x"
+            },
+            {
+                "size": "29x29",
+                "idiom": "iphone",
+                "filename": "Icon-App-29x29-Dark@2x.png",
+                "scale": "2x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "29x29",
+                "idiom": "iphone",
+                "filename": "Icon-App-29x29@3x.png",
+                "scale": "3x"
+            },
+            {
+                "size": "29x29",
+                "idiom": "iphone",
+                "filename": "Icon-App-29x29-Dark@3x.png",
+                "scale": "3x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "40x40",
+                "idiom": "iphone",
+                "filename": "Icon-App-40x40@2x.png",
+                "scale": "2x"
+            },
+            {
+                "size": "40x40",
+                "idiom": "iphone",
+                "filename": "Icon-App-40x40-Dark@2x.png",
+                "scale": "2x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "40x40",
+                "idiom": "iphone",
+                "filename": "Icon-App-40x40@3x.png",
+                "scale": "3x"
+            },
+            {
+                "size": "40x40",
+                "idiom": "iphone",
+                "filename": "Icon-App-40x40-Dark@3x.png",
+                "scale": "3x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "60x60",
+                "idiom": "iphone",
+                "filename": "Icon-App-60x60@2x.png",
+                "scale": "2x"
+            },
+            {
+                "size": "60x60",
+                "idiom": "iphone",
+                "filename": "Icon-App-60x60-Dark@2x.png",
+                "scale": "2x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "60x60",
+                "idiom": "iphone",
+                "filename": "Icon-App-60x60@3x.png",
+                "scale": "3x"
+            },
+            {
+                "size": "60x60",
+                "idiom": "iphone",
+                "filename": "Icon-App-60x60-Dark@3x.png",
+                "scale": "3x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "20x20",
+                "idiom": "ipad",
+                "filename": "Icon-App-20x20@1x.png",
+                "scale": "1x"
+            },
+            {
+                "size": "20x20",
+                "idiom": "ipad",
+                "filename": "Icon-App-20x20-Dark@1x.png",
+                "scale": "1x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "20x20",
+                "idiom": "ipad",
+                "filename": "Icon-App-20x20@2x.png",
+                "scale": "2x"
+            },
+            {
+                "size": "20x20",
+                "idiom": "ipad",
+                "filename": "Icon-App-20x20-Dark@2x.png",
+                "scale": "2x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "29x29",
+                "idiom": "ipad",
+                "filename": "Icon-App-29x29@1x.png",
+                "scale": "1x"
+            },
+            {
+                "size": "29x29",
+                "idiom": "ipad",
+                "filename": "Icon-App-29x29-Dark@1x.png",
+                "scale": "1x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "29x29",
+                "idiom": "ipad",
+                "filename": "Icon-App-29x29@2x.png",
+                "scale": "2x"
+            },
+            {
+                "size": "29x29",
+                "idiom": "ipad",
+                "filename": "Icon-App-29x29-Dark@2x.png",
+                "scale": "2x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "40x40",
+                "idiom": "ipad",
+                "filename": "Icon-App-40x40@1x.png",
+                "scale": "1x"
+            },
+            {
+                "size": "40x40",
+                "idiom": "ipad",
+                "filename": "Icon-App-40x40-Dark@1x.png",
+                "scale": "1x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "40x40",
+                "idiom": "ipad",
+                "filename": "Icon-App-40x40@2x.png",
+                "scale": "2x"
+            },
+            {
+                "size": "40x40",
+                "idiom": "ipad",
+                "filename": "Icon-App-40x40-Dark@2x.png",
+                "scale": "2x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "76x76",
+                "idiom": "ipad",
+                "filename": "Icon-App-76x76@1x.png",
+                "scale": "1x"
+            },
+            {
+                "size": "76x76",
+                "idiom": "ipad",
+                "filename": "Icon-App-76x76-Dark@1x.png",
+                "scale": "1x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "76x76",
+                "idiom": "ipad",
+                "filename": "Icon-App-76x76@2x.png",
+                "scale": "2x"
+            },
+            {
+                "size": "76x76",
+                "idiom": "ipad",
+                "filename": "Icon-App-76x76-Dark@2x.png",
+                "scale": "2x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "83.5x83.5",
+                "idiom": "ipad",
+                "filename": "Icon-App-83.5x83.5@2x.png",
+                "scale": "2x"
+            },
+            {
+                "size": "83.5x83.5",
+                "idiom": "ipad",
+                "filename": "Icon-App-83.5x83.5-Dark@2x.png",
+                "scale": "2x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "1024x1024",
+                "idiom": "ios-marketing",
+                "filename": "Icon-App-1024x1024@1x.png",
+                "scale": "1x"
+            },
+            {
+                "size": "1024x1024",
+                "idiom": "ios-marketing",
+                "filename": "Icon-App-1024x1024-Dark@1x.png",
+                "scale": "1x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "1024x1024",
+                "idiom": "universal",
+                "platform": "ios",
+                "filename": "Icon-App-1024x1024@1x.png",
+                "scale": "1x"
+            },
+            {
+                "size": "1024x1024",
+                "idiom": "universal",
+                "platform": "ios",
+                "filename": "Icon-App-1024x1024-Dark@1x.png",
+                "scale": "1x",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}]
+            },
+            {
+                "size": "1024x1024",
+                "idiom": "universal",
+                "platform": "ios",
+                "filename": "Icon-App-1024x1024-Tinted@1x.png",
+                "scale": "1x",
+                "appearances": [{"appearance": "luminosity", "value": "tinted"}]
+            }
+        ],
+        "info": {
+            "version": 1,
+            "author": "xcode"
+        }
+    }
+
+    with open(os.path.join(output_dir, "Contents.json"), "w", encoding="utf-8") as f:
+        json.dump(contents, f, indent=2)
+
+
+def main():
+    alpha_mask = resolve_alpha_mask(REF_CLEAN_IMAGE)
     os.makedirs(BRANDING_ASSETS_DIR, exist_ok=True)
 
     # 1. Generate 1024x1024 Dark & Light Brand Icons (for Notification Album Art & Preview)
@@ -280,7 +657,11 @@ def main():
         os.path.join(ARTIFACT_DIR, "brand_icon_light_preview.png"), "PNG"
     )
 
-    # 2. Generate Mipmap Launcher PNGs (Light & Dark)
+    # 2. Generate iOS AppIcon.appiconset (Light, Dark #1ED760, Tinted)
+    generate_ios_app_icons(alpha_mask, IOS_APPICON_DIR)
+    print(f"Generated iOS AppIcon set in {IOS_APPICON_DIR}")
+
+    # 3. Generate Mipmap Launcher PNGs (Light & Dark)
     mipmap_sizes = {
         "mdpi": 48,
         "hdpi": 72,

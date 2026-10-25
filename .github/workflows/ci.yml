@@ -91,7 +91,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: PYTHONPATH=pipeline python -m unittest pipeline/test_g4_benchmark.py pipeline/test_native_test_evidence.py pipeline/test_affected_clients.py
+      - run: PYTHONPATH=pipeline python -m unittest pipeline/test_g4_benchmark.py pipeline/test_native_test_evidence.py pipeline/test_affected_clients.py pipeline/test_brand_assets.py
 
   agent-runner-contract:
     name: Agent runner policy tests
