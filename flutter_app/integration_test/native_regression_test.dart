@@ -162,7 +162,11 @@ void main() {
       }
 
       await playing(true);
-      await binding.takeScreenshot('N03-completed-reenter-pb-playing');
+      if (Platform.isAndroid) {
+        await binding.convertFlutterSurfaceToImage();
+        await tester.pump();
+      }
+      await binding.takeScreenshot('N03-completed-reenter');
 
       // Checkpoint must retain isCompleted=true and position started from 00:00
       await prefs.reload();
