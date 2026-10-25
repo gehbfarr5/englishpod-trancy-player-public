@@ -29,6 +29,6 @@ The design intentionally excludes the legacy page's visual dependencies on dual 
 3. From the recipient build, switch all three content views while playing and paused; tap a Podcast sentence; pause/resume; background and return; verify no duplicate audio source and no unexpected scroll jump.
 4. Verify ordinary library entry and continue-listening behavior still match the existing playback contract.
 5. Collect first-use feedback without coaching before considering a wider trial. A development/preview build may be restricted to authorized WeChat members, so successful self-sharing alone does not prove public sharing access.
-6. Rerun the configured MiniTest plan against the exact 0.3.17 SHA when weekly quota permits. Inspect the case inventory before attributing the result to the rebuilt route or share flow.
+6. MiniTest is optional at this self-use stage. Run it against the exact 0.3.17 SHA only at a meaningful compatibility checkpoint, after confirming that the case inventory covers the rebuilt route and share flow. If the weekly quota blocks submission, record `BLOCKED: quota`; this does not block the manual device acceptance. See the [Mini Program test policy](miniprogram-test-policy.md).
 
 No production submission or public release is included in M5.

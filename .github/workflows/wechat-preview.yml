@@ -10,13 +10,17 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'verify: offline checks; preview: developer QR; upload: development code'
+        description: 'verify: offline checks; preview: QR; upload: development code; cloud-test: upload plus MiniTest'
         type: choice
         required: true
         default: verify
-        options: [verify, preview, upload]
+        options: [verify, preview, upload, cloud-test]
       confirm_wechat_code_upload:
-        description: 'For preview/upload, type UPLOAD_WECHAT_DEV_CODE (never publishes production)'
+        description: 'For preview/upload/cloud-test, type UPLOAD_WECHAT_DEV_CODE (never publishes production)'
+        type: string
+        required: false
+      confirm_cloud_test:
+        description: 'For cloud-test only, type RUN_MINITEST after confirming the plan covers the target flows'
         type: string
         required: false
 
@@ -64,14 +68,27 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
-      (inputs.mode == 'upload' || inputs.mode == 'preview') &&
-      inputs.confirm_wechat_code_upload == 'UPLOAD_WECHAT_DEV_CODE'
+      (inputs.mode == 'upload' || inputs.mode == 'preview' || inputs.mode == 'cloud-test')
     runs-on: ubuntu-24.04
     environment: wechat-upload
     timeout-minutes: 60
     permissions:
       contents: read
     steps:
+      - name: Confirm requested external test actions
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM_WECHAT_CODE_UPLOAD: ${{ inputs.confirm_wechat_code_upload }}
+          CONFIRM_CLOUD_TEST: ${{ inputs.confirm_cloud_test }}
+        run: |
+          if [ "$CONFIRM_WECHAT_CODE_UPLOAD" != "UPLOAD_WECHAT_DEV_CODE" ]; then
+            echo "::error::Type UPLOAD_WECHAT_DEV_CODE to authorize a WeChat development upload or preview."
+            exit 1
+          fi
+          if [ "$MODE" = "cloud-test" ] && [ "$CONFIRM_CLOUD_TEST" != "RUN_MINITEST" ]; then
+            echo "::error::Type RUN_MINITEST only after confirming that the MiniTest plan covers the target flows."
+            exit 1
+          fi
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -89,7 +106,7 @@ jobs:
         env:
           WECHAT_CI_PRIVATE_KEY_B64: ${{ secrets.WECHAT_CI_PRIVATE_KEY_B64 }}
           WECHAT_CI_PROXY: ${{ secrets.WECHAT_CI_PROXY }}
-          WECHAT_CI_MODE: ${{ inputs.mode }}
+          WECHAT_CI_MODE: ${{ inputs.mode == 'cloud-test' && 'upload' || inputs.mode }}
           WECHAT_CI_APPROVED: ${{ inputs.confirm_wechat_code_upload }}
           WECHAT_CI_ROBOT: ${{ vars.WECHAT_CI_ROBOT || '9' }}
           WECHAT_CI_TIMEOUT_MS: ${{ vars.WECHAT_CI_TIMEOUT_MS || '900000' }}
@@ -117,7 +134,7 @@ jobs:
           echo "- **Robot**: \`${{ vars.WECHAT_CI_ROBOT || '9' }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Preview Artifact**: Download the \`EnglishPod-WeChat-DEV-PREVIEW-${{ github.sha }}\` artifact to scan and test directly on authorized devices." >> $GITHUB_STEP_SUMMARY
       - name: Trigger MiniTest cloud testing
-        if: inputs.mode == 'upload'
+        if: inputs.mode == 'cloud-test'
         env:
           MINITEST_TOKEN: ${{ secrets.MINITEST_TOKEN }}
           MINITEST_PLAN_ID: ${{ vars.MINITEST_PLAN_ID }}
@@ -131,7 +148,7 @@ jobs:
           MINITEST_OUTPUT_DIR: ${{ runner.temp }}/minitest
         run: node miniprogram/scripts/wechat-minitest.mjs
       - name: Preserve sanitized MiniTest run summary
-        if: always() && inputs.mode == 'upload'
+        if: always() && inputs.mode == 'cloud-test'
         uses: actions/upload-artifact@v4
         with:
           name: EnglishPod-MiniTest-Summary-${{ github.sha }}

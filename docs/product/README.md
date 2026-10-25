@@ -18,7 +18,8 @@ The original includes dual-audio rules. For the proposed new Mini Program scope,
 1. miniprogram-v1-product-spec-draft.md — proposed Mini Program scope; distinguishes user-confirmed decisions from suggestions and pending validation.
 2. playback-behavior-contract.md — preserved behavior baseline, especially progress and completion semantics.
 3. miniprogram-platform-evidence.md — M0 evidence register; official page bodies remain unverified where automated retrieval failed.
-4. miniprogram-audio-experiment.md — M1 podcast-only audio experiment matrix; not yet executed.
+4. miniprogram-test-policy.md — separates routine CI, development previews, and optional quota-aware cloud testing.
+5. miniprogram-audio-experiment.md — M1 podcast-only audio experiment matrix; not yet executed.
 
 ## Remaining audit boundaries
 - Identify other missing non-sensitive Web/product documentation through a dedicated old/public inventory before declaring all migration documentation complete.
