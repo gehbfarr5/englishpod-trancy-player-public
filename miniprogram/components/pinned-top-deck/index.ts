@@ -29,5 +29,9 @@ Component({
 
   data: {},
 
-  methods: {},
+  methods: {
+    onHeaderTap() {
+      this.triggerEvent('titleTap');
+    },
+  },
 });

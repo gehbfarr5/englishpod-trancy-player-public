@@ -14,12 +14,14 @@
   flex: none;
   background-color: var(--ep-deck-bg);
   border-bottom: 1px solid var(--ep-deck-border);
+  padding-bottom: var(--ep-space-xs);
 }
 
 .pl__bar {
   display: flex;
   flex-direction: row;
   align-items: center;
+  justify-content: space-between;
   padding: 0 var(--ep-space-xl);
   box-sizing: border-box;
 }
@@ -39,6 +41,34 @@
   font-size: var(--ep-font-card-status);
   font-weight: var(--ep-fw-semibold);
   color: var(--ep-text-primary);
+}
+
+.pl__share-btn {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 var(--ep-space-md);
+  margin: 0;
+  border-radius: var(--ep-radius-pill);
+  background-color: var(--ep-surface-inset);
+  border: 1px solid var(--ep-border);
+  line-height: normal;
+}
+
+.pl__share-btn::after {
+  border: none;
+}
+
+.pl__share-btn--hover {
+  opacity: 0.82;
+}
+
+.pl__share-text {
+  font-size: var(--ep-font-card-status);
+  font-weight: var(--ep-fw-semibold);
+  color: var(--ep-accent);
 }
 
 

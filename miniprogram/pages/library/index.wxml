@@ -1,6 +1,8 @@
 <!--
   EnglishPod 课程库（pages/library/index.wxml）
   纯 WebView 原生页面，搭载秒开骨架屏、即时存储缓存、分片平滑滚动。
+  已精简：移除顶部筛选 pills 与独立卡片，主页全量展示课程列表并在列表中管理进度；
+  点击标题栏（EnglishPod）直接跳转当前正在收听的课程。
 -->
 <view class="app-root notranslate" translate="no">
   <pinned-top-deck
@@ -9,30 +11,8 @@
     completion-text="{{completionText}}"
     safe-top-px="{{safeTopPx}}"
     nav-bar-px="{{navBarPx}}"
-  >
-    <!-- 继续收听聚光灯卡（无任何进度记录时隐藏） -->
-    <view slot="continue" wx:if="{{continueInfo}}">
-      <continue-card
-        title="{{continueTitle}}"
-        badge="{{continueInfo.badge}}"
-        attributes="{{continueAttributes}}"
-        fallback-text="{{continueFallback}}"
-        progress-pct="{{continueInfo.progressPct}}"
-        is-playing="{{isPlaying}}"
-        bind:cardtap="onContinueTap"
-        bind:toggle="onContinueToggle"
-      />
-    </view>
-
-    <!-- 三态筛选 -->
-    <view slot="filters">
-      <filter-pills
-        filters="{{filters}}"
-        active-key="{{activeFilter}}"
-        bind:change="onFilterChange"
-      />
-    </view>
-  </pinned-top-deck>
+    bind:titleTap="onTitleTap"
+  />
 
   <!-- 内凹滚动列表区 -->
   <scroll-view
@@ -61,7 +41,7 @@
       </view>
     </view>
 
-    <!-- 课程列表（分片增量加载，336 课 60fps 瞬间呈现） -->
+    <!-- 课程列表（分片增量加载，335 课 60fps 瞬间呈现） -->
     <view wx:else class="lib__list">
       <lesson-card
         wx:for="{{renderedLessons}}"

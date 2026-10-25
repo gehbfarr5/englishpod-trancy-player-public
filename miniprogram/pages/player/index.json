@@ -1,7 +1,6 @@
 {
   "usingComponents": {
     "transcript": "/components/transcript/index",
-    "vocab-panel": "/components/vocab-panel/index",
     "control-dock": "/components/control-dock/index"
   },
   "navigationStyle": "custom",
