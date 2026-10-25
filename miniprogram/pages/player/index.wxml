@@ -8,9 +8,17 @@
 <view class="player-root notranslate" translate="no">
   <!-- 顶部栏（自定义导航，预留原生胶囊安全区） -->
   <view class="pl__topbar" style="padding-top: {{safeTopPx}}px;">
-    <!-- 导航行（高度与微信原生胶囊保持一致，右侧避让胶囊按钮） -->
-    <view class="pl__bar" style="height: {{navBarPx}}px; padding-right: {{capsuleRightPadding}}px;">
-      <view class="pl__back" bindtap="onBack" hover-class="pl__back--hover" hover-stay-time="150" aria-label="返回课程列表" role="button">
+    <!-- 导航行（高度与微信原生胶囊保持一致，右侧避让胶囊按钮，左侧与胶囊右边距镜像对齐） -->
+    <view class="pl__bar" style="height: {{navBarPx}}px; padding-left: {{capsuleLeftMargin || 12}}px; padding-right: {{capsuleRightPadding}}px;">
+      <view
+        class="pl__back"
+        style="height: {{capsuleHeight || 32}}px; width: {{capsuleHeight || 32}}px;"
+        bindtap="onBack"
+        hover-class="pl__back--hover"
+        hover-stay-time="150"
+        aria-label="返回课程列表"
+        role="button"
+      >
         <text class="pl__back-icon">←</text>
       </view>
       <view class="pl__bar-title-wrap">

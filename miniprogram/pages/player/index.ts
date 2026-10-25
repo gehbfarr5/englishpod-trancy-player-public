@@ -148,6 +148,8 @@ interface TrackLayoutCache {
 interface PageData {
   safeTopPx: number;
   navBarPx: number;
+  capsuleHeight: number;
+  capsuleLeftMargin: number;
   capsuleRightPadding: number;
   playerLoading: boolean;
   isAudioLoading: boolean;
@@ -252,6 +254,7 @@ interface PageCustom {
   locateThrottleTimer?: ReturnType<typeof setTimeout> | null;
   locateTimer?: ReturnType<typeof setInterval> | null;
   isUserInteracting?: boolean;
+  hasUserScrolledTranscript?: boolean;
   keepScreenOn?: boolean;
   /**
    * 台本行位置样本（BUG-004 首帧重锚用）。
@@ -378,9 +381,11 @@ Page<PageData, PageCustom>({
   data: {
     safeTopPx: 44,
     navBarPx: 44,
+    capsuleHeight: 32,
+    capsuleLeftMargin: 12,
     capsuleRightPadding: 96,
     playerLoading: true,
-    isAudioLoading: false,
+    isAudioLoading: true,
     playerErrorMsg: '',
     lessonTitle: '',
     lessonLevel: '',
@@ -420,8 +425,11 @@ Page<PageData, PageCustom>({
 
   autoScroll: true,
   scrubbing: false,
+  hasUserScrolledTranscript: false,
 
   onLoad(query: Record<string, string | undefined>) {
+    this.hasUserScrolledTranscript = false;
+    this.programmaticUntil = Date.now() + 1500;
     this.initNavMetrics();
     // Explicit preview-only opt-in; production release and ordinary sessions never record.
     this.localDiagnostics = null;
@@ -510,13 +518,18 @@ Page<PageData, PageCustom>({
   onShow() {
     playbackSession.setForegroundOwner(true);
     this.localDiagnostics?.foreground(!!this.audio && !this.audio.isPaused());
-    if (this.audio && !this.audio.isPaused()) {
-      this.setData({ isPlaying: true });
+    const isThisLessonActive = this.currentLessonId
+      ? playbackSession.isLessonActive(this.currentLessonId, this.data.activeTrack)
+      : { isActive: false, isPlaying: false, currentTime: 0, duration: 0 };
+    if (isThisLessonActive.isActive && isThisLessonActive.isPlaying) {
+      this.setData({ isPlaying: true, isAudioLoading: false });
       this.startTick();
+    } else if (this.data.isAudioLoading) {
+      this.setData({ isPlaying: false });
     }
     // 回前台时以引擎真实状态校准「播放意图」：后台可能被通知栏/系统暂停过。
     // 首次 onShow 时 detail 尚未就绪（加载进行中），不能据此覆盖 onLoad 的初始意图。
-    if (this.detail && !this.progressSuspended) {
+    if (this.detail && !this.progressSuspended && !this.data.isAudioLoading) {
       this.playRequested = Boolean(this.audio && !this.audio.isPaused());
     }
   },
@@ -546,19 +559,32 @@ Page<PageData, PageCustom>({
   initNavMetrics(): void {
     try {
       const windowInfo = wx.getWindowInfo();
-      const safeTop = windowInfo.safeArea ? windowInfo.safeArea.top : windowInfo.statusBarHeight || 44;
-      const capsule = wx.getMenuButtonBoundingClientRect();
-      const capsuleRight = windowInfo.windowWidth - capsule.left + 10;
-      const navBarHeight = Math.max(44, (capsule.top - safeTop) * 2 + capsule.height);
+      const statusBarHeight = windowInfo.statusBarHeight || 44;
+      let capsule = { top: 48, bottom: 80, left: 281, right: 368, width: 87, height: 32 };
+      try {
+        const rect = wx.getMenuButtonBoundingClientRect();
+        if (rect && rect.height > 0 && rect.top > 0) {
+          capsule = rect;
+        }
+      } catch {
+        // fallback to default capsule metrics
+      }
+
+      const navBarHeight = (capsule.top - statusBarHeight) * 2 + capsule.height;
+      const capsuleRightMargin = Math.max(0, windowInfo.windowWidth - capsule.right);
+      const capsuleLeftMargin = Math.max(capsuleRightMargin, 12);
+      const capsuleRightPadding = windowInfo.windowWidth - capsule.left + 10;
 
       this.setData({
-        safeTopPx: safeTop,
+        safeTopPx: statusBarHeight,
         navBarPx: navBarHeight,
-        capsuleRightPadding: Math.max(capsuleRight, 96),
+        capsuleHeight: capsule.height,
+        capsuleLeftMargin,
+        capsuleRightPadding: Math.max(capsuleRightPadding, 96),
       });
 
       if (!this.transcriptViewportHeight || this.transcriptViewportHeight <= 0) {
-        const estH = windowInfo.windowHeight - safeTop - navBarHeight - 180;
+        const estH = windowInfo.windowHeight - statusBarHeight - navBarHeight - 180;
         if (estH > 0) {
           this.transcriptViewportHeight = estH;
         }
@@ -567,6 +593,8 @@ Page<PageData, PageCustom>({
       this.setData({
         safeTopPx: 44,
         navBarPx: 44,
+        capsuleHeight: 32,
+        capsuleLeftMargin: 12,
         capsuleRightPadding: 96,
       });
       if (!this.transcriptViewportHeight || this.transcriptViewportHeight <= 0) {
@@ -638,7 +666,9 @@ Page<PageData, PageCustom>({
         if (this.audioLoadToken !== undefined) {
           playbackSession.endAudioLoad(this.audioLoadToken);
         }
-        this.setData({ isAudioLoading: false });
+        if (!this.playRequested) {
+          this.setData({ isAudioLoading: false });
+        }
         this.localDiagnostics?.canplay();
       },
       onWaiting: () => {
@@ -682,8 +712,18 @@ Page<PageData, PageCustom>({
       : { isActive: false, isPlaying: false, currentTime: 0, duration: 0 };
     const isCurrentlyActiveLesson = pbActive.isActive || dgActive.isActive;
 
+    this.hasUserScrolledTranscript = false;
+    this.programmaticUntil = Date.now() + 1500;
+    this.hideLocateBar();
+
     if (!isCurrentlyActiveLesson) {
-      this.setData({ isTranscriptReady: false, playerErrorMsg: '', ended: false });
+      this.setData({
+        isTranscriptReady: false,
+        playerErrorMsg: '',
+        ended: false,
+        isAudioLoading: true,
+        isPlaying: false,
+      });
     } else {
       this.setData({ isTranscriptReady: true, playerErrorMsg: '', ended: false });
     }
@@ -818,6 +858,8 @@ Page<PageData, PageCustom>({
         hasPrevLesson: plan.canGoPrev,
         hasNextLesson: plan.canGoNext,
         playerLoading: false,
+        isAudioLoading: !(isCurrentlyActiveLesson && (pbActive.isPlaying || dgActive.isPlaying)),
+        isPlaying: Boolean(isCurrentlyActiveLesson && (pbActive.isPlaying || dgActive.isPlaying)),
         ended: false,
         singleSentenceLoop: this.machine ? this.machine.isSingleSentenceLoop() : false,
         repeatEpisode: this.machine ? this.machine.isRepeatEpisode() : false,
@@ -920,6 +962,7 @@ Page<PageData, PageCustom>({
             throw new Error('该课程音频地址不可用，请检查云端索引及音频文件。');
           }
           this.localDiagnostics?.loadRequested();
+          this.setData({ isAudioLoading: true, isPlaying: false });
           // §4.1.2：load 前上锁，canplay 后（60ms）解锁；锁定期不写断点。
           this.audioLoadToken = playbackSession.beginAudioLoad(lessonId, initialTrack);
           this.audio.load(src);
@@ -1632,14 +1675,27 @@ Page<PageData, PageCustom>({
           }
           const leadingEdge = (row.top - viewport.top) / viewport.height;
           const trailingEdge = (row.bottom - viewport.top) / viewport.height;
-          cb(isWithinFocusViewport(leadingEdge, trailingEdge));
+          // 若为第 1 句（segIdx === 0）或贴近视口顶部，只要仍在视口内部即判定可见
+          const isVisible =
+            segIdx === 0
+              ? leadingEdge >= -0.06 && trailingEdge <= 0.94
+              : isWithinFocusViewport(leadingEdge, trailingEdge);
+          cb(isVisible);
         });
       });
   },
 
   evaluateActiveVisibility(): void {
+    if (!this.hasUserScrolledTranscript) {
+      this.hideLocateBar();
+      return;
+    }
     if (Date.now() < (this.programmaticUntil ?? 0)) return;
     this.isActiveSegmentVisible((visible) => {
+      if (!this.hasUserScrolledTranscript) {
+        this.hideLocateBar();
+        return;
+      }
       if (Date.now() < (this.programmaticUntil ?? 0)) return;
       if (visible) {
         this.hideLocateBar();
@@ -1652,6 +1708,7 @@ Page<PageData, PageCustom>({
   returnToActive(): void {
     this.autoScroll = true;
     this.isUserInteracting = false;
+    this.hasUserScrolledTranscript = false;
     this.programmaticUntil = Date.now() + 1500;
     this.hideLocateBar();
     const segIdx = this.tracker ? this.tracker.current().segIdx : 0;
@@ -2215,6 +2272,7 @@ Page<PageData, PageCustom>({
 
   onTranscriptDragStart(): void {
     this.isUserInteracting = true;
+    this.hasUserScrolledTranscript = true;
     this.programmaticUntil = 0;
   },
 
@@ -2235,6 +2293,9 @@ Page<PageData, PageCustom>({
         this.lastPlayerScrollTopPb = top;
       }
     }
+    // 未发生过用户手动拖拽滑开台本时，绝对不触碰找回条
+    if (!this.hasUserScrolledTranscript) return;
+
     // 编程式滚动保护期内（例如点击找回条、跳句、自动切句）：完全静默，绝不触碰找回条
     if (Date.now() < (this.programmaticUntil ?? 0)) return;
 
@@ -2252,6 +2313,7 @@ Page<PageData, PageCustom>({
     }
     this.locateThrottleTimer = setTimeout(() => {
       this.locateThrottleTimer = null;
+      if (!this.hasUserScrolledTranscript) return;
       if (Date.now() < (this.programmaticUntil ?? 0)) return;
       this.locateMeasureAt = Date.now();
       this.evaluateActiveVisibility();
