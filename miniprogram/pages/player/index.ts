@@ -157,19 +157,11 @@ interface PageData {
   lessonTitle: string;
   lessonLevel: string;
   displayTitle: string;
-  trackLabel: string;
   playerProgressPct: number;
   activeTab: ViewTab;
   activeTrack: AudioTrackKey;
-  tabIndex: number;
-  showPbUnderline: boolean;
-  showDgUnderline: boolean;
-  blocks: TranscriptBlockVM[];
   blocksPb: TranscriptBlockVM[];
-  blocksDg: TranscriptBlockVM[];
-  playerScrollTop: number;
   playerScrollTopPb: number;
-  playerScrollTopDg: number;
   /** 首进或重锚期间的透明遮罩（对齐 iOS/Web 的首帧确定性落位，避免 00:00 闪跳）。 */
   isPendingAnchor: boolean;
   /** 双阶段装载门禁：落位完成前遮罩骨架屏，落定后平滑淡出（对齐成熟音乐/听书播放器规范）。 */
@@ -178,8 +170,6 @@ interface PageData {
   scrollAnimated: boolean;
   activeSegIdx: number;
   collapsedBoxIds: number[];
-  vocabEntries: VocabEntryVM[];
-  expandedVocabIndex: number;
   isPlaying: boolean;
   /** 当前音轨已自然结束并停住（手机端只有 DG，§3.2 / F05）：主按钮显示 ↺。 */
   ended: boolean;
@@ -187,7 +177,6 @@ interface PageData {
   durationLabel: string;
   singleSentenceLoop: boolean;
   repeatEpisode: boolean;
-  speedLabel: string;
   hasPrevLesson: boolean;
   hasNextLesson: boolean;
   showLocateBar: boolean;
@@ -390,33 +379,22 @@ Page<PageData, PageCustom>({
     lessonTitle: '',
     lessonLevel: '',
     displayTitle: '',
-    trackLabel: 'Podcast',
     playerProgressPct: 0,
     activeTab: 'pb',
     activeTrack: 'pb',
-    tabIndex: 0,
-    showPbUnderline: false,
-    showDgUnderline: false,
-    blocks: [],
     blocksPb: [],
-    blocksDg: [],
-    playerScrollTop: 0,
     playerScrollTopPb: 0,
-    playerScrollTopDg: 0,
     isPendingAnchor: false,
     isTranscriptReady: false,
     scrollAnimated: true,
     activeSegIdx: 0,
     collapsedBoxIds: [],
-    vocabEntries: [],
-    expandedVocabIndex: -1,
     isPlaying: false,
     ended: false,
     positionLabel: '0:00',
     durationLabel: '0:00',
     singleSentenceLoop: false,
     repeatEpisode: false,
-    speedLabel: '1.0x',
     hasPrevLesson: false,
     hasNextLesson: false,
     showLocateBar: false,
@@ -449,9 +427,6 @@ Page<PageData, PageCustom>({
     this.adapter = USE_MOCK_DATA ? new MockCloudAdapter() : new WechatCloudAdapter();
     const prefs = progressJournal.preferences();
     this.machine = new TrackStateMachine('pb', prefs.playbackRate);
-    this.setData({
-      speedLabel: TrackStateMachine.formatRate(this.machine.getRate()),
-    });
     this.tracker = new HighlightCursorTracker();
 
     // 入口意图：普通列表 / 继续收听 / 页内手动切课（§2 行为矩阵）。
@@ -744,7 +719,6 @@ Page<PageData, PageCustom>({
         activeSegIdx: 0,
         playerProgressPct: 0,
         positionLabel: '0:00',
-        playerScrollTop: 0,
         playerScrollTopPb: 0,
       });
     } else {
@@ -856,23 +830,15 @@ Page<PageData, PageCustom>({
         lessonTitle: detail.title,
         lessonLevel: detail.level,
         displayTitle,
-        trackLabel: trackLabelOf(initialTrack),
         activeTab: initialTrack,
         activeTrack: initialTrack,
-        tabIndex: tabIndexOf(initialTrack),
-        blocks: this.blocksByTrack[initialTrack],
         blocksPb: this.blocksByTrack.pb,
-        blocksDg: this.blocksByTrack.dg,
-        vocabEntries: entries,
-        expandedVocabIndex: -1,
         collapsedBoxIds: [],
         activeSegIdx: activeSeg,
         durationLabel: formatTime(this.durations[initialTrack]),
         positionLabel: formatTime(initialPos),
         playerProgressPct: 0,
-        playerScrollTop: activeInitialScroll,
         playerScrollTopPb: initialScrollPb,
-        playerScrollTopDg: 0,
         isPendingAnchor: shouldShieldAnchor,
         isTranscriptReady: !shouldShieldAnchor,
         scrollAnimated: false,
@@ -886,7 +852,6 @@ Page<PageData, PageCustom>({
         ended: false,
         singleSentenceLoop: this.machine ? this.machine.isSingleSentenceLoop() : false,
         repeatEpisode: this.machine ? this.machine.isRepeatEpisode() : false,
-        speedLabel: this.machine ? TrackStateMachine.formatRate(this.machine.getRate()) : '1.0x',
       });
 
       this.localDiagnostics?.detailReady();
@@ -1445,17 +1410,7 @@ Page<PageData, PageCustom>({
   },
 
   refreshTrackUnderline(): void {
-    const playing = this.data.isPlaying;
-    const track = this.data.activeTrack;
-    const tab = this.data.activeTab;
-    const showPbUnderline = playing && track === 'pb' && tab !== 'pb';
-    const showDgUnderline = playing && track === 'dg' && tab !== 'dg';
-    if (this.data.showPbUnderline !== showPbUnderline || this.data.showDgUnderline !== showDgUnderline) {
-      this.setData({
-        showPbUnderline,
-        showDgUnderline,
-      });
-    }
+    // 页面已精简为单一 Podcast 视口，无 Tab 切换下划线，置空以消除无谓的 setData
   },
 
   expandBoxForSegment(segIdx: number): void {
@@ -1478,41 +1433,32 @@ Page<PageData, PageCustom>({
    * 视口独立常驻，通过 scroll-top 与 scroll-with-animation 原生驱动平滑停靠。
    */
   scrollViewportTo(
-    track: AudioTrackKey,
+    _track: AudioTrackKey,
     top: number,
     animated: boolean = false,
   ): void {
-    const isDg = track === 'dg';
-    const trackProp = isDg ? 'playerScrollTopDg' : 'playerScrollTopPb';
-    const current = isDg ? this.data.playerScrollTopDg : this.data.playerScrollTopPb;
+    const current = this.data.playerScrollTopPb;
 
     // 若目标是 0 且当前已停留在 0（或 1px 内），跳过下发以彻底消除起播微抖动
     if (top === 0 && Math.abs(current) < 1) {
       this.lastPlayerScrollTop = 0;
-      if (isDg) this.lastPlayerScrollTopDg = 0;
-      else this.lastPlayerScrollTopPb = 0;
+      this.lastPlayerScrollTopPb = 0;
       return;
     }
 
-    if (Math.abs(current - top) < 1 && this.lastPlayerScrollTop === top) {
+    if (Math.abs(current - top) < 1 && this.lastPlayerScrollTopPb === top) {
       return;
     }
 
     this.lastPlayerScrollTop = top;
-    if (isDg) {
-      this.lastPlayerScrollTopDg = top;
-    } else {
-      this.lastPlayerScrollTopPb = top;
-    }
+    this.lastPlayerScrollTopPb = top;
 
     const effectiveTop = Math.abs(current - top) < 0.5 ? (top > 1 ? top - 0.5 : top + 0.5) : top;
 
-    const patch: Record<string, unknown> = {
-      playerScrollTop: effectiveTop,
-      [trackProp]: effectiveTop,
+    this.setData({
+      playerScrollTopPb: effectiveTop,
       scrollAnimated: animated,
-    };
-    this.setData(patch);
+    });
   },
 
   /**
@@ -1577,7 +1523,7 @@ Page<PageData, PageCustom>({
             const currentScroll =
               offset && typeof offset.scrollTop === 'number'
                 ? offset.scrollTop
-                : (currentTrack === 'dg' ? this.data.playerScrollTopDg : this.data.playerScrollTopPb);
+                : this.data.playerScrollTopPb;
             const headerOffset = Math.max(0, content.top - viewport.top);
             const totalContentHeight = content.height + headerOffset;
             const itemTop =
@@ -2029,9 +1975,7 @@ Page<PageData, PageCustom>({
     const switchPatch: Partial<PageData> = {
       activeTrack: track,
       activeTab: track,
-      tabIndex: tabIndexOf(track),
-      trackLabel: trackLabelOf(track),
-      blocks: this.blocksByTrack ? this.blocksByTrack[track] : [],
+      blocksPb: this.blocksByTrack ? this.blocksByTrack.pb : [],
       activeSegIdx: switchSegIdx,
       collapsedBoxIds: [],
       durationLabel: formatTime(this.durations ? this.durations[track] : 0),
@@ -2042,14 +1986,8 @@ Page<PageData, PageCustom>({
       scrollAnimated: false,
     };
     if (anchorTop !== null) {
-      switchPatch.playerScrollTop = anchorTop;
-      if (track === 'dg') {
-        switchPatch.playerScrollTopDg = anchorTop;
-        this.lastPlayerScrollTopDg = anchorTop;
-      } else {
-        switchPatch.playerScrollTopPb = anchorTop;
-        this.lastPlayerScrollTopPb = anchorTop;
-      }
+      switchPatch.playerScrollTopPb = anchorTop;
+      this.lastPlayerScrollTopPb = anchorTop;
       this.lastPlayerScrollTop = anchorTop;
     }
     // 重锚期间不评估「找回当前句」的可见性（否则会闪一下定位条）。
@@ -2292,18 +2230,9 @@ Page<PageData, PageCustom>({
     this.setData({ collapsedBoxIds: current });
   },
 
-  onVocabToggle(event: WechatMiniprogram.CustomEvent<{ index: number }>): void {
-    const index = event.detail && event.detail.index;
-    if (typeof index !== 'number') return;
-    this.setData({ expandedVocabIndex: this.data.expandedVocabIndex === index ? -1 : index });
-  },
+  onVocabToggle(_event: WechatMiniprogram.CustomEvent<{ index: number }>): void {},
 
-  onVocabExample(event: WechatMiniprogram.CustomEvent<{ track: string; segIdx: number }>): void {
-    const track = event.detail && (event.detail.track as AudioTrackKey);
-    const segIdx = event.detail && event.detail.segIdx;
-    if ((track !== 'pb' && track !== 'dg') || typeof segIdx !== 'number') return;
-    this.switchTrack(track, segIdx);
-  },
+  onVocabExample(_event: WechatMiniprogram.CustomEvent<{ track: string; segIdx: number }>): void {},
 
   onTranscriptDragStart(): void {
     this.isUserInteracting = true;
@@ -2334,10 +2263,10 @@ Page<PageData, PageCustom>({
     // 编程式滚动保护期内（例如点击找回条、跳句、自动切句）：完全静默，绝不触碰找回条
     if (Date.now() < (this.programmaticUntil ?? 0)) return;
 
-    // 用户滚动（包括手动拖拽与惯性滑行）：48ms 极速响应（约 3 帧），即时感知脱离活跃焦点
+    // 用户滚动（包括手动拖拽与惯性滑行）：120ms 节流测量（符合微信小程序规范，避免高频 SelectorQuery 引起重排丢帧）
     const now = Date.now();
     const elapsed = now - (this.locateMeasureAt ?? 0);
-    const THROTTLE_MS = 48;
+    const THROTTLE_MS = LOCATE_MEASURE_THROTTLE_MS;
     if (elapsed >= THROTTLE_MS) {
       this.locateMeasureAt = now;
       this.evaluateActiveVisibility();

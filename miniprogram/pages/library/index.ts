@@ -79,6 +79,7 @@ interface PageCustom {
   lastPlayedId?: string;
   renderedCount: number;
   allLessonCards: LessonCardModel[];
+  isPageVisible: boolean;
   unsubscribeProgress?: () => void;
   unsubscribeLessonChange?: () => void;
   unsubscribeState?: () => void;
@@ -122,30 +123,34 @@ Page<PageData, PageCustom>({
 
   renderedCount: CHUNK_SIZE,
   allLessonCards: [],
+  isPageVisible: false,
 
   onLoad() {
+    this.isPageVisible = true;
     this.initNavMetrics();
     this.adapter = USE_MOCK_DATA ? new MockCloudAdapter() : new WechatCloudAdapter();
 
     this.reloadFromStorage();
 
-    // 订阅全局后台播放进度，更新主页常驻播放空间的进度条
+    // 订阅全局后台播放进度：仅当前台可见时更新进度条，后台期间完全静默，避免争抢前台播放器渲染资源
     this.unsubscribeProgress = playbackSession.subscribeProgress((_pos, _dur, pct) => {
-      if (this.data.continueInfo && this.data.continueInfo.progressPct !== pct) {
+      if (this.isPageVisible && this.data.continueInfo && this.data.continueInfo.progressPct !== pct) {
         this.setData({ 'continueInfo.progressPct': pct });
       }
     });
 
-    // 订阅自然播完自动切下一课事件
+    // 订阅自然播完自动切下一课事件：仅前台可见时触发视图重构，后台切课待 onShow 再对齐
     this.unsubscribeLessonChange = playbackSession.subscribeLessonChange((newLessonId) => {
       this.lastPlayedId = newLessonId;
-      this.reloadFromStorage();
-      this.refreshLibraryView();
+      if (this.isPageVisible) {
+        this.reloadFromStorage();
+        this.refreshLibraryView();
+      }
     });
 
-    // 订阅播放/暂停状态变更
+    // 订阅播放/暂停状态变更：仅前台可见时更新按钮状态
     this.unsubscribeState = playbackSession.subscribeState((session) => {
-      if (this.data.isPlaying !== session.isPlaying) {
+      if (this.isPageVisible && this.data.isPlaying !== session.isPlaying) {
         this.setData({ isPlaying: session.isPlaying });
       }
     });
@@ -167,6 +172,7 @@ Page<PageData, PageCustom>({
   },
 
   onShow() {
+    this.isPageVisible = true;
     this.reloadFromStorage();
     const session = playbackSession.getState();
     if (session.lessonId) {
@@ -178,7 +184,12 @@ Page<PageData, PageCustom>({
     }
   },
 
+  onHide() {
+    this.isPageVisible = false;
+  },
+
   onUnload() {
+    this.isPageVisible = false;
     this.unsubscribeProgress?.();
     this.unsubscribeLessonChange?.();
     this.unsubscribeState?.();
