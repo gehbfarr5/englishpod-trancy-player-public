@@ -188,6 +188,10 @@ Page<PageData, PageCustom>({
     }
   },
 
+  onHide() {
+    this.visible = false;
+  },
+
   onUnload() {
     this.disposed = true;
     this.visible = false;
