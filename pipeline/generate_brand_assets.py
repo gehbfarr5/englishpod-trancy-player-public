@@ -9,7 +9,12 @@ album art assets for EnglishPod in both Light Mode and Dark Mode:
 import math
 import os
 from collections import deque
-from PIL import Image
+try:
+    from PIL import Image
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
+    Image = None
 
 # ⚠️ 不再硬编码本机绝对路径。全部改为环境变量可配置。
 _PIPELINE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -625,6 +630,14 @@ def generate_ios_app_icons(alpha_mask: Image.Image, output_dir: str = IOS_APPICO
 
 
 def main():
+    if not HAS_PIL:
+        dark_asset = os.path.join(BRANDING_ASSETS_DIR, "brand_icon_dark.png")
+        ios_contents = os.path.join(IOS_APPICON_DIR, "Contents.json")
+        if os.path.isfile(dark_asset) and os.path.isfile(ios_contents):
+            print("Pillow not installed; using pre-generated brand and iOS AppIcon assets.")
+            return
+        raise RuntimeError("Pillow is required to generate brand assets. Please run: pip install pillow")
+
     alpha_mask = resolve_alpha_mask(REF_CLEAN_IMAGE)
     os.makedirs(BRANDING_ASSETS_DIR, exist_ok=True)
 
