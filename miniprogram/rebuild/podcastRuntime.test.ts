@@ -40,5 +40,8 @@ test('WeChat runtime and rebuilt page share one source across view switches and 
   page.onUnload();assert.equal(manager.paused,false);
   const next=makePage();await next.onLoad();next.onShow();assert.equal(next.data.position,3);
   assert.equal(calls.length,before);next.onUnload();
+  // The rebuilt player must be usable in release environment too; release uses this route after M4.
+  (globalThis as any).wx.getAccountInfoSync=()=>({miniProgram:{envVersion:'release'}});
+  const releasePage=makePage();await releasePage.onLoad();assert.equal(releasePage.data.loading,false);releasePage.onUnload();
  }finally{WechatCloudAdapter.prototype.getLessonIndex=oldIndex;WechatCloudAdapter.prototype.getLessonDetail=oldDetail;WechatCloudAdapter.prototype.resolveAudioFileId=oldResolve;}
 });

@@ -19,7 +19,6 @@ import {
   deriveCardStatus,
   filterLessonIds,
   pickContinueLesson,
-  resolveContinueToggleAction,
 } from '../../core/progressEngine';
 import {
   CloudAdapter,
@@ -27,8 +26,8 @@ import {
   ProgressMap,
 } from '../../core/types';
 import { MockCloudAdapter } from '../../mock/index';
-import { playbackSession } from '../../services/playbackSession';
 import { progressJournal } from '../../services/progressJournal';
+import { getPodcastRuntime, PodcastRuntime } from '../../rebuild/wechatPodcastRuntime';
 
 const CACHE_KEY_LESSON_INDEX = 'ep_cached_lesson_index_v1';
 const CHUNK_SIZE = 30;
@@ -96,9 +95,10 @@ interface PageCustom {
   lastPlayedId?: string;
   renderedCount: number;
   scrollTops?: Record<LibraryFilterKey, number>;
-  unsubscribeProgress?: () => void;
-  unsubscribeLessonChange?: () => void;
-  unsubscribeState?: () => void;
+  podcastRuntime?: PodcastRuntime;
+  unsubscribePodcast?: () => void;
+  disposed: boolean;
+  visible: boolean;
 
   initNavMetrics(): void;
   loadLibraryData(): Promise<void>;
@@ -109,7 +109,8 @@ interface PageCustom {
   updateRenderedLessons(): void;
   buildContinueView(): ContinueViewModel | null;
   getContinueLessonId(): string;
-  syncBackgroundAudioState(): void;
+  attachPodcastRuntime(): Promise<void>;
+  syncPodcastState(): void;
 
   onFilterChange(event: WechatMiniprogram.CustomEvent<{ key: string }>): void;
   onWellScroll(event: WechatMiniprogram.ScrollViewScroll): void;
@@ -120,11 +121,7 @@ interface PageCustom {
 }
 
 function playerPath(): string {
-  try {
-    const version = wx.getAccountInfoSync().miniProgram.envVersion;
-    if (version === 'develop' || version === 'trial') return '/pages/rebuildPlayer/index';
-  } catch { /* Production fallback retains the established entry. */ }
-  return '/pages/player/index';
+  return '/pages/rebuildPlayer/index';
 }
 
 Page<PageData, PageCustom>({
@@ -153,6 +150,8 @@ Page<PageData, PageCustom>({
   },
 
   renderedCount: CHUNK_SIZE,
+  disposed: false,
+  visible: false,
 
   onLoad() {
     this.initNavMetrics();
@@ -161,26 +160,7 @@ Page<PageData, PageCustom>({
 
     this.reloadFromStorage();
 
-    // 订阅全局后台播放进度，主页仅更新进度条与状态，避免逐句解析的高昂开销
-    this.unsubscribeProgress = playbackSession.subscribeProgress((_pos, _dur, pct) => {
-      if (this.data.continueInfo && this.data.continueInfo.progressPct !== pct) {
-        this.setData({ 'continueInfo.progressPct': pct });
-      }
-    });
-
-    // 订阅自然播完自动切下一课事件
-    this.unsubscribeLessonChange = playbackSession.subscribeLessonChange((newLessonId) => {
-      this.lastPlayedId = newLessonId;
-      this.reloadFromStorage();
-      this.refreshLibraryView();
-    });
-
-    // 订阅播放/暂停状态变更
-    this.unsubscribeState = playbackSession.subscribeState((session) => {
-      if (this.data.isPlaying !== session.isPlaying) {
-        this.setData({ isPlaying: session.isPlaying });
-      }
-    });
+    void this.attachPodcastRuntime();
 
     // 1. 同步尝试从 Storage 读取已缓存的 335 课索引，实现 0ms 秒开呈现
     try {
@@ -199,21 +179,24 @@ Page<PageData, PageCustom>({
   },
 
   onShow() {
+    this.disposed = false;
+    this.visible = true;
     this.reloadFromStorage();
-    const session = playbackSession.getState();
-    if (session.lessonId) {
-      this.lastPlayedId = session.lessonId;
-    }
-    this.setData({ isPlaying: session.isPlaying });
+    this.syncPodcastState();
     if (this.lessons && this.lessons.length > 0) {
       this.refreshLibraryView();
     }
   },
 
+  onHide() {
+    this.visible = false;
+  },
+
   onUnload() {
-    this.unsubscribeProgress?.();
-    this.unsubscribeLessonChange?.();
-    this.unsubscribeState?.();
+    this.disposed = true;
+    this.visible = false;
+    this.unsubscribePodcast?.();
+    this.unsubscribePodcast = undefined;
   },
 
   initNavMetrics(): void {
@@ -236,13 +219,30 @@ Page<PageData, PageCustom>({
   },
 
 
-  syncBackgroundAudioState(): void {
+  async attachPodcastRuntime(): Promise<void> {
     try {
-      const session = playbackSession.getState();
-      this.setData({ isPlaying: session.isPlaying });
-    } catch {
-      // 忽略
+      const runtime = await getPodcastRuntime();
+      if (this.disposed) return;
+      this.podcastRuntime = runtime;
+      this.unsubscribePodcast?.();
+      this.unsubscribePodcast = runtime.session.subscribe(() => this.syncPodcastState());
+    } catch { /* Library remains available while playback runtime retries on entry. */ }
+  },
+
+  syncPodcastState(): void {
+    if (!this.visible || this.disposed) return;
+    const session = this.podcastRuntime?.session.state();
+    if (!session) return;
+    const id = session.course?.id;
+    if (id && id !== this.lastPlayedId) {
+      this.lastPlayedId = id;
+      this.reloadFromStorage();
+      if (this.lessons?.length) this.refreshLibraryView();
     }
+    const pct = session.playback.durationMs > 0
+      ? Math.min(100, Math.round(session.playback.positionMs / session.playback.durationMs * 100)) : 0;
+    this.setData({isPlaying:session.playback.playing,
+      ...(this.data.continueInfo ? {'continueInfo.progressPct':pct} : {})});
   },
 
   async loadLibraryData(): Promise<void> {
@@ -428,26 +428,6 @@ Page<PageData, PageCustom>({
   },
 
   onContinueToggle(): void {
-    if (playerPath() === '/pages/rebuildPlayer/index') {
-      this.onContinueTap();
-      return;
-    }
-    const session = playbackSession.getState();
-    const targetId = this.getContinueLessonId();
-    const action = resolveContinueToggleAction({
-      targetLessonId: targetId,
-      sessionLessonId: session.lessonId,
-      isPlaying: session.isPlaying,
-      positionSec: session.positionSec,
-      srcLoadedInProcess: playbackSession.isSrcLoadedInProcess(),
-    });
-    if (action === 'toggle') {
-      playbackSession.togglePlay();
-      this.setData({ isPlaying: playbackSession.getState().isPlaying });
-    } else if (action === 'navigate') {
-      wx.navigateTo({
-        url: `${playerPath()}?lessonId=${targetId}&intent=resume`,
-      });
-    }
+    this.onContinueTap();
   },
 });

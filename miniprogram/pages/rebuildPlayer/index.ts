@@ -10,7 +10,7 @@ interface Custom { runtime?: PodcastRuntime; detach?: () => void; visible: boole
  onChoose(event: WechatMiniprogram.CustomEvent<{ id: string }>): void; onContinue(): void; onToggle(): void;
  onSeek(event: WechatMiniprogram.SliderChange): void; onPrev(): void; onNext(): void;
  onView(event: WechatMiniprogram.TouchEvent): void; onSearch(event: WechatMiniprogram.Input): void;
- onMoreCourses(): void; onTranscriptTap(event: WechatMiniprogram.CustomEvent<{ start: number }>): void; onLocate(): void;
+ onMoreCourses(): void; onTranscriptTap(event: WechatMiniprogram.CustomEvent<{ start: number }>): void; onLocate(): void; onRetry(): void;
  detailId?: string; detailGeneration: number; refresh(): void; loadDetail(id: string): Promise<void>;
  refreshCourses(): void; activeSegment(position:number):number }
 Page<Data, Custom>({
@@ -20,7 +20,6 @@ Page<Data, Custom>({
  visible: true, disposed: false, detailGeneration: 0,
  async onLoad(query: Record<string, string | undefined>) {
   try {
-   if (wx.getAccountInfoSync().miniProgram.envVersion === 'release') throw new Error('Development build required');
    this.runtime = await getPodcastRuntime();
    if (this.disposed) return;
    this.setData({titles: this.runtime.index.map(x => `${x.lessonId} ${x.title}`), loading: false});
@@ -87,6 +86,11 @@ Page<Data, Custom>({
  onContinue() {
   const id = progressJournal.lastOpenedLessonId() || this.runtime?.index[0]?.lessonId;
   if (id) void this.runtime?.session.open(id, 'resume');
+ },
+ onRetry() {
+  const id = this.runtime?.session.state().course?.id;
+  if (id) void this.runtime?.session.open(id, 'library');
+  else if (this.runtime?.index[0]) void this.runtime.session.open(this.runtime.index[0].lessonId, 'library');
  },
  onToggle() { if (this.runtime?.session.state().wantsPlay) this.runtime.session.pause(); else this.runtime?.session.play(); },
  onSeek(event: WechatMiniprogram.SliderChange) { this.runtime?.session.seek(Number(event.detail.value) * 1000); },
