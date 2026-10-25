@@ -1,13 +1,30 @@
 <view class="page">
  <text class="title">{{title}}</text>
- <picker range="{{titles}}" value="{{selected}}" bindchange="onChoose"><button>选择课程</button></picker>
+ <view class="catalog">
+  <text class="section-title">课程库</text>
+  <input class="search" value="{{query}}" placeholder="搜索课程编号、标题或级别" bindinput="onSearch" />
+  <scroll-view class="course-list" scroll-y>
+   <view class="course" wx:for="{{courses}}" wx:key="id" data-id="{{item.id}}" bindtap="onChoose">
+    <text class="course-title">{{item.id}} · {{item.title}}</text><text class="course-level">{{item.level}}</text>
+   </view>
+   <button wx:if="{{courses.length >= courseCount}}" class="more" bindtap="onMoreCourses">显示更多课程</button>
+   <text wx:if="{{!courses.length}}" class="empty">没有匹配课程</text>
+  </scroll-view>
+ </view>
  <button bindtap="onContinue">继续收听</button>
  <text wx:if="{{loading}}">正在载入…</text><text wx:if="{{error}}">{{error}}</text>
  <text>{{completed ? '已完成' : '学习中'}} · {{position}} / {{duration}} 秒</text>
  <slider min="0" max="{{duration || 1}}" value="{{position}}" disabled="{{loading || !duration}}" bindchange="onSeek" />
  <view class="row"><button bindtap="onPrev" disabled="{{selected === 0}}">上一课</button><button bindtap="onToggle">{{playing ? '暂停' : '播放'}}</button><button bindtap="onNext" disabled="{{selected >= titles.length - 1}}">下一课</button></view>
  <view class="row"><button data-key="pb" bindtap="onView">Podcast</button><button data-key="dg" bindtap="onView">Dialogue</button><button data-key="vocab" bindtap="onView">单词</button></view>
- <view wx:if="{{detail && view === 'pb'}}"><view class="line" wx:for="{{detail.tracks.pb}}" wx:key="id">{{item.text}}</view></view>
- <view wx:if="{{detail && view === 'dg'}}"><view class="line" wx:for="{{detail.tracks.dg}}" wx:key="id">{{item.text}}</view></view>
+ <view wx:if="{{detail && view === 'pb'}}">
+  <view class="transcript-heading"><text>Podcast 台本</text><button size="mini" bindtap="onLocate">回到当前句</button></view>
+  <scroll-view class="transcript" scroll-y scroll-into-view="{{transcriptTarget}}" scroll-with-animation="false">
+   <view id="pb-segment-{{item.id}}" class="line {{activeSegment === item.id ? 'active' : ''}} {{item.isSection ? 'section' : ''}}" wx:for="{{detail.tracks.pb}}" wx:key="id" data-start="{{item.start}}" bindtap="onTranscriptTap">
+    <text wx:if="{{item.speaker && !item.isSection}}" class="speaker">{{item.speaker}}</text>{{item.text}}
+   </view>
+  </scroll-view>
+ </view>
+ <view wx:if="{{detail && view === 'dg'}}"><text class="section-title">Dialogue 台本</text><view class="line" wx:for="{{detail.tracks.dg}}" wx:key="id">{{item.text}}</view></view>
  <view wx:if="{{detail && view === 'vocab'}}"><view class="line" wx:for="{{detail.vocabulary}}" wx:key="word">{{item.word}} {{item.definition}}</view></view>
 </view>
