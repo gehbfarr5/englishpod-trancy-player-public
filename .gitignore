@@ -8,6 +8,10 @@ flutter_app/.flutter-plugins*
 flutter_app/build/
 flutter_app/assets/audio/
 flutter_app/assets/lessons_safe/
+flutter_app/.idea/
+flutter_app/*.iml
+flutter_app/android/
 native-evidence/
+*preview.png
 
 
