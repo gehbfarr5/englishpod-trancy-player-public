@@ -31,11 +31,6 @@
   align-items: center;
   justify-content: space-between;
   margin-top: var(--ep-space-xs);
-  cursor: pointer;
-}
-
-.deck__header:active {
-  opacity: 0.85;
 }
 
 .deck__brand {
@@ -82,15 +77,6 @@
 }
 
 .deck__slot--continue:empty {
-  display: none;
-  margin: 0;
-}
-
-.deck__slot--filters {
-  margin-top: var(--ep-space-md);
-}
-
-.deck__slot--filters:empty {
   display: none;
   margin: 0;
 }

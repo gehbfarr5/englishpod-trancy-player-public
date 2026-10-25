@@ -3,8 +3,9 @@
  *  EnglishPod 课程库页面（pages/library/index.ts）
  * ============================================================================
  *  精简原生架构：
- *  - 顶部栏：置顶标题、完成度计数，点击标题栏（EnglishPod）直接跳转当前正在收听的课程。
- *  - 课程列表：取消三态筛选与冗余卡片，全量单一列表秒开呈现，在列表中直接展示进度与完成态。
+ *  - 顶部栏：置顶标题、完成度计数，不响应点击跳转。
+ *  - 播放空间：保留继续收听聚光灯卡（continue-card），直接在主页展示当前进度与播放/暂停控制。
+ *  - 课程列表：取消三态筛选胶囊，全量单一列表秒开呈现，在卡片内直接展示进度与完成态。
  *  - 分享支持：原生支持小程序会话分享与朋友圈分享。
  * ============================================================================
  */
@@ -15,6 +16,7 @@ import {
   countByFilter,
   deriveCardStatus,
   pickContinueLesson,
+  resolveContinueToggleAction,
 } from '../../core/progressEngine';
 import {
   CloudAdapter,
@@ -46,6 +48,13 @@ interface LessonCardModel {
   barPercent: number;
 }
 
+/** 继续收听卡展示模型。 */
+interface ContinueViewModel {
+  badge: string;
+  attributes: string;
+  progressPct: number;
+}
+
 interface PageData {
   appName: string;
   subtitle: string;
@@ -55,6 +64,10 @@ interface PageData {
   isIndexLoading: boolean;
   visibleLessons: LessonCardModel[];
   renderedLessons: LessonCardModel[];
+  continueInfo: ContinueViewModel | null;
+  continueTitle: string;
+  continueAttributes: string;
+  continueFallback: string;
   scrollTop: number;
   emptyHint: string;
   isPlaying: boolean;
@@ -76,13 +89,15 @@ interface PageCustom {
   refreshLibraryView(): void;
   buildVisibleLessons(): LessonCardModel[];
   updateRenderedLessons(): void;
+  buildContinueView(): ContinueViewModel | null;
   getContinueLessonId(): string;
   syncBackgroundAudioState(): void;
 
   onWellScroll(event: WechatMiniprogram.ScrollViewScroll): void;
   onWellScrollToLower(): void;
   onLessonTap(event: WechatMiniprogram.CustomEvent<{ lessonId: string }>): void;
-  onTitleTap(): void;
+  onContinueTap(): void;
+  onContinueToggle(): void;
 
   onShareAppMessage(): WechatMiniprogram.Page.ICustomShareContent;
   onShareTimeline(): WechatMiniprogram.Page.ICustomTimelineContent;
@@ -98,6 +113,10 @@ Page<PageData, PageCustom>({
     isIndexLoading: true,
     visibleLessons: [],
     renderedLessons: [],
+    continueInfo: null,
+    continueTitle: '',
+    continueAttributes: '',
+    continueFallback: 'Ready to listen',
     scrollTop: 0,
     emptyHint: 'No listening lessons available yet',
     isPlaying: false,
@@ -111,9 +130,11 @@ Page<PageData, PageCustom>({
 
     this.reloadFromStorage();
 
-    // 订阅全局后台播放进度
-    this.unsubscribeProgress = playbackSession.subscribeProgress((_pos, _dur, _pct) => {
-      // 保持轻量
+    // 订阅全局后台播放进度，更新主页常驻播放空间的进度条
+    this.unsubscribeProgress = playbackSession.subscribeProgress((_pos, _dur, pct) => {
+      if (this.data.continueInfo && this.data.continueInfo.progressPct !== pct) {
+        this.setData({ 'continueInfo.progressPct': pct });
+      }
     });
 
     // 订阅自然播完自动切下一课事件
@@ -127,7 +148,6 @@ Page<PageData, PageCustom>({
     this.unsubscribeState = playbackSession.subscribeState((session) => {
       if (this.data.isPlaying !== session.isPlaying) {
         this.setData({ isPlaying: session.isPlaying });
-        this.refreshLibraryView();
       }
     });
 
@@ -221,25 +241,31 @@ Page<PageData, PageCustom>({
   refreshLibraryView(): void {
     if (!this.lessons) return;
     const visibleLessons = this.buildVisibleLessons();
+    const continueInfo = this.buildContinueView();
+    const targetLessonId = this.getContinueLessonId();
 
     const lessonIds = this.lessons.map((l) => l.lessonId);
     const counts = countByFilter(this.records || {}, lessonIds);
     const doneCount = counts.completed;
     const totalCount = this.lessons.length;
     const completionText = `${doneCount} / ${totalCount} Done`;
+    const subtitle = `Elementary · ${totalCount} Lessons`;
 
-    const targetLessonId = this.getContinueLessonId();
-    let subtitle = `Elementary · ${totalCount} Lessons`;
-    if (this.data.isPlaying && targetLessonId) {
-      subtitle = `Now Playing · Lesson ${targetLessonId} (Tap to return)`;
-    } else if (targetLessonId) {
-      subtitle = `Elementary · Tap title to resume Lesson ${targetLessonId}`;
+    let continueTitle = '';
+    let continueAttributes = '';
+    if (continueInfo && targetLessonId) {
+      const item = this.lessons.find((l) => l.lessonId === targetLessonId);
+      continueTitle = item ? item.title : `Lesson ${targetLessonId}`;
+      continueAttributes = item ? item.level : '';
     }
 
     this.setData({
       completionText,
       subtitle,
       visibleLessons,
+      continueInfo,
+      continueTitle,
+      continueAttributes,
       emptyHint: 'No listening lessons available yet',
     });
     this.updateRenderedLessons();
@@ -278,6 +304,23 @@ Page<PageData, PageCustom>({
     this.setData({ renderedLessons: all.slice(0, count) });
   },
 
+  buildContinueView(): ContinueViewModel | null {
+    if (!this.lessons || this.lessons.length === 0) return null;
+    const recs = this.records || {};
+    const info = pickContinueLesson(recs, this.lastPlayedId);
+    if (!info) return null;
+
+    const targetLessonId = info.lessonId;
+    const item = this.lessons.find((l) => l.lessonId === targetLessonId);
+    const attributes = item ? item.level : '';
+
+    return {
+      badge: info.badge,
+      attributes,
+      progressPct: info.progressPct,
+    };
+  },
+
   getContinueLessonId(): string {
     if (!this.lessons || this.lessons.length === 0) return '';
     const info = pickContinueLesson(this.records || {}, this.lastPlayedId);
@@ -307,12 +350,32 @@ Page<PageData, PageCustom>({
     });
   },
 
-  onTitleTap(): void {
+  onContinueTap(): void {
     const targetId = this.getContinueLessonId();
     if (!targetId) return;
     wx.navigateTo({
       url: `/pages/player/index?lessonId=${targetId}&intent=resume`,
     });
+  },
+
+  onContinueToggle(): void {
+    const session = playbackSession.getState();
+    const targetId = this.getContinueLessonId();
+    const action = resolveContinueToggleAction({
+      targetLessonId: targetId,
+      sessionLessonId: session.lessonId,
+      isPlaying: session.isPlaying,
+      positionSec: session.positionSec,
+      srcLoadedInProcess: playbackSession.isSrcLoadedInProcess(),
+    });
+    if (action === 'toggle') {
+      playbackSession.togglePlay();
+      this.setData({ isPlaying: playbackSession.getState().isPlaying });
+    } else if (action === 'navigate') {
+      wx.navigateTo({
+        url: `/pages/player/index?lessonId=${targetId}&intent=resume`,
+      });
+    }
   },
 
   onShareAppMessage(): WechatMiniprogram.Page.ICustomShareContent {

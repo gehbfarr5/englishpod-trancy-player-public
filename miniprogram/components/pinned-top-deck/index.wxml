@@ -2,8 +2,8 @@
   <!-- 胶囊按钮安全区（透明，仅占位，让渐变在胶囊后方自然延伸） -->
   <view class="deck__nav" style="height: {{navBarPx}}px;"></view>
 
-  <!-- Header Row：品牌 + 副标题（左），完成度 pill（右），点击触发 titleTap 跳转当前收听课程 -->
-  <view class="deck__header" bindtap="onHeaderTap">
+  <!-- Header Row：品牌 + 副标题（左），完成度 pill（右） -->
+  <view class="deck__header">
     <view class="deck__brand">
       <text class="deck__brand-name">{{appName}}</text>
       <text class="deck__brand-sub">{{subtitle}}</text>
@@ -13,13 +13,8 @@
     </view>
   </view>
 
-  <!-- 继续收听聚光灯卡（可选具名插槽） -->
+  <!-- 继续收听聚光灯卡（主页保留播放空间） -->
   <view class="deck__slot deck__slot--continue">
     <slot name="continue"></slot>
-  </view>
-
-  <!-- 筛选 pills（可选具名插槽） -->
-  <view class="deck__slot deck__slot--filters">
-    <slot name="filters"></slot>
   </view>
 </view>
