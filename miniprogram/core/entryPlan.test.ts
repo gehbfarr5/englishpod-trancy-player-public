@@ -98,6 +98,15 @@ describe('entryPlan · §2 矩阵：继续收听入口（resume）', () => {
   });
 });
 
+describe('entryPlan · M5 shared lesson entry', () => {
+  test('shared course opens Podcast at 00:00 paused until the learner taps play', () => {
+    const plan = planEntry({ ...base, mode: 'shareEntry', record: pbAt8min() });
+    assert.equal(plan.track, 'pb');
+    assert.equal(plan.startMs, 0);
+    assert.equal(plan.autoPlay, false);
+  });
+});
+
 describe('entryPlan · §2 矩阵：手动上一课/下一课（manualNav）', () => {
   test('E02 手动下一课恒 00:00，不恢复目标课历史断点', () => {
     const plan = planEntry({

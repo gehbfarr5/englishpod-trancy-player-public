@@ -1,30 +1,103 @@
-<view class="page">
- <text class="title">{{title}}</text>
- <view class="catalog">
-  <text class="section-title">课程库</text>
-  <input class="search" value="{{query}}" placeholder="搜索课程编号、标题或级别" bindinput="onSearch" />
-  <scroll-view class="course-list" scroll-y>
-   <view class="course" wx:for="{{courses}}" wx:key="id" data-id="{{item.id}}" bindtap="onChoose">
-    <text class="course-title">{{item.id}} · {{item.title}}</text><text class="course-level">{{item.level}}</text>
-   </view>
-   <button wx:if="{{courses.length >= courseCount}}" class="more" bindtap="onMoreCourses">显示更多课程</button>
-   <text wx:if="{{!courses.length}}" class="empty">没有匹配课程</text>
-  </scroll-view>
- </view>
- <button bindtap="onContinue">继续收听</button>
- <text wx:if="{{loading}}">正在载入…</text><view wx:if="{{error}}" class="error"><text>{{error}}</text><button size="mini" bindtap="onRetry">重试</button></view>
- <text>{{completed ? '已完成' : '学习中'}} · {{position}} / {{duration}} 秒</text>
- <slider min="0" max="{{duration || 1}}" value="{{position}}" disabled="{{loading || !duration}}" bindchange="onSeek" />
- <view class="row"><button bindtap="onPrev" disabled="{{selected === 0}}">上一课</button><button bindtap="onToggle">{{playing ? '暂停' : '播放'}}</button><button bindtap="onNext" disabled="{{selected >= titles.length - 1}}">下一课</button></view>
- <view class="row"><button data-key="pb" bindtap="onView">Podcast</button><button data-key="dg" bindtap="onView">Dialogue</button><button data-key="vocab" bindtap="onView">单词</button></view>
- <view wx:if="{{detail && view === 'pb'}}">
-  <view class="transcript-heading"><text>Podcast 台本</text><button size="mini" bindtap="onLocate">回到当前句</button></view>
-  <scroll-view class="transcript" scroll-y scroll-into-view="{{transcriptTarget}}" scroll-with-animation="false">
-   <view id="pb-segment-{{item.id}}" class="line {{activeSegment === item.id ? 'active' : ''}} {{item.isSection ? 'section' : ''}}" wx:for="{{detail.tracks.pb}}" wx:key="id" data-start="{{item.start}}" bindtap="onTranscriptTap">
-    <text wx:if="{{item.speaker && !item.isSection}}" class="speaker">{{item.speaker}}</text>{{item.text}}
-   </view>
-  </scroll-view>
- </view>
- <view wx:if="{{detail && view === 'dg'}}"><text class="section-title">Dialogue 台本</text><view class="line" wx:for="{{detail.tracks.dg}}" wx:key="id">{{item.text}}</view></view>
- <view wx:if="{{detail && view === 'vocab'}}"><view class="line" wx:for="{{detail.vocabulary}}" wx:key="word">{{item.word}} {{item.definition}}</view></view>
+<view class="screen">
+  <view wx:if="{{surface === 'catalog'}}" class="catalog-screen">
+    <view class="catalog-header">
+      <text class="eyebrow">ENGLISHPOD · LEARNING LIBRARY</text>
+      <text class="catalog-title">课程库</text>
+      <text class="catalog-subtitle">选择一课，完整听完 Podcast；需要时再查看台本。</text>
+    </view>
+
+    <view wx:if="{{continueId}}" class="continue-card" bindtap="onContinue">
+      <view class="continue-copy">
+        <text class="continue-label">继续学习</text>
+        <text class="continue-title">{{continueTitle}}</text>
+        <text class="continue-meta">{{continueId}} · Podcast {{continuePct}}%</text>
+      </view>
+      <view class="continue-action">继续</view>
+    </view>
+
+    <view class="search-wrap">
+      <text class="search-icon">⌕</text>
+      <input class="search" value="{{query}}" placeholder="搜索课程编号、标题或级别" confirm-type="search" bindinput="onSearch" />
+      <text wx:if="{{query}}" class="clear-search" bindtap="onClearSearch">清除</text>
+    </view>
+
+    <view class="list-caption">
+      <text>所有课程</text>
+      <text>{{matchCount}} 门</text>
+    </view>
+    <scroll-view class="course-list" scroll-y enhanced show-scrollbar="{{false}}">
+      <view class="course-card {{item.id === currentId ? 'is-current' : ''}}" wx:for="{{courses}}" wx:key="id" data-id="{{item.id}}" bindtap="onChoose">
+        <view class="course-index">{{item.id}}</view>
+        <view class="course-copy">
+          <text class="course-title">{{item.title}}</text>
+          <text class="course-level">{{item.level || 'EnglishPod'}}</text>
+        </view>
+        <text class="course-chevron">›</text>
+      </view>
+      <button wx:if="{{courses.length < matchCount}}" class="more-button" bindtap="onMoreCourses">显示更多课程</button>
+      <view wx:if="{{!courses.length}}" class="empty-state">没有找到匹配课程，试试其他关键词。</view>
+    </scroll-view>
+  </view>
+
+  <view wx:else class="player-screen">
+    <view class="player-header">
+      <view class="player-topline">
+        <button class="text-button" bindtap="onCatalog">课程库</button>
+        <text class="eyebrow">{{level || 'ENGLISHPOD'}} · {{currentId || 'PODCAST'}}</text>
+        <button class="text-button share-button" open-type="share" disabled="{{!currentId}}">分享</button>
+      </view>
+      <text class="player-title">{{title}}</text>
+      <view class="playback-status">
+        <view class="status-dot {{playing ? 'is-playing' : ''}}"></view>
+        <text>{{loading ? '正在准备课程' : (playing ? '正在播放 Podcast' : (shareEntry ? '分享课程 · 点击播放开始' : (completed ? '本课已完成 · 可再次收听' : 'Podcast')))}} </text>
+      </view>
+    </view>
+
+    <view class="content-tabs">
+      <view class="tab {{view === 'pb' ? 'is-active' : ''}}" data-key="pb" bindtap="onView">Podcast 台本</view>
+      <view class="tab {{view === 'dg' ? 'is-active' : ''}}" data-key="dg" bindtap="onView">Dialogue 台本</view>
+      <view class="tab {{view === 'vocab' ? 'is-active' : ''}}" data-key="vocab" bindtap="onView">单词</view>
+    </view>
+
+    <view wx:if="{{view === 'pb'}}" class="transcript-tools">
+      <text class="content-heading">Podcast 台本</text>
+      <button class="locate-button" bindtap="onLocate" disabled="{{activeSegment < 0}}">回到当前句</button>
+    </view>
+    <text wx:elif="{{view === 'dg'}}" class="content-heading content-heading-single">Dialogue 台本</text>
+    <text wx:else class="content-heading content-heading-single">本课单词</text>
+
+    <scroll-view class="content-scroll" scroll-y enhanced show-scrollbar="{{false}}" scroll-into-view="{{view === 'pb' ? transcriptTarget : ''}}" scroll-with-animation="{{false}}">
+      <view wx:if="{{detail && view === 'pb'}}" class="transcript-list">
+        <view id="pb-segment-{{item.id}}" class="transcript-line {{activeSegment === item.id ? 'is-active' : ''}} {{item.isSection ? 'is-section' : ''}}" wx:for="{{detail.tracks.pb}}" wx:key="id" data-start="{{item.start}}" bindtap="onTranscriptTap">
+          <text wx:if="{{item.speaker && !item.isSection}}" class="speaker">{{item.speaker}}</text>
+          <text class="line-text">{{item.text}}</text>
+        </view>
+      </view>
+      <view wx:if="{{detail && view === 'dg'}}" class="transcript-list">
+        <view class="transcript-line dialogue-line {{item.isSection ? 'is-section' : ''}}" wx:for="{{detail.tracks.dg}}" wx:key="id">
+          <text wx:if="{{item.speaker && !item.isSection}}" class="speaker">{{item.speaker}}</text>
+          <text class="line-text">{{item.text}}</text>
+        </view>
+      </view>
+      <view wx:if="{{detail && view === 'vocab'}}" class="vocab-list">
+        <view class="vocab-card" wx:for="{{detail.vocabulary}}" wx:key="word">
+          <view class="vocab-word-row"><text class="vocab-word">{{item.word}}</text><text class="vocab-pos">{{item.pos}}</text></view>
+          <text class="vocab-definition">{{item.definition}}</text>
+        </view>
+      </view>
+      <view wx:if="{{!detail && !loading && !error}}" class="empty-state content-empty">台本正在载入。</view>
+      <view class="scroll-tail"></view>
+    </scroll-view>
+
+    <view class="player-dock">
+      <view wx:if="{{error}}" class="error-banner"><text>{{error}}</text><button size="mini" bindtap="onRetry">重试</button></view>
+      <view class="progress-row"><text>{{positionLabel}}</text><text>{{durationLabel}}</text></view>
+      <slider class="progress-slider" min="0" max="{{duration || 1}}" value="{{position}}" disabled="{{loading || !duration}}" block-size="14" bindchange="onSeek" />
+      <view class="transport-row">
+        <button class="transport-side" bindtap="onPrev" disabled="{{selected === 0}}">上一课</button>
+        <button class="transport-main" bindtap="onToggle" disabled="{{loading || !currentId}}">{{playing ? '暂停' : '播放'}}</button>
+        <button class="transport-side" bindtap="onNext" disabled="{{selected >= titles.length - 1}}">下一课</button>
+      </view>
+    </view>
+  </view>
 </view>
