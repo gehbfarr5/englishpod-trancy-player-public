@@ -62,13 +62,12 @@ interface PageData {
   safeTopPx: number;
   navBarPx: number;
   isIndexLoading: boolean;
-  visibleLessons: LessonCardModel[];
+  totalLessonCount: number;
   renderedLessons: LessonCardModel[];
   continueInfo: ContinueViewModel | null;
   continueTitle: string;
   continueAttributes: string;
   continueFallback: string;
-  scrollTop: number;
   emptyHint: string;
   isPlaying: boolean;
 }
@@ -79,6 +78,7 @@ interface PageCustom {
   records?: ProgressMap;
   lastPlayedId?: string;
   renderedCount: number;
+  allLessonCards: LessonCardModel[];
   unsubscribeProgress?: () => void;
   unsubscribeLessonChange?: () => void;
   unsubscribeState?: () => void;
@@ -88,12 +88,11 @@ interface PageCustom {
   reloadFromStorage(): void;
   refreshLibraryView(): void;
   buildVisibleLessons(): LessonCardModel[];
-  updateRenderedLessons(): void;
+  updateRenderedLessons(reset?: boolean): void;
   buildContinueView(): ContinueViewModel | null;
   getContinueLessonId(): string;
   syncBackgroundAudioState(): void;
 
-  onWellScroll(event: WechatMiniprogram.ScrollViewScroll): void;
   onWellScrollToLower(): void;
   onLessonTap(event: WechatMiniprogram.CustomEvent<{ lessonId: string }>): void;
   onContinueTap(): void;
@@ -111,18 +110,18 @@ Page<PageData, PageCustom>({
     safeTopPx: 44,
     navBarPx: 44,
     isIndexLoading: true,
-    visibleLessons: [],
+    totalLessonCount: 0,
     renderedLessons: [],
     continueInfo: null,
     continueTitle: '',
     continueAttributes: '',
     continueFallback: 'Ready to listen',
-    scrollTop: 0,
     emptyHint: 'No listening lessons available yet',
     isPlaying: false,
   },
 
   renderedCount: CHUNK_SIZE,
+  allLessonCards: [],
 
   onLoad() {
     this.initNavMetrics();
@@ -241,6 +240,7 @@ Page<PageData, PageCustom>({
   refreshLibraryView(): void {
     if (!this.lessons) return;
     const visibleLessons = this.buildVisibleLessons();
+    this.allLessonCards = visibleLessons;
     const continueInfo = this.buildContinueView();
     const targetLessonId = this.getContinueLessonId();
 
@@ -262,7 +262,7 @@ Page<PageData, PageCustom>({
     this.setData({
       completionText,
       subtitle,
-      visibleLessons,
+      totalLessonCount: visibleLessons.length,
       continueInfo,
       continueTitle,
       continueAttributes,
@@ -298,10 +298,52 @@ Page<PageData, PageCustom>({
     return result;
   },
 
-  updateRenderedLessons(): void {
-    const all = this.data.visibleLessons;
-    const count = Math.min(all.length, this.renderedCount);
-    this.setData({ renderedLessons: all.slice(0, count) });
+  updateRenderedLessons(reset = false): void {
+    const all = this.allLessonCards || [];
+    if (reset) {
+      this.renderedCount = CHUNK_SIZE;
+      const count = Math.min(all.length, this.renderedCount);
+      this.setData({ renderedLessons: all.slice(0, count) });
+      return;
+    }
+
+    const currentList = this.data.renderedLessons || [];
+    const currentLen = currentList.length;
+    const targetCount = Math.min(all.length, this.renderedCount);
+
+    if (currentLen === 0) {
+      this.setData({ renderedLessons: all.slice(0, targetCount) });
+    } else if (targetCount > currentLen) {
+      // 腾讯官方规范：使用路径更新局部追加新增卡片，避免全量重新传输和 diff 已渲染节点
+      const patch: Record<string, LessonCardModel> = {};
+      for (let i = currentLen; i < targetCount; i++) {
+        patch[`renderedLessons[${i}]`] = all[i];
+      }
+      this.setData(patch);
+    } else if (currentLen > 0) {
+      // 细粒度状态局部更新（当前正在听、进度百分比、完成标记）
+      const patch: Record<string, unknown> = {};
+      for (let i = 0; i < currentLen; i++) {
+        const old = currentList[i];
+        const updated = all[i];
+        if (!old || !updated) continue;
+        if (old.isCurrent !== updated.isCurrent) {
+          patch[`renderedLessons[${i}].isCurrent`] = updated.isCurrent;
+          patch[`renderedLessons[${i}].highlight`] = updated.highlight;
+        }
+        if (old.isDone !== updated.isDone) {
+          patch[`renderedLessons[${i}].isDone`] = updated.isDone;
+          patch[`renderedLessons[${i}].statusLabel`] = updated.statusLabel;
+        }
+        if (old.barPercent !== updated.barPercent) {
+          patch[`renderedLessons[${i}].barPercent`] = updated.barPercent;
+          patch[`renderedLessons[${i}].barValue`] = updated.barValue;
+        }
+      }
+      if (Object.keys(patch).length > 0) {
+        this.setData(patch);
+      }
+    }
   },
 
   buildContinueView(): ContinueViewModel | null {
@@ -327,15 +369,8 @@ Page<PageData, PageCustom>({
     return info ? info.lessonId : (this.lessons[0] ? this.lessons[0].lessonId : '');
   },
 
-  onWellScroll(event: WechatMiniprogram.ScrollViewScroll): void {
-    const top = event.detail.scrollTop;
-    if (Number.isFinite(top)) {
-      this.setData({ scrollTop: top });
-    }
-  },
-
   onWellScrollToLower(): void {
-    const all = this.data.visibleLessons;
+    const all = this.allLessonCards || [];
     if (this.renderedCount < all.length) {
       this.renderedCount = Math.min(all.length, this.renderedCount + CHUNK_SIZE);
       this.updateRenderedLessons();

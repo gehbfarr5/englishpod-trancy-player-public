@@ -28,15 +28,17 @@
     </view>
   </pinned-top-deck>
 
-  <!-- 内凹滚动列表区 -->
+  <!-- 内凹滚动列表区（对齐腾讯官方长列表规范：开启被动监听与快速惯性衰减，提前 300px 阈值平滑预加载，移除阻断主线程的 bindscroll 与双向 scrollTop） -->
   <scroll-view
     class="lib__well"
     scroll-y
     enhanced="{{true}}"
+    bounces="{{true}}"
+    fast-deceleration="{{true}}"
+    enable-passive="{{true}}"
+    enable-back-to-top="{{true}}"
+    lower-threshold="300"
     show-scrollbar="{{false}}"
-    scroll-top="{{scrollTop}}"
-    scroll-with-animation="{{false}}"
-    bindscroll="onWellScroll"
     bindscrolltolower="onWellScrollToLower"
   >
     <view class="lib__well-head">
@@ -45,7 +47,7 @@
     </view>
 
     <!-- 加载骨架屏（首次无缓存时展示） -->
-    <view wx:if="{{isIndexLoading && visibleLessons.length === 0}}" class="lib__skeleton">
+    <view wx:if="{{isIndexLoading && totalLessonCount === 0}}" class="lib__skeleton">
       <view class="lib__sk-card" wx:for="{{[1, 2, 3, 4, 5, 6]}}" wx:key="*this">
         <view class="lib__sk-circle"></view>
         <view class="lib__sk-lines">
@@ -75,7 +77,7 @@
       />
     </view>
 
-    <view wx:if="{{!isIndexLoading && visibleLessons.length === 0}}" class="lib__empty">
+    <view wx:if="{{!isIndexLoading && totalLessonCount === 0}}" class="lib__empty">
       <text class="lib__empty-text">{{emptyHint}}</text>
     </view>
 
