@@ -76,6 +76,7 @@
   margin-top: var(--ep-space-md);
 }
 
-.deck__slot--filters {
-  margin-top: var(--ep-space-md);
+.deck__slot--continue:empty {
+  display: none;
+  margin: 0;
 }

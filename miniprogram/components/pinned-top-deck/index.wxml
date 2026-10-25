@@ -1,9 +1,3 @@
-<!--
-  顶部钉住区（Elevated Pinned Top Deck）
-  - 背景径向渐变 + 底部 26px 圆角 + 投影，向下延伸到状态栏之后（edge-to-edge）。
-  - 内部从下到上：品牌 Header Row、继续收听聚光灯卡（slot）、筛选 pills（slot）。
-  - 顶部 `safeTopPx` 为状态栏高度，`navBarPx` 为导航栏高度（为右上角胶囊按钮预留的透明区）。
--->
 <view class="deck" style="padding-top: {{safeTopPx}}px;">
   <!-- 胶囊按钮安全区（透明，仅占位，让渐变在胶囊后方自然延伸） -->
   <view class="deck__nav" style="height: {{navBarPx}}px;"></view>
@@ -19,13 +13,8 @@
     </view>
   </view>
 
-  <!-- 继续收听聚光灯卡 -->
+  <!-- 继续收听聚光灯卡（主页保留播放空间） -->
   <view class="deck__slot deck__slot--continue">
     <slot name="continue"></slot>
-  </view>
-
-  <!-- 三态筛选 pills -->
-  <view class="deck__slot deck__slot--filters">
-    <slot name="filters"></slot>
   </view>
 </view>
