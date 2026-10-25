@@ -7,9 +7,19 @@
   width: 100%;
   height: var(--ep-card-h);
   padding: var(--ep-space-md);
+  margin-bottom: var(--ep-card-gap);
   border-radius: var(--ep-radius-card);
   background-color: var(--ep-surface-1);
   border: 1px solid var(--ep-border);
+  contain: content;
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--ep-card-h);
+  transition: transform var(--ep-dur-fast) var(--ep-ease-smooth-out);
+}
+
+.lcard:active {
+  transform: scale(0.985);
+  opacity: 0.88;
 }
 
 .lcard.is-current {

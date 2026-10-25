@@ -4,10 +4,7 @@
   - 点击直接触发 lessonTap。
 -->
 <view
-  class="lcard m3-tactile-985 {{isCurrent ? 'is-current' : ''}} {{isDone ? 'is-done' : ''}}"
-  hover-class="m3-press-985"
-  hover-start-time="0"
-  hover-stay-time="150"
+  class="lcard {{isCurrent ? 'is-current' : ''}} {{isDone ? 'is-done' : ''}}"
   data-lesson-id="{{lessonId}}"
   bindtap="onTap"
 >
