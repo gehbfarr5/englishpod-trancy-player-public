@@ -1,5 +1,6 @@
 {
   "component": true,
+  "virtualHost": true,
   "usingComponents": {
     "stage-box": "/components/stage-box/index"
   }

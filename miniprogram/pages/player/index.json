@@ -1,6 +1,5 @@
 {
-  "navigationStyle": "default",
-  "navigationBarTitleText": "EnglishPod",
+  "navigationStyle": "custom",
   "usingComponents": {
     "transcript": "/components/transcript/index",
     "control-dock": "/components/control-dock/index"

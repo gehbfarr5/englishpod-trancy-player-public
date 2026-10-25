@@ -13,6 +13,71 @@ page {
   background-color: var(--bgColor);
 }
 
+/* 顶部栏（自定义导航） */
+.pl__topbar {
+  flex: none;
+  background-color: var(--bgColor);
+  box-sizing: border-box;
+  z-index: 20;
+}
+
+.pl__bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: var(--ep-space-xl);
+  box-sizing: border-box;
+  gap: var(--ep-space-sm);
+}
+
+.pl__back {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ep-radius-pill);
+  background-color: var(--ep-surface-inset);
+  border: 1px solid var(--ep-border);
+  transition: transform var(--ep-dur-fast) var(--ep-ease-smooth-out),
+    opacity var(--ep-dur-fast) var(--ep-ease-smooth-out);
+}
+
+.pl__back--hover {
+  transform: scale(0.92);
+  opacity: 0.8;
+}
+
+.pl__back-icon {
+  font-size: 16px;
+  font-weight: var(--ep-fw-bold);
+  color: var(--ep-text-primary);
+  line-height: 1;
+}
+
+.pl__bar-title-wrap {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.pl__bar-title {
+  font-size: 16px;
+  font-weight: var(--ep-fw-heavy);
+  color: var(--ep-text-primary);
+  letter-spacing: -0.3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
 /* 正文容器 */
 .pl__stage {
   position: relative;
@@ -54,7 +119,7 @@ page {
   width: 100%;
   height: 100%;
   margin: 0;
-  padding: 16px 18px 0 18px;
+  padding: 10px 18px 0 18px;
   background-color: var(--bgColor);
   vertical-align: top;
 }
@@ -68,7 +133,7 @@ page {
   bottom: 0;
   z-index: 10;
   background-color: var(--bgColor);
-  padding: 16px 18px 0 18px;
+  padding: 10px 18px 0 18px;
   box-sizing: border-box;
   overflow: hidden;
   transition: opacity 220ms var(--ep-ease-smooth-out);
@@ -82,30 +147,6 @@ page {
 
 .pl__body-pad {
   height: 6px;
-}
-
-/* 内嵌课头（随台词自然滚动） */
-.pl__inline-header {
-  padding: 8px 0 20px 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.pl__inline-sub {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.8px;
-  color: var(--ep-accent);
-  text-transform: uppercase;
-}
-
-.pl__inline-title {
-  margin-top: 3px;
-  font-size: 19px;
-  font-weight: 800;
-  letter-spacing: -0.4px;
-  color: var(--ep-text-primary);
-  line-height: 1.3;
 }
 
 /* 骨架屏占位：高保真模拟台词与说话人排版（错落有致的文本样式） */

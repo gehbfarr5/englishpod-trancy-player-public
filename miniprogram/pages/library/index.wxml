@@ -28,13 +28,13 @@
     </view>
   </pinned-top-deck>
 
-  <!-- 内凹滚动列表区（对齐腾讯官方长列表规范：开启被动监听与快速惯性衰减，提前 300px 阈值平滑预加载，移除阻断主线程的 bindscroll 与双向 scrollTop） -->
+  <!-- 内凹滚动列表区（对齐腾讯官方长列表规范：开启被动监听，采用 iOS 原生标准减速动力学 fast-deceleration="false"，提前 300px 阈值平滑预加载，移除阻断主线程的 bindscroll 与双向 scrollTop） -->
   <scroll-view
     class="lib__well"
     scroll-y
     enhanced="{{true}}"
     bounces="{{true}}"
-    fast-deceleration="{{true}}"
+    fast-deceleration="{{false}}"
     enable-passive="{{true}}"
     enable-back-to-top="{{true}}"
     lower-threshold="300"

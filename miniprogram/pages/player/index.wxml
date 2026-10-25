@@ -1,17 +1,28 @@
 <!--
   沉浸播放器页面（pages/player/index.wxml）
-  纯 WebView 原生页面，采用微信小程序官方原生导航栏规范（navigationStyle: default）。
-  专注响应 Podcast 音频与台本滚动，取消冗余顶部操作与分享按钮（通过微信官方胶囊菜单提供分享）。
+  纯 WebView 原生页面，采用自定义顶部导航栏（navigationStyle: custom）。
+  顶栏课程标题靠近返回按钮靠左展示，为长标题争取最大展示宽度；
+  专注响应 Podcast 音频与台本滚动，清理台本顶部冗余留白与内嵌课头，
+  采用 iOS 标准减速阻尼 fast-deceleration="false" 与 enable-passive="true"。
 -->
 <view class="player-root notranslate" translate="no">
+  <!-- 顶部栏（自定义导航，预留原生胶囊安全区） -->
+  <view class="pl__topbar" style="padding-top: {{safeTopPx}}px;">
+    <!-- 导航行（高度与微信原生胶囊保持一致，右侧避让胶囊按钮） -->
+    <view class="pl__bar" style="height: {{navBarPx}}px; padding-right: {{capsuleRightPadding}}px;">
+      <view class="pl__back" bindtap="onBack" hover-class="pl__back--hover" hover-stay-time="150" aria-label="返回课程列表" role="button">
+        <text class="pl__back-icon">←</text>
+      </view>
+      <view class="pl__bar-title-wrap">
+        <text class="pl__bar-title">{{displayTitle || lessonTitle}}</text>
+      </view>
+    </view>
+  </view>
+
   <!-- 正文舞台：字幕 (仅 Podcast 视口) -->
   <view class="pl__stage">
     <!-- 双阶段装载门禁骨架屏：首进测距与初始落位期间 100% 遮罩视口，落定后 220ms 平滑淡出 -->
     <view class="pl__gate-skeleton {{isTranscriptReady ? 'is-dismissed' : ''}}">
-      <view class="pl__inline-header">
-        <view class="pl__sk-speaker" style="width: 120px;"></view>
-        <view class="pl__sk-line" style="width: 65%; height: 22px; margin-top: 4px;"></view>
-      </view>
       <view class="pl__skeleton">
         <view class="pl__sk-row pl__sk-row--active">
           <view class="pl__sk-speaker" style="width: 52px;"></view>
@@ -46,7 +57,7 @@
       </view>
     </view>
 
-    <!-- Podcast 音轨视口 (永久固定 ID: pbViewport，原生增强型 scroll-view) -->
+    <!-- Podcast 音轨视口 (永久固定 ID: pbViewport，原生增强型 scroll-view，启用 iOS 原生减速与 passive 模式) -->
     <view class="pl__layer is-active">
       <scroll-view
         id="pbViewport"
@@ -55,7 +66,8 @@
         scroll-y
         enhanced="{{true}}"
         bounces="{{true}}"
-        fast-deceleration="{{true}}"
+        fast-deceleration="{{false}}"
+        enable-passive="{{true}}"
         show-scrollbar="{{false}}"
         scroll-top="{{playerScrollTopPb}}"
         scroll-with-animation="{{scrollAnimated}}"
@@ -63,13 +75,7 @@
         binddragend="onTranscriptDragEnd"
         bindscroll="onTranscriptScroll"
       >
-        <!-- 内嵌课头：随台词自然滚动 -->
-        <view class="pl__inline-header" wx:if="{{lessonTitle}}">
-          <text class="pl__inline-sub">{{lessonLevel}} · Podcast</text>
-          <text class="pl__inline-title">{{lessonTitle}}</text>
-        </view>
-
-        <!-- 台本组件（扁平化轻量渲染） -->
+        <!-- 台本组件（扁平化轻量渲染，零顶栏空白） -->
         <transcript
           id="transcript-pb"
           blocks="{{blocksPb}}"
