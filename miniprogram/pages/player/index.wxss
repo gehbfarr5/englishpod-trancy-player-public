@@ -26,7 +26,6 @@ page {
   flex-direction: row;
   align-items: center;
   justify-content: flex-start;
-  padding-left: var(--ep-space-xl);
   box-sizing: border-box;
   gap: var(--ep-space-sm);
 }
@@ -36,11 +35,10 @@ page {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
   border-radius: var(--ep-radius-pill);
   background-color: var(--ep-surface-inset);
   border: 1px solid var(--ep-border);
+  box-sizing: border-box;
   transition: transform var(--ep-dur-fast) var(--ep-ease-smooth-out),
     opacity var(--ep-dur-fast) var(--ep-ease-smooth-out);
 }
