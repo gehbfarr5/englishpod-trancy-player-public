@@ -37,7 +37,7 @@ import {
 } from '../../core/types';
 import { playbackSession } from '../../services/playbackSession';
 import { classifyAudioError } from './audio';
-import { resolveBrandCoverHttps } from './brandCover';
+import { BrandCoverTheme, resolveBrandCoverHttps } from './brandCover';
 import { isCloudFileId, resolvePlayableUrl } from './cloudAudioUrl';
 
 /** 当前活动的后台适配器实例（BAM 单例，事件模块级只绑一次）。 */
@@ -86,6 +86,12 @@ function ensureHandlersBound(manager: WechatMiniprogram.BackgroundAudioManager):
   // ⚠️ 仅 iOS 有回调；Android 无回调（应用内按钮兜底）。
   manager.onPrev(() => activeAdapter?.handlePrev());
   manager.onNext(() => activeAdapter?.handleNext());
+
+  if (typeof wx !== 'undefined' && typeof wx.onThemeChange === 'function') {
+    wx.onThemeChange((res: { theme: string }) => {
+      activeAdapter?.handleThemeChange(res.theme === 'light' ? 'light' : 'dark');
+    });
+  }
 }
 
 
@@ -447,6 +453,40 @@ export class BackgroundAudioAdapter implements AudioAdapter {
     }
   }
 
+  private detectTheme(): BrandCoverTheme {
+    try {
+      const info = wx.getSystemInfoSync?.();
+      if (info && info.theme === 'light') {
+        return 'light';
+      }
+    } catch {
+      // 忽略
+    }
+    return 'dark';
+  }
+
+  private resolveThemeFromCover(cover: string): BrandCoverTheme {
+    if (cover.includes('light')) return 'light';
+    if (cover.includes('dark')) return 'dark';
+    return this.detectTheme();
+  }
+
+  /** 系统主题切换时同步更新锁屏与控制中心封面（支持 iOS 深浅色切换）。 */
+  handleThemeChange(theme: BrandCoverTheme): void {
+    if (this.destroyed || !this.manager) return;
+    const cover = this.metadata?.coverImgUrl || '';
+    if (cover.startsWith('http://') || cover.startsWith('https://')) return;
+    void resolveBrandCoverHttps(theme).then((httpsUrl) => {
+      if (httpsUrl && !this.destroyed) {
+        try {
+          this.manager.coverImgUrl = httpsUrl;
+        } catch {
+          // 忽略
+        }
+      }
+    });
+  }
+
   /** 应用锁屏元数据（title 必填非空，否则告警）。 */
   private applyMetadata(): void {
     const meta = this.metadata;
@@ -464,7 +504,8 @@ export class BackgroundAudioAdapter implements AudioAdapter {
       if (cover.startsWith('http://') || cover.startsWith('https://')) {
         this.manager.coverImgUrl = cover;
       } else {
-        void resolveBrandCoverHttps().then((httpsUrl) => {
+        const theme = this.resolveThemeFromCover(cover);
+        void resolveBrandCoverHttps(theme).then((httpsUrl) => {
           if (httpsUrl && !this.destroyed) {
             this.manager.coverImgUrl = httpsUrl;
           }

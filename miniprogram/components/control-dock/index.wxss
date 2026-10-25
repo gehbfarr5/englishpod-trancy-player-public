@@ -205,22 +205,27 @@
   text-align: left;
 }
 
-/* Row 3：工具键 */
+/* Row 3：工具键（4 键等宽无缝排满，不要留空隙） */
 .dock__util {
   display: flex;
   flex-direction: row;
   align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
   height: var(--ep-util-h);
   margin-top: var(--ep-space-md);
 }
 
 .dock__util-btn {
   flex: 1 1 0;
+  min-width: 0;
+  box-sizing: border-box;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: var(--ep-util-gap);
-  border-radius: 6px;
+  margin-right: -1px;
+  border-radius: 0;
   background-color: var(--ep-metro-btn-bg);
   border: 1px solid var(--ep-border);
 }
@@ -239,6 +244,7 @@
 .dock__util-btn.is-on {
   background-color: var(--ep-accent-soft);
   border-color: var(--ep-accent);
+  z-index: 2;
 }
 
 .dock__util-btn.is-disabled {

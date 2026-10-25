@@ -95,6 +95,14 @@ function formatTime(seconds: number): string {
   return `${m}:${rem < 10 ? '0' : ''}${rem}`;
 }
 
+function formatLessonDisplayIndex(lessonId: string): string {
+  const num = parseInt(lessonId, 10);
+  if (Number.isFinite(num) && num > 0) {
+    return num < 10 ? `0${num}` : String(num);
+  }
+  return lessonId;
+}
+
 function lastEnd(segs: Segment[]): number {
   return segs.length > 0 ? segs[segs.length - 1].end : 0;
 }
@@ -270,6 +278,7 @@ interface PageCustom {
   startTick(): void;
   stopTick(): void;
   tick(force?: boolean): void;
+  onThemeChange?(): void;
   /** 供渲染使用的播放位置：镇定窗口内忽略换源瞬间的假 0（见 `core/switchSettle.ts`）。 */
   effectivePositionSec(): number;
   /** 布防换源镇定窗口；`targetSec <= 0` 时不布防。 */
@@ -683,7 +692,7 @@ Page<PageData, PageCustom>({
           });
           try {
             wx.setNavigationBarTitle({
-              title: `${item.lessonId} · ${item.title}`,
+              title: `${formatLessonDisplayIndex(item.lessonId)} · ${item.title}`,
             });
           } catch {
             // 忽略
@@ -765,7 +774,7 @@ Page<PageData, PageCustom>({
 
       try {
         wx.setNavigationBarTitle({
-          title: `${detail.lessonId} · ${detail.title}`,
+          title: `${formatLessonDisplayIndex(detail.lessonId)} · ${detail.title}`,
         });
       } catch {
         // 忽略
@@ -1642,12 +1651,23 @@ Page<PageData, PageCustom>({
   applyMetadata(): void {
     if (!this.audio || !this.detail) return;
     const track = this.data.activeTrack;
+    let theme: 'dark' | 'light' = 'dark';
+    try {
+      const sys = wx.getSystemInfoSync?.();
+      theme = sys?.theme === 'light' ? 'light' : 'dark';
+    } catch {
+      // 忽略
+    }
     this.audio.setMetadata?.({
       title: this.detail.title,
       album: APP_DISPLAY_NAME,
       artist: `${this.detail.level} · ${trackLabelOf(track)}`,
-      coverImgUrl: 'assets/branding/brand_icon_dark.png',
+      coverImgUrl: `assets/branding/brand_icon_${theme}.png`,
     });
+  },
+
+  onThemeChange(): void {
+    this.applyMetadata();
   },
 
   /**
@@ -2132,14 +2152,7 @@ Page<PageData, PageCustom>({
   },
 
   onCycleSpeed(): void {
-    if (!this.machine) return;
-    const rate = this.machine.cycleRate();
-    if (this.audio) {
-      this.audio.setPlaybackRate(rate);
-    }
-    progressJournal.updatePreferences({ playbackRate: rate });
-    this.setData({ speedLabel: TrackStateMachine.formatRate(rate) });
-    playbackSession.setLessonInfo({ lessonId: this.currentLessonId || '', rate });
+    // 精简交互：已取消倍速播放，恒定保持 1.0x 默认倍速
   },
 
   onScrubStart(): void {
