@@ -1,3 +1,4 @@
+import { gestureScroll } from './gesture-scroll';
 import { renderAnchor } from './render-anchor';
 import { switchFirstFrame } from './switch-first-frame';
 import { switchKeepPosition } from './switch-keep-position';
@@ -16,4 +17,5 @@ export const scenarios: Scenario[] = [
   switchRoundTrip,
   switchKeepPosition,
   renderAnchor,
+  gestureScroll,
 ];

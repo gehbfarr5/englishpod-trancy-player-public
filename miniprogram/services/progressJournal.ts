@@ -317,6 +317,12 @@ export class ProgressJournal {
     return map;
   }
 
+  /** 重置某课记录（用于单测与 e2e 清场）。 */
+  resetLesson(lessonId: string): void {
+    if (!lessonId) return;
+    this.store.resetLesson(lessonId);
+  }
+
   // ---------------------------------------------------------------- 内部
 
   private reportHold(request: JournalCommitRequest, reason: JournalFailureReason): void {

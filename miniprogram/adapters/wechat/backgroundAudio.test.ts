@@ -342,3 +342,66 @@ describe('BackgroundAudioAdapter · 无待定 load 的直发回归保护', () =>
     assert.equal(shared.calls.playCount, 1, '无待定 load：play 直发');
   });
 });
+
+describe('BackgroundAudioAdapter · 切轨防旧源污染与进度同步', () => {
+  test('切轨换源时若旧源正在播放，立即暂停旧源防外放', () => {
+    resetBam();
+    shared.bam.paused = false; // 模拟旧轨正在发声
+    const adapter = new BackgroundAudioAdapter();
+    adapter.load('https://media.example.com/lessons/0001_dg.m4a');
+    assert.equal(shared.calls.pauseCount, 1, '切轨时必须先压住旧源声音');
+  });
+
+  test('未就绪期间的 timeUpdate 绝不外发，防止旧源位置污染新音轨', () => {
+    resetBam();
+    const adapter = new BackgroundAudioAdapter();
+    const emittedPositions: number[] = [];
+    adapter.setEvents({
+      onTimeUpdate: (pos) => emittedPositions.push(pos),
+    });
+
+    adapter.load('https://media.example.com/lessons/0001_dg.m4a');
+    shared.bam.currentTime = 45; // 旧源遗留的位置
+    shared.handlers.onTimeUpdate?.();
+
+    assert.deepEqual(emittedPositions, [], '未就绪期的 timeUpdate 不应外发');
+
+    shared.bam.duration = 30;
+    shared.handlers.onCanplay?.();
+    shared.bam.currentTime = 0.5;
+    shared.handlers.onTimeUpdate?.();
+
+    assert.deepEqual(emittedPositions, [0.5], '就绪后的新源 timeUpdate 正常外发');
+  });
+
+  test('未就绪期间的 pause / stop 绝不外发假暂停', () => {
+    resetBam();
+    const adapter = new BackgroundAudioAdapter();
+    let pauseCount = 0;
+    adapter.setEvents({
+      onPause: () => {
+        pauseCount += 1;
+      },
+    });
+
+    adapter.load('https://media.example.com/lessons/0001_dg.m4a');
+    shared.handlers.onPause?.();
+    shared.handlers.onStop?.();
+
+    assert.equal(pauseCount, 0, '未就绪期间旧源销毁的 pause/stop 不广播给页面');
+  });
+
+  test('seek(0) 在未就绪期间正确缓冲，并在 canplay 时显式补做 seek(0)', () => {
+    resetBam();
+    const adapter = new BackgroundAudioAdapter();
+    adapter.load('https://media.example.com/lessons/0001_dg.m4a');
+    adapter.seek(0); // 目标为 00:00
+
+    assert.deepEqual(shared.calls.seek, [], '未就绪期缓冲 seek(0)');
+
+    shared.bam.duration = 30;
+    shared.handlers.onCanplay?.();
+
+    assert.deepEqual(shared.calls.seek, [0], 'canplay 时显式补做 seek(0)');
+  });
+});

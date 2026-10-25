@@ -78,6 +78,37 @@ export async function resolvePlayableUrl(src: string): Promise<string> {
   return url;
 }
 
+/**
+ * 批量预热 cloud fileID 临时链接（例如切课时同时预热 pb 与 dg 两条轨）。
+ */
+export async function prefetchPlayableUrls(srcs: (string | null | undefined)[]): Promise<void> {
+  const missing = srcs.filter(
+    (src): src is string =>
+      typeof src === 'string' &&
+      isCloudFileId(src) &&
+      (!tempUrlCache.has(src) || tempUrlCache.get(src)!.expireAtMs <= Date.now()),
+  );
+  if (missing.length === 0 || !wx.cloud || typeof wx.cloud.getTempFileURL !== 'function') {
+    return;
+  }
+  try {
+    const res = await wx.cloud.getTempFileURL({ fileList: missing });
+    if (res && res.fileList) {
+      for (const item of res.fileList) {
+        if (item && item.fileID && item.tempFileURL) {
+          const ttlMs =
+            item && Number.isFinite(item.maxAge) && item.maxAge > 0
+              ? item.maxAge * 1000
+              : DEFAULT_TEMP_URL_TTL_MS;
+          tempUrlCache.set(item.fileID, { url: item.tempFileURL, expireAtMs: Date.now() + ttlMs });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[cloudAudioUrl] 批量预热音频链接失败：', err);
+  }
+}
+
 /** 清空缓存（仅测试/诊断用）。 */
 export function clearTempUrlCache(): void {
   tempUrlCache.clear();

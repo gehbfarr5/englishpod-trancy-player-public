@@ -1,8 +1,7 @@
 {
   "pages": [
     "pages/library/index",
-    "pages/player/index",
-    "pages/m1Experiment/index"
+    "pages/player/index"
   ],
   "renderer": "webview",
   "darkmode": true,
