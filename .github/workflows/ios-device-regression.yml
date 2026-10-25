@@ -1,0 +1,95 @@
+name: iOS Physical Device Regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_device_test:
+        description: 'Type RUN_IOS_DEVICE_TEST to verify on connected physical iPhone'
+        type: string
+        required: true
+        default: 'RUN_IOS_DEVICE_TEST'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-device-regression
+  cancel-in-progress: false
+
+jobs:
+  device:
+    name: Device / ios-device
+    if: github.event.inputs.confirm_device_test == 'RUN_IOS_DEVICE_TEST'
+    runs-on: [self-hosted, macOS, ios-device]
+    timeout-minutes: 40
+    env:
+      NATIVE_REPORT_DIR: ${{ github.workspace }}/native-evidence
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Stage isolated synthetic WAV fixture and generate disposable project
+        env:
+          EP_NATIVE_TEST_WORKSPACE: '1'
+        run: |
+          python3 pipeline/prepare_native_test_assets.py
+          mkdir -p "$NATIVE_REPORT_DIR"
+          flutter --version > "$NATIVE_REPORT_DIR/toolchain.txt"
+          xcodebuild -version >> "$NATIVE_REPORT_DIR/toolchain.txt"
+          cd flutter_app
+          # Generate isolated, disposable wrappers with test bundle id
+          flutter create --no-pub --platforms=ios --project-name=englishpod_trancy --org=com.englishpod.trancy.regression .
+          flutter pub get
+          cp pubspec.lock "$NATIVE_REPORT_DIR/pubspec.lock"
+
+      - name: Discover and select connected physical iPhone
+        run: python3 pipeline/select_ios_device.py
+
+      - name: Run iOS Physical Device checks
+        run: bash .github/scripts/run-ios-device-regression.sh
+
+      - name: Finalize explicit PASS/FAIL/ERROR evidence
+        if: always()
+        run: |
+          code=1
+          if [ -f "$NATIVE_REPORT_DIR/exit-code.txt" ]; then code=$(cat "$NATIVE_REPORT_DIR/exit-code.txt"); fi
+          runtime="${NATIVE_RUNTIME:-iPhone 17 Physical Device}"
+          python3 pipeline/native_test_evidence.py finalize \
+            --response "$NATIVE_REPORT_DIR/response.json" \
+            --platform "ios-device" --runtime "$runtime" --exit-code "$code" \
+            --sha "$(git rev-parse HEAD)" --output "$NATIVE_REPORT_DIR/report.json"
+          cat "$NATIVE_REPORT_DIR/report.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Preserve machine-readable device report
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: native-report-ios-device-attempt-${{ github.run_attempt }}
+          path: native-evidence/report.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Preserve screenshots and device logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: native-debug-ios-device-attempt-${{ github.run_attempt }}
+          path: |
+            native-evidence/*.png
+            native-evidence/*.log
+            native-evidence/toolchain.txt
+            native-evidence/pubspec.lock
+          if-no-files-found: warn
+          retention-days: 7

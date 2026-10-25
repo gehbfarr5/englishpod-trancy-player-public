@@ -129,4 +129,48 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }, timeout: const Timeout(Duration(minutes: 3)));
+
+  testWidgets('N03 completed lesson re-enters PB at 00:00 while preserving completion', (tester) async {
+    await scenario('N03', () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_theme_preference', 'dark');
+      // Seed a completed checkpoint for lesson 0001
+      final seeded = {
+        '0001': {
+          'isCompleted': true,
+          'hasStarted': true,
+          'progressPct': 100,
+          'lastTrack': 'pb',
+          'pbPosSec': 45.0,
+          'pbSegIdx': 2,
+          'dgPosSec': 10.0,
+          'dgSegIdx': 1,
+        }
+      };
+      await prefs.setString('ep_study_progress_v1', jsonEncode(seeded));
+      await prefs.setString('ep_last_lesson_id', '0001');
+
+      await app.main();
+      final card = find.byKey(const ValueKey('course_card_0001')).hitTestable();
+      await until(tester, () => card.evaluate().isNotEmpty);
+      await tester.tap(card.first);
+
+      Finder hero(bool playing) => find.byKey(ValueKey('hero_icon_${playing}_false')).hitTestable();
+      Future<void> playing(bool value) async {
+        await until(tester, () => hero(value).evaluate().isNotEmpty);
+        await tester.pump(const Duration(milliseconds: 400));
+      }
+
+      await playing(true);
+      await binding.takeScreenshot('N03-completed-reenter-pb-playing');
+
+      // Checkpoint must retain isCompleted=true and position started from 00:00
+      await prefs.reload();
+      final all = jsonDecode(prefs.getString('ep_study_progress_v1') ?? '{}') as Map<String, dynamic>;
+      final rec = (all['0001'] as Map?)?.cast<String, dynamic>() ?? {};
+      expect(rec['isCompleted'], isTrue);
+      expect((rec['pbPosSec'] as num?)?.toDouble(), lessThan(5.0));
+      expect(tester.takeException(), isNull);
+    });
+  }, timeout: const Timeout(Duration(minutes: 3)));
 }

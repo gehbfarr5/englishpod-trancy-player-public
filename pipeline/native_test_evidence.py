@@ -12,8 +12,8 @@ import urllib.request
 import zipfile
 
 SCHEMA = 'ep-native-regression-v1'
-IDS = ('N01', 'N02')
-PLATFORMS = ('android-emulator', 'ios-simulator')
+IDS = ('N01', 'N02', 'N03')
+PLATFORMS = ('android-emulator', 'ios-simulator', 'ios-device')
 MAX_JSON = 32 * 1024
 MAX_LOG_ZIP = 8 * 1024 * 1024
 
@@ -136,7 +136,9 @@ def collect(repo, sha, token):
             if len(candidates) != 1:
                 # Actions artifact storage can be exhausted. Recover only the
                 # trusted finalizer's one-line, schema-validated JSON marker.
-                matching = [j for j in jobs.get('jobs', []) if j.get('name') == f'Native / {platform}']
+                matching = [j for j in jobs.get('jobs', []) if j.get('name') in (f'Native / {platform}', f'Device / {platform}')]
+                if not matching and not candidates:
+                    continue
                 if len(matching) != 1:
                     rejected += 1
                     continue
