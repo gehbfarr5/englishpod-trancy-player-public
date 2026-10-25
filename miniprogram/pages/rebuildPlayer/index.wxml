@@ -12,7 +12,7 @@
   </scroll-view>
  </view>
  <button bindtap="onContinue">继续收听</button>
- <text wx:if="{{loading}}">正在载入…</text><text wx:if="{{error}}">{{error}}</text>
+ <text wx:if="{{loading}}">正在载入…</text><view wx:if="{{error}}" class="error"><text>{{error}}</text><button size="mini" bindtap="onRetry">重试</button></view>
  <text>{{completed ? '已完成' : '学习中'}} · {{position}} / {{duration}} 秒</text>
  <slider min="0" max="{{duration || 1}}" value="{{position}}" disabled="{{loading || !duration}}" bindchange="onSeek" />
  <view class="row"><button bindtap="onPrev" disabled="{{selected === 0}}">上一课</button><button bindtap="onToggle">{{playing ? '暂停' : '播放'}}</button><button bindtap="onNext" disabled="{{selected >= titles.length - 1}}">下一课</button></view>
