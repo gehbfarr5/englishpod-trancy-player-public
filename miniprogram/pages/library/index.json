@@ -1,6 +1,7 @@
 {
   "usingComponents": {
     "pinned-top-deck": "/components/pinned-top-deck/index",
+    "continue-card": "/components/continue-card/index",
     "lesson-card": "/components/lesson-card/index"
   },
   "navigationStyle": "custom",

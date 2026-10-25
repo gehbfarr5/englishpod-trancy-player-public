@@ -1,22 +1,9 @@
 <!--
   沉浸播放器页面（pages/player/index.wxml）
-  纯 WebView 原生页面，已精简为纯粹响应 Podcast 音频与台词，移除 Dialogue 与 Vocab 分段及视口。
-  支持原生侧滑返回（不冲突）、iOS 级精细排版、一键分享。
+  纯 WebView 原生页面，采用微信小程序官方原生导航栏规范（navigationStyle: default）。
+  专注响应 Podcast 音频与台本滚动，取消冗余顶部操作与分享按钮（通过微信官方胶囊菜单提供分享）。
 -->
 <view class="player-root notranslate" translate="no">
-  <!-- 顶部栏（自定义导航，预留原生胶囊安全区） -->
-  <view class="pl__topbar" style="padding-top: {{safeTopPx}}px;">
-    <!-- Row 1: 导航行（高度与微信原生胶囊保持一致） -->
-    <view class="pl__bar" style="height: {{navBarPx}}px; padding-right: {{capsuleRightPadding}}px;">
-      <view class="pl__back m3-tactile-94" hover-class="m3-press-94" hover-start-time="0" hover-stay-time="150" bindtap="onBack">
-        <text class="pl__back-text">← Library</text>
-      </view>
-      <button class="pl__share-btn" open-type="share" hover-class="pl__share-btn--hover">
-        <text class="pl__share-text">Share</text>
-      </button>
-    </view>
-  </view>
-
   <!-- 正文舞台：字幕 (仅 Podcast 视口) -->
   <view class="pl__stage">
     <!-- 双阶段装载门禁骨架屏：首进测距与初始落位期间 100% 遮罩视口，落定后 220ms 平滑淡出 -->

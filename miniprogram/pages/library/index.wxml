@@ -1,8 +1,9 @@
 <!--
   EnglishPod 课程库（pages/library/index.wxml）
   纯 WebView 原生页面，搭载秒开骨架屏、即时存储缓存、分片平滑滚动。
-  已精简：移除顶部筛选 pills 与独立卡片，主页全量展示课程列表并在列表中管理进度；
-  点击标题栏（EnglishPod）直接跳转当前正在收听的课程。
+  - 保留主页常驻播放空间（continue-card 聚光灯卡，支持查看当前进度与播放/暂停控制）；
+  - 取消标题栏点击跳转；
+  - 课程全量列表单列展示并在卡片内管理进度。
 -->
 <view class="app-root notranslate" translate="no">
   <pinned-top-deck
@@ -11,8 +12,21 @@
     completion-text="{{completionText}}"
     safe-top-px="{{safeTopPx}}"
     nav-bar-px="{{navBarPx}}"
-    bind:titleTap="onTitleTap"
-  />
+  >
+    <!-- 主页保留播放空间（有进度记录时展示） -->
+    <view slot="continue" wx:if="{{continueInfo}}">
+      <continue-card
+        title="{{continueTitle}}"
+        badge="{{continueInfo.badge}}"
+        attributes="{{continueAttributes}}"
+        fallback-text="{{continueFallback}}"
+        progress-pct="{{continueInfo.progressPct}}"
+        is-playing="{{isPlaying}}"
+        bind:cardtap="onContinueTap"
+        bind:toggle="onContinueToggle"
+      />
+    </view>
+  </pinned-top-deck>
 
   <!-- 内凹滚动列表区 -->
   <scroll-view

@@ -681,6 +681,13 @@ Page<PageData, PageCustom>({
             lessonTitle: item.title,
             lessonLevel: item.level,
           });
+          try {
+            wx.setNavigationBarTitle({
+              title: `${item.lessonId} · ${item.title}`,
+            });
+          } catch {
+            // 忽略
+          }
         }
       }
       this.setData({ playerLoading: true, playerErrorMsg: '' });
@@ -755,6 +762,14 @@ Page<PageData, PageCustom>({
       const initialScrollPb = this.estimateSwitchScrollTop('pb', pbResumeSeg) ?? 0;
       const activeInitialScroll = initialScrollPb;
       const shouldShieldAnchor = !isCurrentlyActiveLesson && activeSeg > 0;
+
+      try {
+        wx.setNavigationBarTitle({
+          title: `${detail.lessonId} · ${detail.title}`,
+        });
+      } catch {
+        // 忽略
+      }
 
       this.setData({
         lessonTitle: detail.title,
