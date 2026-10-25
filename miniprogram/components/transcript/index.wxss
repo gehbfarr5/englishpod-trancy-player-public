@@ -10,6 +10,7 @@
   margin-bottom: 18px;
   width: 100%;
   box-sizing: border-box;
+  contain: content;
 }
 
 /* 行：左强调条 3px + 内边距 14 6 4 6（对齐 iOS EdgeInsets.fromLTRB(14, 6, 4, 6)） */
@@ -23,6 +24,7 @@
   border-left: 3px solid transparent;
   transition: border-color var(--ep-dur-fast) var(--ep-ease-smooth-out),
     background-color var(--ep-dur-fast) var(--ep-ease-smooth-out);
+  contain: content;
 }
 
 /* 当前句：左侧强调条 */

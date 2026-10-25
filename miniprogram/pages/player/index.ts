@@ -154,6 +154,7 @@ interface PageData {
   playerErrorMsg: string;
   lessonTitle: string;
   lessonLevel: string;
+  displayTitle: string;
   trackLabel: string;
   playerProgressPct: number;
   activeTab: ViewTab;
@@ -383,6 +384,7 @@ Page<PageData, PageCustom>({
     playerErrorMsg: '',
     lessonTitle: '',
     lessonLevel: '',
+    displayTitle: '',
     trackLabel: 'Podcast',
     playerProgressPct: 0,
     activeTab: 'pb',
@@ -465,6 +467,7 @@ Page<PageData, PageCustom>({
           this.setData({
             lessonTitle: currentItem.title,
             lessonLevel: currentItem.level,
+            displayTitle: `${formatLessonDisplayIndex(currentItem.lessonId)} · ${currentItem.title}`,
             hasPrevLesson: pos > 0,
             hasNextLesson: pos >= 0 && pos < this.lessonIds.length - 1,
           });
@@ -485,6 +488,9 @@ Page<PageData, PageCustom>({
         this.setData({
           lessonTitle: currentItem ? currentItem.title : this.data.lessonTitle,
           lessonLevel: currentItem ? currentItem.level : this.data.lessonLevel,
+          displayTitle: currentItem
+            ? `${formatLessonDisplayIndex(currentItem.lessonId)} · ${currentItem.title}`
+            : this.data.displayTitle,
           hasPrevLesson: pos > 0,
           hasNextLesson: pos >= 0 && pos < this.lessonIds.length - 1,
         });
@@ -686,13 +692,15 @@ Page<PageData, PageCustom>({
       if (this.lessonIndexItems) {
         const item = this.lessonIndexItems.find((l) => l.lessonId === lessonId);
         if (item) {
+          const displayTitle = `${formatLessonDisplayIndex(item.lessonId)} · ${item.title}`;
           this.setData({
             lessonTitle: item.title,
             lessonLevel: item.level,
+            displayTitle,
           });
           try {
             wx.setNavigationBarTitle({
-              title: `${formatLessonDisplayIndex(item.lessonId)} · ${item.title}`,
+              title: displayTitle,
             });
           } catch {
             // 忽略
@@ -772,9 +780,10 @@ Page<PageData, PageCustom>({
       const activeInitialScroll = initialScrollPb;
       const shouldShieldAnchor = !isCurrentlyActiveLesson && activeSeg > 0;
 
+      const displayTitle = `${formatLessonDisplayIndex(detail.lessonId)} · ${detail.title}`;
       try {
         wx.setNavigationBarTitle({
-          title: `${formatLessonDisplayIndex(detail.lessonId)} · ${detail.title}`,
+          title: displayTitle,
         });
       } catch {
         // 忽略
@@ -783,6 +792,7 @@ Page<PageData, PageCustom>({
       this.setData({
         lessonTitle: detail.title,
         lessonLevel: detail.level,
+        displayTitle,
         trackLabel: trackLabelOf(initialTrack),
         activeTab: initialTrack,
         activeTrack: initialTrack,
