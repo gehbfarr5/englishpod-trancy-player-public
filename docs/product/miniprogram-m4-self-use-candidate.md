@@ -16,9 +16,9 @@ M3 cloud run [40158787542](https://github.com/gehbfarr5/englishpod-trancy-player
 
 ## Candidate acceptance
 
-Before calling the self-use candidate complete, run the exact 0.3.16 SHA through the existing version, packaging, GitHub CI, development upload, and MiniTest result gates. Verify the cloud summary SHA/version, terminal status `12`, success rate `1`, and report availability.
+The owner accepted the 0.3.16 development build after manual playback and transcript checks. Its MiniTest request was blocked before task creation because the weekly quota had 1800 seconds remaining while the request required 2400 seconds. This is `BLOCKED: quota`, not a code failure. Under the current [Mini Program test policy](miniprogram-test-policy.md), cloud testing is optional and does not block the self-use candidate when offline checks and owner-device acceptance pass.
 
-Aggregate MiniTest PASS does not by itself prove audible output or route-specific coverage. Confirm the configured plan's case inventory. If it does not cover the rebuilt route, perform these owner-device checks on at least the current iPhone WeChat build: open a course from the library, continue the saved course, switch PB/DG/vocabulary, tap a PB sentence, pause/resume, move to another course, navigate away and return, and exercise one failed/retried content load. Actual voice output, lock-screen continuity, system audio interruptions, and long background playback remain manual evidence unless the report explicitly observes them.
+Aggregate MiniTest PASS does not by itself prove audible output or route-specific coverage. Run it only at a meaningful platform-compatibility checkpoint and after confirming the plan's case inventory covers the rebuilt route. If coverage is missing or unclear, owner-device checks remain the useful acceptance evidence: open a course from the library, continue the saved course, switch PB/DG/vocabulary, tap a PB sentence, pause/resume, move to another course, navigate away and return, and exercise one failed/retried content load. Actual voice output, lock-screen continuity, system audio interruptions, and long background playback remain manual evidence unless the report explicitly observes them.
 
 ## Remaining before broader trial
 
