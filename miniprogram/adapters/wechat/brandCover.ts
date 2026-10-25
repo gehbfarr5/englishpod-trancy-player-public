@@ -14,8 +14,11 @@
  * ============================================================================
  */
 
-/** 持久缓存键（v2 schema）。 */
-const COVER_CACHE_KEY_V2 = 'ep_brand_cover_https_v2';
+export type BrandCoverTheme = 'dark' | 'light';
+
+/** 持久缓存键（v2 schema）。深色模式沿用原有键以保持向前兼容与单测契约，浅色模式使用独立键。 */
+const COVER_CACHE_KEY_V2_DARK = 'ep_brand_cover_https_v2';
+const COVER_CACHE_KEY_V2_LIGHT = 'ep_brand_cover_https_v2_light';
 
 /** 已弃用的 v1 持久缓存键（24 小时过期，不再信任）。 */
 const COVER_CACHE_KEY_V1 = 'ep_brand_cover_https_v1';
@@ -29,8 +32,15 @@ interface BrandCoverCacheEntry {
   expireAtMs: number;
 }
 
-/** 内存单例缓存（带过期）。 */
-let memoryCache: BrandCoverCacheEntry | null = null;
+/** 内存单例缓存（按深色/浅色分别缓存，带过期）。 */
+const memoryCaches: Record<BrandCoverTheme, BrandCoverCacheEntry | null> = {
+  dark: null,
+  light: null,
+};
+
+function getStorageKeyForTheme(theme: BrandCoverTheme): string {
+  return theme === 'light' ? COVER_CACHE_KEY_V2_LIGHT : COVER_CACHE_KEY_V2_DARK;
+}
 
 function isHttpsUrl(url: unknown): url is string {
   return typeof url === 'string' && /^https:\/\/[^/?#\s]+(?:[/?#][^\s]*)?$/.test(url);
@@ -55,27 +65,30 @@ function parseCacheEntry(raw: unknown, nowMs: number): BrandCoverCacheEntry | nu
 }
 
 /** 读取并校验持久缓存（读取异常按未命中处理）。 */
-function readValidPersistentEntry(nowMs: number): BrandCoverCacheEntry | null {
+function readValidPersistentEntry(storageKey: string, nowMs: number): BrandCoverCacheEntry | null {
   try {
-    return parseCacheEntry(wx.getStorageSync(COVER_CACHE_KEY_V2), nowMs);
+    return parseCacheEntry(wx.getStorageSync(storageKey), nowMs);
   } catch {
     // 忽略缓存读取容错
   }
   return null;
 }
 
-export async function resolveBrandCoverHttps(): Promise<string> {
+export async function resolveBrandCoverHttps(theme: BrandCoverTheme = 'dark'): Promise<string> {
+  const normalizedTheme: BrandCoverTheme = theme === 'light' ? 'light' : 'dark';
   const nowMs = Date.now();
+  const mem = memoryCaches[normalizedTheme];
 
-  if (memoryCache && isHttpsUrl(memoryCache.url) && memoryCache.expireAtMs > nowMs) {
-    return memoryCache.url;
+  if (mem && isHttpsUrl(mem.url) && mem.expireAtMs > nowMs) {
+    return mem.url;
   }
-  memoryCache = null;
+  memoryCaches[normalizedTheme] = null;
 
-  const persistent = readValidPersistentEntry(nowMs);
+  const storageKey = getStorageKeyForTheme(normalizedTheme);
+  const persistent = readValidPersistentEntry(storageKey, nowMs);
   if (persistent) {
-    memoryCache = persistent;
-    return memoryCache.url;
+    memoryCaches[normalizedTheme] = persistent;
+    return persistent.url;
   }
 
   if (typeof wx === 'undefined' || !wx.cloud || typeof wx.cloud.uploadFile !== 'function') {
@@ -84,15 +97,16 @@ export async function resolveBrandCoverHttps(): Promise<string> {
 
   try {
     const fs = wx.getFileSystemManager();
-    const localTarget = `${wx.env.USER_DATA_PATH}/brand_icon_dark.png`;
+    const fileName = `brand_icon_${normalizedTheme}.png`;
+    const localTarget = `${wx.env.USER_DATA_PATH}/${fileName}`;
     try {
       fs.accessSync(localTarget);
     } catch {
-      fs.copyFileSync('assets/branding/brand_icon_dark.png', localTarget);
+      fs.copyFileSync(`assets/branding/${fileName}`, localTarget);
     }
 
     const uploadRes = await wx.cloud.uploadFile({
-      cloudPath: 'brand/brand_icon_dark.png',
+      cloudPath: `brand/${fileName}`,
       filePath: localTarget,
     });
 
@@ -106,9 +120,10 @@ export async function resolveBrandCoverHttps(): Promise<string> {
           ? Math.min(item.maxAge * 1000, MAX_CACHE_TTL_MS)
           : MAX_CACHE_TTL_MS;
       if (isHttpsUrl(url)) {
-        memoryCache = { url, expireAtMs: Date.now() + ttlMs };
+        const entry = { url, expireAtMs: Date.now() + ttlMs };
+        memoryCaches[normalizedTheme] = entry;
         try {
-          wx.setStorageSync(COVER_CACHE_KEY_V2, memoryCache);
+          wx.setStorageSync(storageKey, entry);
         } catch {
           // 忽略写入容错
         }
@@ -129,5 +144,6 @@ export async function resolveBrandCoverHttps(): Promise<string> {
 
 /** 清空内存缓存（仅测试/诊断用；不影响持久缓存）。 */
 export function clearBrandCoverMemoryCache(): void {
-  memoryCache = null;
+  memoryCaches.dark = null;
+  memoryCaches.light = null;
 }

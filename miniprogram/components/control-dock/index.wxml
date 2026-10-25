@@ -83,23 +83,13 @@
       <view class="ic ic--loop-one"></view>
     </view>
     <view
-      class="dock__util-btn m3-tactile-94 {{repeatEpisode ? 'is-on' : ''}}"
+      class="dock__util-btn dock__util-btn--right m3-tactile-94 {{repeatEpisode ? 'is-on' : ''}}"
       hover-class="m3-press-94"
       hover-start-time="0"
       hover-stay-time="150"
       bindtap="onToggleRepeat"
     >
       <view class="ic ic--repeat"></view>
-    </view>
-    <view
-      class="dock__util-btn dock__util-btn--right m3-tactile-94 {{speedLabel !== '1.0x' ? 'is-on' : ''}}"
-      hover-class="m3-press-94"
-      hover-start-time="0"
-      hover-stay-time="150"
-      bindtap="onCycleSpeed"
-    >
-      <view class="ic ic--speed"></view>
-      <text wx:if="{{speedLabel !== '1.0x'}}" class="dock__speed-text">{{speedLabel}}</text>
     </view>
   </view>
 </view>

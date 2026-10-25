@@ -341,6 +341,27 @@ describe('resolveBrandCoverHttps · 失败容错', () => {
       assert.equal(mock.uploadCalls(), 1);
     });
   });
+
+  test('支持按浅色/深色主题分别解析与独立缓存', async () => {
+    const mock = setup({
+      tempUrl: (callNo: number) => `https://bucket.tcb.qcloud.la/brand/brand_icon_${callNo % 2 === 1 ? 'dark' : 'light'}.png`,
+    });
+    await withFakeClock(async () => {
+      const darkUrl = await resolveBrandCoverHttps('dark');
+      assert.ok(darkUrl.includes('dark'));
+      const lightUrl = await resolveBrandCoverHttps('light');
+      assert.ok(lightUrl.includes('light'));
+      assert.notEqual(darkUrl, lightUrl);
+      assert.equal(mock.uploadCalls(), 2, '深浅双模式各自上传对应资源');
+
+      // 验证内存命中不重复上传
+      const cachedDark = await resolveBrandCoverHttps('dark');
+      const cachedLight = await resolveBrandCoverHttps('light');
+      assert.equal(cachedDark, darkUrl);
+      assert.equal(cachedLight, lightUrl);
+      assert.equal(mock.uploadCalls(), 2, '命中缓存不触发再次上传');
+    });
+  });
 });
 
 test('解析失败日志不包含原始异常对象', async () => {
