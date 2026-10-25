@@ -35,24 +35,24 @@ page {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--ep-radius-pill);
-  background-color: var(--ep-surface-inset);
-  border: 1px solid var(--ep-border);
+  background: transparent;
+  border: none;
   box-sizing: border-box;
-  transition: transform var(--ep-dur-fast) var(--ep-ease-smooth-out),
-    opacity var(--ep-dur-fast) var(--ep-ease-smooth-out);
+  transition: opacity var(--ep-dur-fast) var(--ep-ease-smooth-out);
 }
 
 .pl__back--hover {
-  transform: scale(0.92);
-  opacity: 0.8;
+  opacity: 0.5;
 }
 
-.pl__back-icon {
-  font-size: 16px;
-  font-weight: var(--ep-fw-bold);
-  color: var(--ep-text-primary);
-  line-height: 1;
+.pl__back-chevron {
+  width: 10px;
+  height: 10px;
+  border-left: 2.2px solid var(--ep-text-primary);
+  border-bottom: 2.2px solid var(--ep-text-primary);
+  transform: rotate(45deg);
+  margin-left: 4px;
+  box-sizing: border-box;
 }
 
 .pl__bar-title-wrap {
@@ -64,8 +64,9 @@ page {
 }
 
 .pl__bar-title {
-  font-size: 16px;
-  font-weight: var(--ep-fw-heavy);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.2;
   color: var(--ep-text-primary);
   letter-spacing: -0.3px;
   overflow: hidden;

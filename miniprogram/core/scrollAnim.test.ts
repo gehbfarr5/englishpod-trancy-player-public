@@ -120,6 +120,21 @@ describe('computePodcastScrollTarget · Apple Podcasts 防抖与停靠引擎', (
     assert.equal(res.shouldScroll, false);
   });
 
+  test('首句（index=0）即使存在容器内边距（itemTop=12px），停靠目标仍恒定为 0 且无微动', () => {
+    const res = computePodcastScrollTarget({
+      targetIndex: 0,
+      totalCount: 30,
+      itemTop: 12,
+      itemHeight: 40,
+      viewportHeight: 600,
+      totalContentHeight: 2000,
+      currentScrollTop: 0,
+    });
+    assert.equal(res.alignRatio, 0.0);
+    assert.equal(res.targetScrollTop, 0);
+    assert.equal(res.shouldScroll, false);
+  });
+
   test('常规播放句收敛于视口 32% 黄金阅读线', () => {
     const res = computePodcastScrollTarget({
       targetIndex: 5,
