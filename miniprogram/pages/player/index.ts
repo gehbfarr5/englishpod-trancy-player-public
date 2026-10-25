@@ -429,6 +429,10 @@ Page<PageData, PageCustom>({
 
   onLoad(query: Record<string, string | undefined>) {
     this.hasUserScrolledTranscript = false;
+    this.stopTick();
+    this.clockSample = undefined;
+    this.lastTickMs = 0;
+    this.settleUntilMs = 0;
     this.programmaticUntil = Date.now() + 1500;
     this.initNavMetrics();
     // Explicit preview-only opt-in; production release and ordinary sessions never record.
@@ -462,6 +466,10 @@ Page<PageData, PageCustom>({
     });
 
     const lessonId = query.lessonId || '1';
+    const isThisLessonActive = playbackSession.isLessonActive(lessonId, 'pb');
+    if (this.audio && !isThisLessonActive.isActive) {
+      this.audio.pause();
+    }
 
     // 优先从缓存加载课程列表与当前课程元数据（实现 0ms 标题/难度直出）
     try {
@@ -618,9 +626,9 @@ Page<PageData, PageCustom>({
     this.audio = createPlayerAudio();
     this.audio.setEvents({
       onTimeUpdate: (positionSec: number) => {
-        // 音频加载锁定期（load 后、canplay 解锁前）：
+        // 音频加载锁定期（load 后、canplay 解锁前）或新课程加载期间：
         // 平台上报的旧轨尾值或瞬时假 0 绝不校正新轨采样点，防止进度条与台本错乱。
-        if (playbackSession.isAudioLoading()) {
+        if (playbackSession.isAudioLoading() || this.data.isAudioLoading) {
           return;
         }
         // 换源 / 切轨后的镇定窗口内，平台上报的是新 src 的假 0（或旧 src 的尾值），
@@ -697,6 +705,11 @@ Page<PageData, PageCustom>({
     // §4.1.1 / §5.2：切课前保存**离开音轨**的有效断点（此时 detail 仍是旧课）。
     if (previousLessonId && previousLessonId !== lessonId) {
       this.commitProgress('lessonSwitch');
+      this.stopTick();
+      this.clockSample = undefined;
+      this.lastTickMs = 0;
+      this.settleUntilMs = 0;
+      this.audio?.pause();
     }
 
     // §5.2：切课期间 this.detail 会先换成新课，而音频仍是上一条；这段窗口内的
@@ -717,12 +730,22 @@ Page<PageData, PageCustom>({
     this.hideLocateBar();
 
     if (!isCurrentlyActiveLesson) {
+      this.stopTick();
+      this.clockSample = undefined;
+      this.lastTickMs = 0;
+      this.settleUntilMs = 0;
+      this.audio?.pause();
       this.setData({
         isTranscriptReady: false,
         playerErrorMsg: '',
         ended: false,
         isAudioLoading: true,
         isPlaying: false,
+        activeSegIdx: 0,
+        playerProgressPct: 0,
+        positionLabel: '0:00',
+        playerScrollTop: 0,
+        playerScrollTopPb: 0,
       });
     } else {
       this.setData({ isTranscriptReady: true, playerErrorMsg: '', ended: false });
@@ -1461,6 +1484,19 @@ Page<PageData, PageCustom>({
   ): void {
     const isDg = track === 'dg';
     const trackProp = isDg ? 'playerScrollTopDg' : 'playerScrollTopPb';
+    const current = isDg ? this.data.playerScrollTopDg : this.data.playerScrollTopPb;
+
+    // 若目标是 0 且当前已停留在 0（或 1px 内），跳过下发以彻底消除起播微抖动
+    if (top === 0 && Math.abs(current) < 1) {
+      this.lastPlayerScrollTop = 0;
+      if (isDg) this.lastPlayerScrollTopDg = 0;
+      else this.lastPlayerScrollTopPb = 0;
+      return;
+    }
+
+    if (Math.abs(current - top) < 1 && this.lastPlayerScrollTop === top) {
+      return;
+    }
 
     this.lastPlayerScrollTop = top;
     if (isDg) {
@@ -1469,7 +1505,6 @@ Page<PageData, PageCustom>({
       this.lastPlayerScrollTopPb = top;
     }
 
-    const current = isDg ? this.data.playerScrollTopDg : this.data.playerScrollTopPb;
     const effectiveTop = Math.abs(current - top) < 0.5 ? (top > 1 ? top - 0.5 : top + 0.5) : top;
 
     const patch: Record<string, unknown> = {

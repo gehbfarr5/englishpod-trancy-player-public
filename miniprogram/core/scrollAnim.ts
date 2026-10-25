@@ -192,6 +192,17 @@ export function computePodcastScrollTarget(
   const maxScrollTop = Math.max(0, totalContentHeight - viewportHeight);
   const currentScrollTop = clampScrollTop(opts.currentScrollTop, maxScrollTop);
 
+  // 0. 首句（句 0）：首句位于列表顶端，停靠目标恒定为 0，防止内边距/测量舍入造成数像素的微位移与起播跳动
+  if (clampedIndex === 0) {
+    const shouldScroll = currentScrollTop > 0;
+    return {
+      shouldScroll,
+      targetScrollTop: 0,
+      isDockedAtBottom: false,
+      alignRatio: 0,
+    };
+  }
+
   // 1. Apple Podcasts 触底停靠判据：
   // 列表已物理到达底端（误差 2px 内），且目标句在当前视口内完全可见。
   const isDockedAtBottom = currentScrollTop >= maxScrollTop - 2;

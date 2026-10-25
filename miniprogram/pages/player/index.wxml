@@ -19,7 +19,7 @@
         aria-label="返回课程列表"
         role="button"
       >
-        <text class="pl__back-icon">←</text>
+        <view class="pl__back-chevron"></view>
       </view>
       <view class="pl__bar-title-wrap">
         <text class="pl__bar-title">{{displayTitle || lessonTitle}}</text>

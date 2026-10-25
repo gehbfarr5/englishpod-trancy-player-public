@@ -205,7 +205,7 @@
   text-align: left;
 }
 
-/* Row 3：工具键（4 键等宽无缝排满，不要留空隙） */
+/* Row 3：工具键（4 键等宽分布，加入间隔防止点击按压动效错位） */
 .dock__util {
   display: flex;
   flex-direction: row;
@@ -214,6 +214,7 @@
   box-sizing: border-box;
   height: var(--ep-util-h);
   margin-top: var(--ep-space-md);
+  gap: 8px;
 }
 
 .dock__util-btn {
@@ -224,21 +225,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: -1px;
-  border-radius: 0;
+  border-radius: var(--ep-stage-radius);
   background-color: var(--ep-metro-btn-bg);
   border: 1px solid var(--ep-border);
-}
-
-.dock__util-btn--left {
-  border-top-left-radius: var(--ep-stage-radius);
-  border-bottom-left-radius: var(--ep-stage-radius);
-}
-
-.dock__util-btn--right {
-  margin-right: 0;
-  border-top-right-radius: var(--ep-stage-radius);
-  border-bottom-right-radius: var(--ep-stage-radius);
 }
 
 .dock__util-btn.is-on {
