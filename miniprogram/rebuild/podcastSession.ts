@@ -42,6 +42,11 @@ export class PodcastSession {
   private emit() { for (const listener of this.listeners) listener(); }
   async open(id: string, mode: EntryMode = 'library'): Promise<void> {
     if (!this.ids.includes(id)) throw new Error('Unknown course');
+    if (this.course?.id === id && this.ready && mode === 'shareEntry') {
+      // Opening a shared link to the already active lesson must not restart or interrupt it.
+      this.emit();
+      return;
+    }
     if (this.course?.id === id && this.ready && (mode === 'library' || mode === 'resume')) {
       this.play(); return;
     }

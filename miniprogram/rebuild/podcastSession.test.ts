@@ -46,6 +46,22 @@ test('saved position restores after a new session, completed course starts from 
  x.journal.commitCompleted('B');await x.session.open('B');await x.session.event('ready',x.session.state().generation);
  assert.equal(x.state.positionMs,0);assert.equal(x.journal.readRecord('B').lessonCompleted,true);
 });
+test('shared lesson entry waits for a play tap and preserves an already active copy',async()=>{
+ const x=setup();
+ await x.session.open('A','shareEntry');
+ const shareGeneration=x.session.state().generation;
+ await x.session.event('ready',shareGeneration);
+ assert.equal(x.session.state().wantsPlay,false);
+ assert.equal(x.state.playing,false);
+ assert.equal(x.state.positionMs,0);
+
+ x.session.play();
+ assert.equal(x.state.playing,true);
+ const loadsBeforeSameLessonShare=x.loads.length;
+ await x.session.open('A','shareEntry');
+ assert.equal(x.loads.length,loadsBeforeSameLessonShare);
+ assert.equal(x.state.playing,true);
+});
 test('system pause affects manual navigation intent; confirmed system resume is accepted',async()=>{
  const x=setup();await x.session.open('A');const g=x.session.state().generation;
  await x.session.event('ready',g);x.state.playing=false;await x.session.event('pause',g);

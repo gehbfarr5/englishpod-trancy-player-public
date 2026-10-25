@@ -37,6 +37,8 @@ export type EntryMode =
   | 'library'
   /** 点击「继续收听」卡片（主体或播放图标）。 */
   | 'resume'
+  /** Shared lesson deep link: open the Podcast at 00:00 and wait for an explicit play tap. */
+  | 'shareEntry'
   /** 页内手动上一课 / 下一课。 */
   | 'manualNav'
   /** PB 自然结束触发的自动连播（含末课环绕回第一课）。 */
@@ -108,6 +110,7 @@ function normalizeIndex(targetIndex: number): number {
  *   | mode      | track        | startMs                    | autoPlay     | 关单句循环 |
  *   | library   | pb           | PB 有效断点（完成/末尾→0） | true         | false      |
  *   | resume    | pb           | 同上                       | true         | false      |
+ *   | shareEntry| pb           | **0**                      | false        | false      |
  *   | manualNav | 继承当前音轨 | **0**                      | = wasPlaying | **true**   |
  *   | autoNext  | pb           | **0**                      | true         | **true**   |
  */
@@ -140,6 +143,16 @@ export function planEntry(input: EntryPlanInput): EntryPlan {
         startMs: 0,
         autoPlay: true,
         resetSingleSentenceLoop: true,
+        canGoPrev,
+        canGoNext,
+        autoNextTargetIndex,
+      };
+    case 'shareEntry':
+      return {
+        track: 'pb',
+        startMs: 0,
+        autoPlay: false,
+        resetSingleSentenceLoop: false,
         canGoPrev,
         canGoNext,
         autoNextTargetIndex,
