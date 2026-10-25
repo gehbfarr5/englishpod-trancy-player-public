@@ -37,8 +37,6 @@ interface M1PageCustom {
   media?: WechatM1BackgroundAudioPort;
   experiment?: SinglePodcastExperiment;
   source?: string;
-  isVisible?: boolean;
-  isDisposed?: boolean;
 
   initializeLesson(): Promise<void>;
   refreshState(): void;
@@ -95,8 +93,6 @@ Page<M1PageData, M1PageCustom>({
   },
 
   async onLoad() {
-    this.isVisible = true;
-    this.isDisposed = false;
     if (!isNonReleaseEnvironment()) {
       this.setData({
         isBlocked: true,
@@ -128,18 +124,10 @@ Page<M1PageData, M1PageCustom>({
   },
 
   onShow() {
-    if (this.isDisposed) return;
-    this.isVisible = true;
     this.refreshState();
   },
 
-  onHide() {
-    this.isVisible = false;
-  },
-
   onUnload() {
-    this.isDisposed = true;
-    this.isVisible = false;
     if (this.experiment?.state().playback.isPlaying) {
       this.experiment.pause();
     }
@@ -151,17 +139,14 @@ Page<M1PageData, M1PageCustom>({
     try {
       const cloud = new WechatCloudAdapter();
       const index = await cloud.getLessonIndex();
-      if (this.isDisposed) return;
       const lesson = index.find((item) => item.lessonId === '0001');
       if (!lesson) throw new Error('Lesson 0001 is not available in the course index.');
 
       const detail = await cloud.getLessonDetail('0001');
-      if (this.isDisposed) return;
       const audioFileId = cloud.resolveAudioFileId('0001', 'pb', detail.audio.pb);
       if (!audioFileId) throw new Error('Podcast audio is unavailable for lesson 0001.');
       const source = await resolvePlayableUrl(audioFileId);
 
-      if (this.isDisposed) return;
       this.source = source;
       this.setData({
         isLoadingLesson: false,
@@ -173,7 +158,6 @@ Page<M1PageData, M1PageCustom>({
         status: 'Ready. Tap “Play Podcast” to start the single audio session.',
       });
     } catch (error) {
-      if (this.isDisposed) return;
       this.setData({
         isLoadingLesson: false,
         status: error instanceof Error ? error.message : 'Lesson data could not be loaded.',
@@ -182,7 +166,7 @@ Page<M1PageData, M1PageCustom>({
   },
 
   refreshState(): void {
-    if (!this.experiment || !this.isVisible || this.isDisposed) return;
+    if (!this.experiment) return;
     const state: M1ExperimentState = this.experiment.state();
     const commandTotal =
       state.commands.sourceLoads +

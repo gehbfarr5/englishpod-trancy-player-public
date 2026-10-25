@@ -21,7 +21,7 @@ Component({
   methods: {
     openExperiment() {
       if (!this.data.visible) return;
-      wx.navigateTo({ url: '/pages/rebuildPlayer/index' });
+      wx.navigateTo({ url: '/pages/m1Experiment/index' });
     },
   },
 });
