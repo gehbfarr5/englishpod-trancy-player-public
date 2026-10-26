@@ -18,6 +18,7 @@ exports.main = async (event, context) => {
     const productId = event.productId || 'ep_unlock_all';
     const productName = event.productName || 'EnglishPod 335课终身精听通卡';
     const priceFen = event.priceFen || 990;
+    const platform = (event.platform && String(event.platform).toLowerCase() === 'ios') ? 'ios' : 'android';
     const outTradeNo = `EP_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
     const signData = {
@@ -25,7 +26,7 @@ exports.main = async (event, context) => {
       buyQuantity: 1,
       env: 0, // 0: 正式版, 1: 沙箱
       currencyType: 'CNY',
-      platform: 'android',
+      platform,
       productId,
       goodsPrice: priceFen,
       outTradeNo,
@@ -37,7 +38,7 @@ exports.main = async (event, context) => {
     let paySig = '';
     let signature = '';
     if (appKey) {
-      const signStr = `buyQuantity=1&currencyType=CNY&env=${signData.env}&goodsPrice=${priceFen}&outTradeNo=${outTradeNo}&platform=android&productId=${productId}&key=${appKey}`;
+      const signStr = `buyQuantity=1&currencyType=CNY&env=${signData.env}&goodsPrice=${priceFen}&outTradeNo=${outTradeNo}&platform=${platform}&productId=${productId}&key=${appKey}`;
       paySig = crypto.createHmac('sha256', appKey).update(signStr).digest('hex');
       signature = crypto.createHmac('sha256', appKey).update(JSON.stringify(signData)).digest('hex');
     }

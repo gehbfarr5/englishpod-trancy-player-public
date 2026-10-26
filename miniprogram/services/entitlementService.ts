@@ -168,12 +168,23 @@ export class EntitlementService {
     let signResult: Record<string, unknown> | null = null;
     try {
       if (wx.cloud && typeof wx.cloud.callFunction === 'function') {
+        let clientPlatform = 'android';
+        try {
+          const sys = wx.getSystemInfoSync();
+          if (sys && sys.platform) {
+            clientPlatform = sys.platform.toLowerCase() === 'ios' ? 'ios' : 'android';
+          }
+        } catch {
+          // fallback to android
+        }
+
         const signCall = await wx.cloud.callFunction({
           name: 'virtualPaySign',
           data: {
             productId: LIFETIME_PRODUCT_ID,
             productName: LIFETIME_PRODUCT_NAME,
             priceFen: LIFETIME_UNLOCK_PRICE_FEN,
+            platform: clientPlatform,
           },
         });
         signResult = ((signCall && signCall.result) as Record<string, unknown>) || null;
