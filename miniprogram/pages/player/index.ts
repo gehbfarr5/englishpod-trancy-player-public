@@ -322,6 +322,7 @@ interface PageCustom {
     segIdx: number,
     opts?: { animated?: boolean; onResult?: (applied: boolean) => void },
   ): void;
+  scrollToTrialLockCard(): void;
   currentLiveSentence(): string;
   startLocateCountdown(): void;
   hideLocateBar(): void;
@@ -1116,6 +1117,7 @@ Page<PageData, PageCustom>({
       if (limitSeg && pos >= limitSeg.end) {
         this.audio?.pause();
         this.setData({ isPlaying: false, showUnlockModal: true });
+        this.scrollToTrialLockCard();
         return;
       }
     }
@@ -1622,6 +1624,25 @@ Page<PageData, PageCustom>({
     });
   },
 
+  scrollToTrialLockCard(): void {
+    wx.createSelectorQuery()
+      .select('#pbViewport')
+      .boundingClientRect()
+      .select('#trialLockCard')
+      .boundingClientRect()
+      .select('#pbViewport')
+      .fields({ scrollOffset: true })
+      .exec((res) => {
+        if (!res || !res[0] || !res[1] || !res[2]) return;
+        const viewportRect = res[0] as { top: number; height: number };
+        const cardRect = res[1] as { top: number };
+        const offset = res[2] as { scrollTop: number };
+        const targetTop = (offset.scrollTop || 0) + (cardRect.top - viewportRect.top) - 24;
+        this.programmaticUntil = Math.max(this.programmaticUntil ?? 0, Date.now() + 1500);
+        this.scrollViewportTo('pb', Math.max(0, targetTop), true);
+      });
+  },
+
   currentLiveSentence(): string {
     if (!this.tracker) return '';
     const segs = this.currentSegments();
@@ -1851,6 +1872,7 @@ Page<PageData, PageCustom>({
       const pos = this.effectivePositionSec();
       if (limitSeg && pos >= limitSeg.end) {
         this.setData({ showUnlockModal: true });
+        this.scrollToTrialLockCard();
         return;
       }
     }
@@ -1980,6 +2002,7 @@ Page<PageData, PageCustom>({
     if (this.data.isLessonLocked && Number.isFinite(this.maxAllowedSegIdx) && nextIdx > (this.maxAllowedSegIdx as number)) {
       this.audio?.pause();
       this.setData({ isPlaying: false, showUnlockModal: true });
+      this.scrollToTrialLockCard();
       return;
     }
     if (cur >= 0 && cur < segs.length - 1) {
@@ -2284,6 +2307,7 @@ Page<PageData, PageCustom>({
         this.audio?.pause();
         this.setData({ isPlaying: false, showUnlockModal: true });
         this.seekTo(limitSeg.start);
+        this.scrollToTrialLockCard();
         return;
       }
     }
@@ -2294,6 +2318,7 @@ Page<PageData, PageCustom>({
     const segIdx = event.detail && event.detail.segIdx;
     if (this.data.isLessonLocked && Number.isFinite(this.maxAllowedSegIdx) && typeof segIdx === 'number' && segIdx > (this.maxAllowedSegIdx as number)) {
       this.setData({ showUnlockModal: true });
+      this.scrollToTrialLockCard();
       return;
     }
     const segs = this.currentSegments();
@@ -2304,6 +2329,7 @@ Page<PageData, PageCustom>({
 
   onOpenUnlockModal(): void {
     this.setData({ showUnlockModal: true });
+    this.scrollToTrialLockCard();
   },
 
   onCloseUnlockModal(): void {
