@@ -12,6 +12,7 @@
 
 import { WechatCloudAdapter } from '../../adapters/wechat/cloud';
 import { APP_DISPLAY_NAME, USE_MOCK_DATA } from '../../config/env';
+import { isLessonLocked } from '../../core/entitlement';
 import {
   countByFilter,
   deriveCardStatus,
@@ -24,6 +25,7 @@ import {
   ProgressMap,
 } from '../../core/types';
 import { MockCloudAdapter } from '../../mock/index';
+import { entitlementService } from '../../services/entitlementService';
 import { playbackSession } from '../../services/playbackSession';
 import { progressJournal } from '../../services/progressJournal';
 
@@ -42,6 +44,7 @@ interface LessonCardModel {
   level: string;
   statusLabel: string;
   isDone: boolean;
+  isLocked: boolean;
   isCurrent: boolean;
   highlight: boolean;
   barValue: number;
@@ -83,6 +86,7 @@ interface PageCustom {
   unsubscribeProgress?: () => void;
   unsubscribeLessonChange?: () => void;
   unsubscribeState?: () => void;
+  unsubscribeEntitlement?: () => void;
 
   initNavMetrics(): void;
   loadLibraryData(): Promise<void>;
@@ -155,6 +159,13 @@ Page<PageData, PageCustom>({
       }
     });
 
+    // 订阅用户 VIP 权益变更：解锁时即时刷新列表锁标
+    this.unsubscribeEntitlement = entitlementService.subscribe(() => {
+      if (this.isPageVisible) {
+        this.refreshLibraryView();
+      }
+    });
+
     // 1. 同步尝试从 Storage 读取已缓存的 335 课索引，实现 0ms 秒开呈现
     try {
       const cached = wx.getStorageSync(CACHE_KEY_LESSON_INDEX);
@@ -193,6 +204,7 @@ Page<PageData, PageCustom>({
     this.unsubscribeProgress?.();
     this.unsubscribeLessonChange?.();
     this.unsubscribeState?.();
+    this.unsubscribeEntitlement?.();
   },
 
   initNavMetrics(): void {
@@ -286,6 +298,7 @@ Page<PageData, PageCustom>({
     const lessons = this.lessons || [];
     const recs = this.records || {};
     const lastId = this.lastPlayedId || (lessons[0] && lessons[0].lessonId);
+    const isVip = entitlementService.isVip();
 
     const result: LessonCardModel[] = [];
     let displaySeq = 1;
@@ -293,6 +306,7 @@ Page<PageData, PageCustom>({
       const rec = recs[item.lessonId];
       const status = deriveCardStatus(rec);
       const isCurrent = item.lessonId === lastId;
+      const isLocked = isLessonLocked(item.lessonId, isVip);
       result.push({
         lessonId: item.lessonId,
         indexText: zeroPad2(displaySeq++),
@@ -300,6 +314,7 @@ Page<PageData, PageCustom>({
         level: item.level,
         statusLabel: status.statusLabel,
         isDone: status.isDone,
+        isLocked,
         isCurrent,
         highlight: isCurrent || status.highlight,
         barValue: status.barValue,

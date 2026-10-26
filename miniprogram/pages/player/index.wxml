@@ -92,6 +92,24 @@
           bind:lineTap="onLineTap"
           bind:toggleBox="onToggleBox"
         />
+
+        <!-- 试听截断引导卡片（仅付费锁定课显示） -->
+        <view wx:if="{{isLessonLocked}}" class="pl__trial-lock-card">
+          <view class="pl__trial-lock-mask"></view>
+          <view class="pl__trial-lock-box">
+            <view class="pl__trial-lock-icon"></view>
+            <text class="pl__trial-lock-title">当前课程试听已结束</text>
+            <text class="pl__trial-lock-desc">解锁全套 335 门课程，终身畅听完整音频与台本</text>
+            <button
+              class="pl__trial-lock-btn"
+              hover-class="pl__trial-lock-btn--hover"
+              bindtap="onOpenUnlockModal"
+            >
+              <text class="pl__trial-lock-btn-text">立即解锁 · ¥{{priceYuan}}</text>
+            </button>
+          </view>
+        </view>
+
         <view class="pl__body-pad"></view>
       </scroll-view>
     </view>
@@ -135,4 +153,13 @@
   <view wx:if="{{playerErrorMsg}}" class="pl__overlay">
     <text class="pl__overlay-text">{{playerErrorMsg}}</text>
   </view>
+
+  <!-- 课程解锁收银台底弹窗 -->
+  <unlock-modal
+    visible="{{showUnlockModal}}"
+    loading="{{isUnlocking}}"
+    price-yuan="{{priceYuan}}"
+    bind:close="onCloseUnlockModal"
+    bind:unlock="onConfirmUnlock"
+  />
 </view>

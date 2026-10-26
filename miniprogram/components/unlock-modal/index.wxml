@@ -1,0 +1,74 @@
+<!-- 解锁弹窗底抽屉 -->
+<view class="unlock-mask {{visible ? 'is-visible' : ''}}" bindtap="onClose">
+  <view class="unlock-sheet {{visible ? 'is-open' : ''}}" catchtap="noop">
+    <!-- 顶部拖拽把手与关闭键 -->
+    <view class="unlock-sheet__header">
+      <view class="unlock-sheet__grabber"></view>
+      <view class="unlock-sheet__close" hover-class="unlock-sheet__close--hover" bindtap="onClose">
+        <text class="unlock-sheet__close-text">✕</text>
+      </view>
+    </view>
+
+    <!-- 弹窗内容主体 -->
+    <view class="unlock-sheet__content">
+      <!-- 勋章图标与大标题 -->
+      <view class="unlock-sheet__badge-box">
+        <view class="unlock-sheet__badge">
+          <text class="unlock-sheet__badge-text">VIP</text>
+        </view>
+        <text class="unlock-sheet__title">解锁全套 EnglishPod 课程</text>
+        <text class="unlock-sheet__subtitle">前 10 课完全免费试听 · 解锁后永久畅听全量 335 课</text>
+      </view>
+
+      <!-- 价格标牌 -->
+      <view class="unlock-sheet__price-card">
+        <view class="unlock-sheet__price-left">
+          <text class="unlock-sheet__price-tag">终身买断特惠</text>
+          <text class="unlock-sheet__price-desc">包含全集音频与双语逐词高亮台本</text>
+        </view>
+        <view class="unlock-sheet__price-right">
+          <text class="unlock-sheet__currency">¥</text>
+          <text class="unlock-sheet__amount">{{priceYuan}}</text>
+        </view>
+      </view>
+
+      <!-- 权益列表 -->
+      <view class="unlock-sheet__benefits">
+        <view class="benefit-item">
+          <text class="benefit-icon">✓</text>
+          <view class="benefit-info">
+            <text class="benefit-title">全套 335 门原版剧集</text>
+            <text class="benefit-sub">包含对话、生词、原速与精讲慢速全音轨</text>
+          </view>
+        </view>
+        <view class="benefit-item">
+          <text class="benefit-icon">✓</text>
+          <view class="benefit-info">
+            <text class="benefit-title">双语对照 + 逐词实时高亮</text>
+            <text class="benefit-sub">精听跟读、生词点查、单句循环与倍速随心听</text>
+          </view>
+        </view>
+        <view class="benefit-item">
+          <text class="benefit-icon">✓</text>
+          <view class="benefit-info">
+            <text class="benefit-title">终身有效 · 进度多端记录</text>
+            <text class="benefit-sub">微信账号一键开通，断点记忆与锁屏后台播放</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 底部行动按钮 -->
+      <view class="unlock-sheet__action">
+        <button
+          class="unlock-btn {{loading ? 'is-loading' : ''}}"
+          hover-class="unlock-btn--hover"
+          disabled="{{loading}}"
+          bindtap="onUnlock"
+        >
+          <text class="unlock-btn__text">{{loading ? '处理中...' : '立即开通 · 永久有效 ¥' + priceYuan}}</text>
+        </button>
+        <text class="unlock-sheet__tip">通过微信官方虚拟支付安全结算，一次付费永久拥有</text>
+      </view>
+    </view>
+  </view>
+</view>

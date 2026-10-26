@@ -72,6 +72,9 @@ export const CLOUD_STORAGE_FILEID_PREFIX: string =
 export const CLOUD_FUNCTION_NAMES = {
   getLessonIndex: 'getLessonIndex',
   getLessonDetail: 'getLessonDetail',
+  getEntitlement: 'getEntitlement',
+  virtualPaySign: 'virtualPaySign',
+  virtualPayDeliver: 'virtualPayDeliver',
 } as const;
 
 /** 单次云函数调用的超时时间（毫秒）。 */

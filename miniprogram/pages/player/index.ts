@@ -20,6 +20,12 @@ import { HighlightCursorTracker } from '../../core/highlightCursor';
 import { formatLessonAttributes } from '../../core/lessonAttributes';
 import { isWithinFocusViewport } from '../../core/locateBar';
 import { CommitReason, PB_COMPLETED_PCT, isContinuousMediaAdvance } from '../../core/learningRecord';
+import {
+  LIFETIME_UNLOCK_PRICE_YUAN,
+  PREVIEW_SENTENCE_LIMIT,
+  filterBlocksForPreview,
+  isLessonLocked,
+} from '../../core/entitlement';
 import { reconcileActivePlayhead } from '../../core/resumeReconcile';
 import {
   EntryMode,
@@ -41,6 +47,7 @@ import {
 import { SWITCH_SETTLE_MS, decideSettle } from '../../core/switchSettle';
 import { ClockSample, correctSample, extrapolatePosition } from '../../core/timelineEngine';
 import { TrackStateMachine } from '../../core/trackStateMachine';
+import { entitlementService } from '../../services/entitlementService';
 import { playbackSession } from '../../services/playbackSession';
 import { progressJournal } from '../../services/progressJournal';
 import {
@@ -181,9 +188,15 @@ interface PageData {
   hasNextLesson: boolean;
   showLocateBar: boolean;
   locateSentence: string;
+  isLessonLocked: boolean;
+  showUnlockModal: boolean;
+  isUnlocking: boolean;
+  priceYuan: string;
 }
 
 interface PageCustom {
+  maxAllowedSegIdx?: number;
+  unsubscribeEntitlement?: () => void;
   adapter?: CloudAdapter;
   audio?: AudioAdapter;
   localDiagnostics?: PlaybackDiagnosticSession | null;
@@ -362,6 +375,9 @@ interface PageCustom {
   onTranscriptDragEnd(): void;
   onTranscriptScroll(event: WechatMiniprogram.ScrollViewScroll): void;
   onLocateTap(): void;
+  onOpenUnlockModal(): void;
+  onCloseUnlockModal(): void;
+  onConfirmUnlock(): Promise<void>;
   onShareAppMessage(): WechatMiniprogram.Page.ICustomShareContent;
   onShareTimeline(): WechatMiniprogram.Page.ICustomTimelineContent;
 }
@@ -399,6 +415,10 @@ Page<PageData, PageCustom>({
     hasNextLesson: false,
     showLocateBar: false,
     locateSentence: '',
+    isLessonLocked: false,
+    showUnlockModal: false,
+    isUnlocking: false,
+    priceYuan: LIFETIME_UNLOCK_PRICE_YUAN,
   },
 
   autoScroll: true,
@@ -493,6 +513,21 @@ Page<PageData, PageCustom>({
 
     this.setupAudio();
 
+    this.unsubscribeEntitlement = entitlementService.subscribe((isVip) => {
+      if (isVip && this.data.isLessonLocked) {
+        this.setData({ isLessonLocked: false, showUnlockModal: false });
+        if (this.detail) {
+          const matcher = buildVocabMatcher(this.detail.vocabulary);
+          this.blocksByTrack = {
+            dg: toTranscriptBlocks(this.detail.tracks.dg, 'dg', matcher),
+            pb: toTranscriptBlocks(this.detail.tracks.pb, 'pb', matcher),
+          };
+          this.maxAllowedSegIdx = Infinity;
+          this.setData({ blocksPb: this.blocksByTrack.pb });
+        }
+      }
+    });
+
     // §5.2：播放/暂停由 `playRequested` 决定，加载完成时只服从用户最新意图，
     // 因此这里不再挂 `.then(() => this.play())`（迟到回调会覆盖用户暂停）。
     void this.loadLessonDetail(lessonId, initialMode);
@@ -531,6 +566,7 @@ Page<PageData, PageCustom>({
     this.saveLocalDiagnostics();
     this.stopTick();
     this.hideLocateBar();
+    this.unsubscribeEntitlement?.();
     // 诊断接线随页面卸载断开，避免闭包持有已销毁页面。
     progressJournal.setHoldListener(null);
     this.commitProgress('lessonSwitch');
@@ -758,11 +794,18 @@ Page<PageData, PageCustom>({
       const dgSegments = detail.tracks.dg;
       const pbSegments = detail.tracks.pb;
 
+      const isVip = entitlementService.isVip();
+      const isLocked = isLessonLocked(lessonId, isVip);
+
       this.detail = detail;
       this.segmentsByTrack = { dg: dgSegments, pb: pbSegments };
+      const rawPbBlocks = toTranscriptBlocks(pbSegments, 'pb', matcher);
+      const previewRes = filterBlocksForPreview(rawPbBlocks, isLocked, PREVIEW_SENTENCE_LIMIT);
+      this.maxAllowedSegIdx = previewRes.maxAllowedSegIdx;
+
       this.blocksByTrack = {
         dg: toTranscriptBlocks(dgSegments, 'dg', matcher),
-        pb: toTranscriptBlocks(pbSegments, 'pb', matcher),
+        pb: previewRes.blocks,
       };
       this.durations = { dg: lastEnd(dgSegments), pb: lastEnd(pbSegments) };
 
@@ -827,6 +870,7 @@ Page<PageData, PageCustom>({
       }
 
       this.setData({
+        isLessonLocked: isLocked,
         lessonTitle: detail.title,
         lessonLevel: detail.level,
         displayTitle,
@@ -1064,6 +1108,17 @@ Page<PageData, PageCustom>({
     // 换源瞬间的假 0 不能进入渲染（进度条归零 + 台本跳回首句 = 真机闪屏）。
     const pos = this.effectivePositionSec();
     const dur = this.currentDurationSec();
+
+    // 付费试听课程限制：播完第 6 句自动暂停并弹出收银台
+    if (this.data.isLessonLocked && Number.isFinite(this.maxAllowedSegIdx) && (this.maxAllowedSegIdx as number) >= 0) {
+      const segs = this.currentSegments();
+      const limitSeg = segs && segs[this.maxAllowedSegIdx as number];
+      if (limitSeg && pos >= limitSeg.end) {
+        this.audio?.pause();
+        this.setData({ isPlaying: false, showUnlockModal: true });
+        return;
+      }
+    }
 
     // 单句循环 (Single Sentence Loop) 判定：预留自然发音释放时间 (+80ms)，避免提前切断吞掉最后一个词的尾音
     if (this.data.singleSentenceLoop) {
@@ -1790,6 +1845,15 @@ Page<PageData, PageCustom>({
   },
 
   play(): void {
+    if (this.data.isLessonLocked && Number.isFinite(this.maxAllowedSegIdx) && (this.maxAllowedSegIdx as number) >= 0) {
+      const segs = this.currentSegments();
+      const limitSeg = segs && segs[this.maxAllowedSegIdx as number];
+      const pos = this.effectivePositionSec();
+      if (limitSeg && pos >= limitSeg.end) {
+        this.setData({ showUnlockModal: true });
+        return;
+      }
+    }
     // §5.2：先记录**用户意图**，再交给引擎；加载完成时以意图为准。
     this.playRequested = true;
     if (!this.audio || !this.detail) return;
@@ -1912,8 +1976,14 @@ Page<PageData, PageCustom>({
   nextSentence(): void {
     const segs = this.currentSegments();
     const cur = this.tracker ? this.tracker.current().segIdx : 0;
+    const nextIdx = cur + 1;
+    if (this.data.isLessonLocked && Number.isFinite(this.maxAllowedSegIdx) && nextIdx > (this.maxAllowedSegIdx as number)) {
+      this.audio?.pause();
+      this.setData({ isPlaying: false, showUnlockModal: true });
+      return;
+    }
     if (cur >= 0 && cur < segs.length - 1) {
-      this.seekTo(segs[cur + 1].start);
+      this.seekTo(segs[nextIdx].start);
     }
   },
 
@@ -2206,14 +2276,68 @@ Page<PageData, PageCustom>({
   onScrubEnd(event: WechatMiniprogram.CustomEvent<{ ratio: number }>): void {
     this.scrubbing = false;
     const ratio = event.detail && Number.isFinite(event.detail.ratio) ? event.detail.ratio : 0;
-    this.seekTo(ratio * this.currentDurationSec());
+    const targetSec = ratio * this.currentDurationSec();
+    if (this.data.isLessonLocked && Number.isFinite(this.maxAllowedSegIdx) && (this.maxAllowedSegIdx as number) >= 0) {
+      const segs = this.currentSegments();
+      const limitSeg = segs && segs[this.maxAllowedSegIdx as number];
+      if (limitSeg && targetSec > limitSeg.end) {
+        this.audio?.pause();
+        this.setData({ isPlaying: false, showUnlockModal: true });
+        this.seekTo(limitSeg.start);
+        return;
+      }
+    }
+    this.seekTo(targetSec);
   },
 
   onLineTap(event: WechatMiniprogram.CustomEvent<{ segIdx: number }>): void {
     const segIdx = event.detail && event.detail.segIdx;
+    if (this.data.isLessonLocked && Number.isFinite(this.maxAllowedSegIdx) && typeof segIdx === 'number' && segIdx > (this.maxAllowedSegIdx as number)) {
+      this.setData({ showUnlockModal: true });
+      return;
+    }
     const segs = this.currentSegments();
     if (typeof segIdx === 'number' && segs[segIdx]) {
       this.seekTo(segs[segIdx].start);
+    }
+  },
+
+  onOpenUnlockModal(): void {
+    this.setData({ showUnlockModal: true });
+  },
+
+  onCloseUnlockModal(): void {
+    this.setData({ showUnlockModal: false });
+  },
+
+  async onConfirmUnlock(): Promise<void> {
+    this.setData({ isUnlocking: true });
+    try {
+      const res = await entitlementService.requestUnlockPayment();
+      if (res.success) {
+        wx.showToast({ title: '解锁成功', icon: 'success' });
+        this.setData({ showUnlockModal: false, isLessonLocked: false });
+        if (this.detail) {
+          const matcher = buildVocabMatcher(this.detail.vocabulary);
+          this.blocksByTrack = {
+            dg: toTranscriptBlocks(this.detail.tracks.dg, 'dg', matcher),
+            pb: toTranscriptBlocks(this.detail.tracks.pb, 'pb', matcher),
+          };
+          this.maxAllowedSegIdx = Infinity;
+          this.setData({
+            blocksPb: this.blocksByTrack.pb,
+          });
+        }
+      } else {
+        if (res.errMsg && !res.errMsg.includes('cancel')) {
+          wx.showToast({ title: res.errMsg || '支付失败', icon: 'none' });
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      wx.showToast({ title: msg || '支付异常', icon: 'none' });
+    } finally {
+      this.setData({ isUnlocking: false });
     }
   },
 
