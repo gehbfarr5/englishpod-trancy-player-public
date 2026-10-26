@@ -1,17 +1,14 @@
 <!-- 解锁弹窗底抽屉 -->
 <view class="unlock-mask {{visible ? 'is-visible' : ''}}" bindtap="onClose">
   <view class="unlock-sheet {{visible ? 'is-open' : ''}}" catchtap="noop">
-    <!-- 顶部拖拽把手与关闭键 -->
+    <!-- 顶部拖拽把手（极简纯粹，点击遮罩空白区域即可关闭） -->
     <view class="unlock-sheet__header">
       <view class="unlock-sheet__grabber"></view>
-      <view class="unlock-sheet__close" hover-class="unlock-sheet__close--hover" bindtap="onClose">
-        <text class="unlock-sheet__close-text">✕</text>
-      </view>
     </view>
 
     <!-- 弹窗内容主体 -->
     <view class="unlock-sheet__content">
-      <!-- 大标题（移除 VIP 图标） -->
+      <!-- 大标题 -->
       <view class="unlock-sheet__badge-box">
         <text class="unlock-sheet__title">解锁全套 EnglishPod 课程</text>
         <text class="unlock-sheet__subtitle">前 10 课完全免费试听 · 解锁后永久畅听全量 335 课</text>
@@ -29,27 +26,27 @@
         </view>
       </view>
 
-      <!-- 权益列表（真实功能描述，剔除已精简项目） -->
+      <!-- 权益列表（真实功能描述，剔除未上线承诺） -->
       <view class="unlock-sheet__benefits">
         <view class="benefit-item">
           <text class="benefit-icon">✓</text>
           <view class="benefit-info">
-            <text class="benefit-title">全量 335 门原版剧集音频</text>
-            <text class="benefit-sub">无截断畅听，不再受前 6 句试听限制</text>
+            <text class="benefit-title">全量 335 门原版剧集无限畅听</text>
+            <text class="benefit-sub">无截断无限畅听，完整体验全部剧集内容</text>
           </view>
         </view>
         <view class="benefit-item">
           <text class="benefit-icon">✓</text>
           <view class="benefit-info">
-            <text class="benefit-title">原版双语台本实时同步滚动</text>
-            <text class="benefit-sub">台本随音频发音实时同频滚动呈现</text>
+            <text class="benefit-title">后续升级功能持续享有</text>
+            <text class="benefit-sub">后续新功能升级优先体验，保障全功能完整使用</text>
           </view>
         </view>
         <view class="benefit-item">
           <text class="benefit-icon">✓</text>
           <view class="benefit-info">
             <text class="benefit-title">一次开通终身有效</text>
-            <text class="benefit-sub">微信账号无缝绑定，断点记忆与锁屏后台播放</text>
+            <text class="benefit-sub">微信账号专属绑定，进度断点记忆跨设备接续</text>
           </view>
         </view>
       </view>

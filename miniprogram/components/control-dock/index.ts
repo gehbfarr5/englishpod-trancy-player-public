@@ -13,6 +13,8 @@ Component({
     isPlaying: { type: Boolean, value: false },
     /** 音频或资源是否正在加载/缓冲。 */
     isLoading: { type: Boolean, value: false },
+    /** 是否处于付费试听限制锁定状态（展示 Unlock 解锁效果）。 */
+    isUnlock: { type: Boolean, value: false },
     /**
      * 当前音轨是否已自然结束并停住（EP-PBC-001 §3.2）。
      *

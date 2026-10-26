@@ -189,6 +189,7 @@ interface PageData {
   showLocateBar: boolean;
   locateSentence: string;
   isLessonLocked: boolean;
+  isTrialPaused: boolean;
   showUnlockModal: boolean;
   isUnlocking: boolean;
   priceYuan: string;
@@ -417,6 +418,7 @@ Page<PageData, PageCustom>({
     showLocateBar: false,
     locateSentence: '',
     isLessonLocked: false,
+    isTrialPaused: false,
     showUnlockModal: false,
     isUnlocking: false,
     priceYuan: LIFETIME_UNLOCK_PRICE_YUAN,
@@ -872,6 +874,7 @@ Page<PageData, PageCustom>({
 
       this.setData({
         isLessonLocked: isLocked,
+        isTrialPaused: false,
         lessonTitle: detail.title,
         lessonLevel: detail.level,
         displayTitle,
@@ -1116,7 +1119,7 @@ Page<PageData, PageCustom>({
       const limitSeg = segs && segs[this.maxAllowedSegIdx as number];
       if (limitSeg && pos >= limitSeg.end) {
         this.audio?.pause();
-        this.setData({ isPlaying: false, showUnlockModal: true });
+        this.setData({ isPlaying: false, isAudioLoading: false, isTrialPaused: true, showUnlockModal: true });
         this.scrollToTrialLockCard();
         return;
       }
@@ -1871,7 +1874,7 @@ Page<PageData, PageCustom>({
       const limitSeg = segs && segs[this.maxAllowedSegIdx as number];
       const pos = this.effectivePositionSec();
       if (limitSeg && pos >= limitSeg.end) {
-        this.setData({ showUnlockModal: true });
+        this.setData({ isPlaying: false, isAudioLoading: false, isTrialPaused: true, showUnlockModal: true });
         this.scrollToTrialLockCard();
         return;
       }
@@ -1944,6 +1947,13 @@ Page<PageData, PageCustom>({
     }
     const dur = this.currentDurationSec();
     const target = Math.min(Math.max(0, positionSec), dur > 0 ? dur : positionSec);
+    if (this.data.isTrialPaused && this.data.isLessonLocked && Number.isFinite(this.maxAllowedSegIdx) && (this.maxAllowedSegIdx as number) >= 0) {
+      const segs = this.currentSegments();
+      const limitSeg = segs && segs[this.maxAllowedSegIdx as number];
+      if (limitSeg && target < limitSeg.end) {
+        this.setData({ isTrialPaused: false });
+      }
+    }
     this.audio.seek(target);
     this.clockSample = { positionSec: target, atMs: Date.now() };
     if (this.tracker) {
@@ -2001,7 +2011,7 @@ Page<PageData, PageCustom>({
     const nextIdx = cur + 1;
     if (this.data.isLessonLocked && Number.isFinite(this.maxAllowedSegIdx) && nextIdx > (this.maxAllowedSegIdx as number)) {
       this.audio?.pause();
-      this.setData({ isPlaying: false, showUnlockModal: true });
+      this.setData({ isPlaying: false, isAudioLoading: false, isTrialPaused: true, showUnlockModal: true });
       this.scrollToTrialLockCard();
       return;
     }
@@ -2249,6 +2259,11 @@ Page<PageData, PageCustom>({
   },
 
   onToggle(): void {
+    if (this.data.isTrialPaused) {
+      this.setData({ showUnlockModal: true });
+      this.scrollToTrialLockCard();
+      return;
+    }
     this.togglePlay();
   },
 
@@ -2305,7 +2320,7 @@ Page<PageData, PageCustom>({
       const limitSeg = segs && segs[this.maxAllowedSegIdx as number];
       if (limitSeg && targetSec > limitSeg.end) {
         this.audio?.pause();
-        this.setData({ isPlaying: false, showUnlockModal: true });
+        this.setData({ isPlaying: false, isAudioLoading: false, isTrialPaused: true, showUnlockModal: true });
         this.seekTo(limitSeg.start);
         this.scrollToTrialLockCard();
         return;
@@ -2342,7 +2357,7 @@ Page<PageData, PageCustom>({
       const res = await entitlementService.requestUnlockPayment();
       if (res.success) {
         wx.showToast({ title: '解锁成功', icon: 'success' });
-        this.setData({ showUnlockModal: false, isLessonLocked: false });
+        this.setData({ showUnlockModal: false, isLessonLocked: false, isTrialPaused: false });
         if (this.detail) {
           const matcher = buildVocabMatcher(this.detail.vocabulary);
           this.blocksByTrack = {

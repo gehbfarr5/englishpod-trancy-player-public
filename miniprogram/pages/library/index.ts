@@ -347,7 +347,7 @@ Page<PageData, PageCustom>({
       }
       this.setData(patch);
     } else if (currentLen > 0) {
-      // 细粒度状态局部更新（当前正在听、进度百分比、完成标记）
+      // 细粒度状态局部更新（当前正在听、进度百分比、完成标记、Resume状态、锁标）
       const patch: Record<string, unknown> = {};
       for (let i = 0; i < currentLen; i++) {
         const old = currentList[i];
@@ -355,14 +355,23 @@ Page<PageData, PageCustom>({
         if (!old || !updated) continue;
         if (old.isCurrent !== updated.isCurrent) {
           patch[`renderedLessons[${i}].isCurrent`] = updated.isCurrent;
+        }
+        if (old.highlight !== updated.highlight) {
           patch[`renderedLessons[${i}].highlight`] = updated.highlight;
         }
         if (old.isDone !== updated.isDone) {
           patch[`renderedLessons[${i}].isDone`] = updated.isDone;
+        }
+        if (old.statusLabel !== updated.statusLabel) {
           patch[`renderedLessons[${i}].statusLabel`] = updated.statusLabel;
+        }
+        if (old.isLocked !== updated.isLocked) {
+          patch[`renderedLessons[${i}].isLocked`] = updated.isLocked;
         }
         if (old.barPercent !== updated.barPercent) {
           patch[`renderedLessons[${i}].barPercent`] = updated.barPercent;
+        }
+        if (old.barValue !== updated.barValue) {
           patch[`renderedLessons[${i}].barValue`] = updated.barValue;
         }
       }

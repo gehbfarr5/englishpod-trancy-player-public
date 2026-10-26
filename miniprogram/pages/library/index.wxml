@@ -46,9 +46,9 @@
       <text class="lib__well-hint">SCROLL TO BROWSE ↓</text>
     </view>
 
-    <!-- 加载骨架屏（首次无缓存时展示） -->
+    <!-- 加载骨架屏（首次无缓存时展示，填满整屏并自然溢出截断） -->
     <view wx:if="{{isIndexLoading && totalLessonCount === 0}}" class="lib__skeleton">
-      <view class="lib__sk-card" wx:for="{{[1, 2, 3, 4, 5, 6]}}" wx:key="*this">
+      <view class="lib__sk-card" wx:for="{{[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}}" wx:key="*this">
         <view class="lib__sk-circle"></view>
         <view class="lib__sk-lines">
           <view class="lib__sk-line lib__sk-line--title"></view>
