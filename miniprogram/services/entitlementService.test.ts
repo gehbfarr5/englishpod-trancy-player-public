@@ -8,14 +8,14 @@ import {
 import { createMemoryKeyValue } from '../test-support/memoryKeyValue';
 
 describe('EntitlementService · 权益读取与持久化', () => {
-  test('初始无记录时默认非 VIP，Lesson 1~10 解锁，Lesson 11 锁定', () => {
+  test('初始无记录时默认非 VIP，Lesson 1~5 解锁，Lesson 6 锁定', () => {
     const kv = createMemoryKeyValue();
     const service = new EntitlementService(kv);
 
     assert.equal(service.isVip(), false);
     assert.equal(service.isLessonUnlocked('0001'), true);
-    assert.equal(service.isLessonUnlocked('0010'), true);
-    assert.equal(service.isLessonUnlocked('0011'), false);
+    assert.equal(service.isLessonUnlocked('0005'), true);
+    assert.equal(service.isLessonUnlocked('0006'), false);
     assert.equal(service.isLessonUnlocked('0335'), false);
   });
 

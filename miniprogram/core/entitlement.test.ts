@@ -34,10 +34,10 @@ function mockLine(segIdx: number, text: string = `Line ${segIdx}`): TranscriptLi
 
 describe('entitlement · 常量与规格', () => {
   test('基础规格符合定价与试听规则', () => {
-    assert.equal(FREE_TRIAL_LESSON_COUNT, 10);
+    assert.equal(FREE_TRIAL_LESSON_COUNT, 5);
     assert.equal(PREVIEW_SENTENCE_LIMIT, 6);
-    assert.equal(LIFETIME_UNLOCK_PRICE_YUAN, '19.9');
-    assert.equal(LIFETIME_UNLOCK_PRICE_FEN, 1990);
+    assert.equal(LIFETIME_UNLOCK_PRICE_YUAN, '9.9');
+    assert.equal(LIFETIME_UNLOCK_PRICE_FEN, 990);
     assert.equal(LIFETIME_PRODUCT_ID, 'ep_unlock_all');
   });
 });
@@ -45,23 +45,23 @@ describe('entitlement · 常量与规格', () => {
 describe('isLessonLocked · 课程解锁与锁定判定', () => {
   test('已购买 VIP：无论哪一课一律解锁', () => {
     assert.equal(isLessonLocked('0001', true), false);
-    assert.equal(isLessonLocked('0010', true), false);
-    assert.equal(isLessonLocked('0011', true), false);
+    assert.equal(isLessonLocked('0005', true), false);
+    assert.equal(isLessonLocked('0006', true), false);
     assert.equal(isLessonLocked('0100', true), false);
     assert.equal(isLessonLocked(335, true), false);
   });
 
-  test('未购买 VIP：前 10 课完全免费试听，不锁定', () => {
+  test('未购买 VIP：前 5 课完全免费试听，不锁定', () => {
     assert.equal(isLessonLocked('0001', false), false);
     assert.equal(isLessonLocked('1', false), false);
+    assert.equal(isLessonLocked('0003', false), false);
     assert.equal(isLessonLocked('0005', false), false);
-    assert.equal(isLessonLocked('0010', false), false);
-    assert.equal(isLessonLocked(10, false), false);
+    assert.equal(isLessonLocked(5, false), false);
   });
 
-  test('未购买 VIP：第 11 课起全部锁定', () => {
-    assert.equal(isLessonLocked('0011', false), true);
-    assert.equal(isLessonLocked('11', false), true);
+  test('未购买 VIP：第 6 课起全部锁定', () => {
+    assert.equal(isLessonLocked('0006', false), true);
+    assert.equal(isLessonLocked('6', false), true);
     assert.equal(isLessonLocked('0050', false), true);
     assert.equal(isLessonLocked('0335', false), true);
     assert.equal(isLessonLocked(335, false), true);
