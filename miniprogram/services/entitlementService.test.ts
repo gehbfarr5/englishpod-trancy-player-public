@@ -4,6 +4,7 @@ import { describe, test } from 'node:test';
 import {
   ENTITLEMENT_STORAGE_KEY,
   EntitlementService,
+  isIosWeChatVersionSupported,
 } from './entitlementService';
 import { createMemoryKeyValue } from '../test-support/memoryKeyValue';
 
@@ -60,5 +61,22 @@ describe('EntitlementService · 权益读取与持久化', () => {
     unsubscribe();
     service.setEntitlement({ isVip: false }); // 取消订阅后不再触发
     assert.equal(notifyCount, 1);
+  });
+
+  test('isIosWeChatVersionSupported 准确校验 iOS 微信版本', () => {
+    // 非 iOS 终端直接放行
+    assert.equal(isIosWeChatVersionSupported({ platform: 'android', version: '8.0.50' }), true);
+    assert.equal(isIosWeChatVersionSupported({ platform: 'devtools', version: '8.0.0' }), true);
+
+    // iOS 微信低于 8.0.68 被拒绝
+    assert.equal(isIosWeChatVersionSupported({ platform: 'ios', version: '8.0.67' }), false);
+    assert.equal(isIosWeChatVersionSupported({ platform: 'ios', version: '8.0.60' }), false);
+    assert.equal(isIosWeChatVersionSupported({ platform: 'ios', version: '7.0.0' }), false);
+
+    // iOS 微信等于或高于 8.0.68 放行
+    assert.equal(isIosWeChatVersionSupported({ platform: 'ios', version: '8.0.68' }), true);
+    assert.equal(isIosWeChatVersionSupported({ platform: 'ios', version: '8.0.69' }), true);
+    assert.equal(isIosWeChatVersionSupported({ platform: 'ios', version: '8.1.0' }), true);
+    assert.equal(isIosWeChatVersionSupported({ platform: 'ios', version: '9.0.0' }), true);
   });
 });

@@ -28,6 +28,34 @@ const DEFAULT_ENTITLEMENT: UserEntitlement = {
   isVip: false,
 };
 
+/**
+ * 校验 iOS 端微信客户端版本是否满足微信官方虚拟支付最低要求（>= 8.0.68）。
+ * 微信官方政策：低于 8.0.68 的 iOS 微信客户端不支持原生虚拟支付。
+ */
+export function isIosWeChatVersionSupported(systemInfo?: { platform?: string; version?: string }): boolean {
+  try {
+    let sys = systemInfo;
+    if (!sys && typeof wx !== 'undefined' && typeof wx.getSystemInfoSync === 'function') {
+      sys = wx.getSystemInfoSync();
+    }
+    if (!sys || !sys.platform || sys.platform.toLowerCase() !== 'ios') {
+      return true; // 非 iOS 终端放行
+    }
+    const versionStr = sys.version || '';
+    const cur = versionStr.split('.').map(Number);
+    const base = [8, 0, 68];
+    for (let i = 0; i < 3; i++) {
+      const curPart = cur[i] || 0;
+      const basePart = base[i] || 0;
+      if (curPart > basePart) return true;
+      if (curPart < basePart) return false;
+    }
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 export class EntitlementService {
   private readonly kv: SyncKeyValue;
   private cache: UserEntitlement | null = null;
@@ -195,6 +223,18 @@ export class EntitlementService {
 
     // 2. 检查是否有原生虚拟支付支持
     if (typeof (wx as unknown as Record<string, unknown>).requestVirtualPayment === 'function') {
+      // 官方合规：iOS 端必须运行在微信客户端 >= 8.0.68
+      if (!isIosWeChatVersionSupported()) {
+        if (typeof (wx as unknown as { showModal?: (o: Record<string, unknown>) => void }).showModal === 'function') {
+          (wx as unknown as { showModal: (o: Record<string, unknown>) => void }).showModal({
+            title: '提示',
+            content: '当前微信版本较低，请将微信更新至最新版后再进行支付',
+            showCancel: false,
+          });
+        }
+        return { success: false, errMsg: '请将微信更新至最新版后再进行支付' };
+      }
+
       return new Promise((resolve) => {
         const signData = (signResult && signResult.signData) || {};
         const paySig = (signResult && signResult.paySig) || '';
