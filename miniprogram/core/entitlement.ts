@@ -3,27 +3,27 @@
  *  课程解锁与权益规则引擎（core/entitlement.ts —— 纯 TypeScript，零平台依赖）
  * ============================================================================
  *  业务规则：
- *   1. 前 10 课（Lesson 01 ~ Lesson 10）完全免费试听，无论是否为 VIP 均解锁。
- *   2. 第 11 课及以后（Lesson 11 ~ Lesson 335）为付费锁定课。
+ *   1. 前 5 课（Lesson 01 ~ Lesson 05）完全免费试听，无论是否为 VIP 均解锁。
+ *   2. 第 6 课及以后（Lesson 06 ~ Lesson 335）为付费锁定课。
  *   3. 终身通卡购买后（isVip: true），全套 335 课全部永久解锁。
  *   4. 未解锁课程在播放页展示前 6 句（segIdx <= 5）正文台本与音频试听，之后展示解锁引导。
- *   5. 商品定价：¥19.9 元（1990分），终身买断制。
+ *   5. 商品定价：¥9.9 元（990分），终身买断制。
  * ============================================================================
  */
 
 import { TranscriptBlockVM } from './transcriptView';
 
-/** 免费试听课程数（前 10 课）。 */
-export const FREE_TRIAL_LESSON_COUNT = 10;
+/** 免费试听课程数（前 5 课）。 */
+export const FREE_TRIAL_LESSON_COUNT = 5;
 
 /** 付费课程试听台本最大展示句数（前 6 句）。 */
 export const PREVIEW_SENTENCE_LIMIT = 6;
 
 /** 终身通卡定价（元）。 */
-export const LIFETIME_UNLOCK_PRICE_YUAN = '19.9';
+export const LIFETIME_UNLOCK_PRICE_YUAN = '9.9';
 
 /** 终身通卡定价（分，微信支付与虚拟支付常用单位）。 */
-export const LIFETIME_UNLOCK_PRICE_FEN = 1990;
+export const LIFETIME_UNLOCK_PRICE_FEN = 990;
 
 /** 虚拟支付道具 ID（微信公众平台道具管理中配置）。 */
 export const LIFETIME_PRODUCT_ID = 'ep_unlock_all';

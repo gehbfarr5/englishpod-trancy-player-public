@@ -17,7 +17,7 @@ exports.main = async (event, context) => {
 
     const productId = event.productId || 'ep_unlock_all';
     const productName = event.productName || 'EnglishPod 335课终身精听通卡';
-    const priceFen = event.priceFen || 1990;
+    const priceFen = event.priceFen || 990;
     const outTradeNo = `EP_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
     const signData = {
