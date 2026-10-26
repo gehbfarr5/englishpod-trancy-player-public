@@ -84,17 +84,37 @@ describe('entryPlan · §2 矩阵：普通列表入口（library）', () => {
   });
 });
 
-describe('entryPlan · §2 矩阵：继续收听入口（resume）', () => {
-  test('E09/E15 恢复 PB 有效断点，不等同于最後收听音轨', () => {
-    const plan = planEntry({ ...base, mode: 'resume', record: pbAt8min(), currentTrack: 'dg' });
+describe('entryPlan · §2 矩阵：继续收听入口（resume，EP-PBC-001 v1.5 方案 B）', () => {
+  test('E09/E15 恢复 PB 有效断点；后台正在播放时继承播放态（autoPlay = true）', () => {
+    const plan = planEntry({
+      ...base,
+      mode: 'resume',
+      record: pbAt8min(),
+      currentTrack: 'dg',
+      wasPlaying: true,
+    });
     assert.equal(plan.track, 'pb');
     assert.equal(plan.startMs, 480_000);
     assert.equal(plan.autoPlay, true);
   });
 
-  test('已完成 PB → 00:00（§4.1.6）', () => {
-    const plan = planEntry({ ...base, mode: 'resume', record: pbCompleted() });
+  test('E09-paused 点击卡片主体：已暂停时保持暂停（autoPlay = false）', () => {
+    const plan = planEntry({
+      ...base,
+      mode: 'resume',
+      record: pbAt8min(),
+      currentTrack: 'pb',
+      wasPlaying: false,
+    });
+    assert.equal(plan.track, 'pb');
+    assert.equal(plan.startMs, 480_000);
+    assert.equal(plan.autoPlay, false);
+  });
+
+  test('已完成 PB → 00:00（§4.1.6），且继承暂停态', () => {
+    const plan = planEntry({ ...base, mode: 'resume', record: pbCompleted(), wasPlaying: false });
     assert.equal(plan.startMs, 0);
+    assert.equal(plan.autoPlay, false);
   });
 });
 

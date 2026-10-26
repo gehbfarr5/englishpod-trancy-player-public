@@ -5,7 +5,7 @@
     "build": 3
   },
   "miniprogram": {
-    "version": "0.3.22",
+    "version": "0.3.23",
     "highest_observed_platform_version": "0.3.2"
   },
   "web_preview": {

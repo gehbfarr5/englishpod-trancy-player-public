@@ -423,8 +423,11 @@ Page<PageData, PageCustom>({
   onContinueTap(): void {
     const targetId = this.getContinueLessonId();
     if (!targetId) return;
+    const session = playbackSession.getState();
+    const isPlaying = session.isPlaying;
+    // EP-PBC-001 v1.5（方案 B）：点击卡片主体继承当前会话播放态（已暂停则保持暂停，正在播放则保持播放）
     wx.navigateTo({
-      url: `/pages/player/index?lessonId=${targetId}&intent=resume`,
+      url: `/pages/player/index?lessonId=${targetId}&intent=resume&autoPlay=${isPlaying ? '1' : '0'}`,
     });
   },
 
@@ -442,8 +445,9 @@ Page<PageData, PageCustom>({
       playbackSession.togglePlay();
       this.setData({ isPlaying: playbackSession.getState().isPlaying });
     } else if (action === 'navigate') {
+      // 点击继续收听卡播放图标：明确请求播放
       wx.navigateTo({
-        url: `/pages/player/index?lessonId=${targetId}&intent=resume`,
+        url: `/pages/player/index?lessonId=${targetId}&intent=resume&autoPlay=1`,
       });
     }
   },
