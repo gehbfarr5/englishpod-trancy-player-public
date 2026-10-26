@@ -79,27 +79,14 @@
   line-height: 1;
 }
 
-/* 勋章与标题 */
+/* 标题区域 */
 .unlock-sheet__badge-box {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
+  margin-top: 4px;
   margin-bottom: 18px;
-}
-
-.unlock-sheet__badge {
-  padding: 3px 10px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #E89E78 0%, var(--ep-accent) 100%);
-  margin-bottom: 8px;
-}
-
-.unlock-sheet__badge-text {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  color: #FFFFFF;
 }
 
 .unlock-sheet__title {

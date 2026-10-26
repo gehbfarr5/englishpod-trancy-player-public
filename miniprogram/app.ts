@@ -18,6 +18,28 @@ App<IAppOption>({
   },
 
   onLaunch(): void {
+    // 微信小程序版本更新管理器：检测到新版本时自动提示重启应用，防止旧版本强缓存
+    if (typeof wx !== 'undefined' && typeof wx.getUpdateManager === 'function') {
+      try {
+        const updateManager = wx.getUpdateManager();
+        updateManager.onUpdateReady(() => {
+          wx.showModal({
+            title: '更新提示',
+            content: '新版本已下载完毕，是否立即重启体验最新版本？',
+            confirmText: '立即重启',
+            showCancel: false,
+            success: (res) => {
+              if (res.confirm) {
+                updateManager.applyUpdate();
+              }
+            },
+          });
+        });
+      } catch (err) {
+        console.warn('[app] 更新管理器启动异常：', err);
+      }
+    }
+
     // §4.1.10：一次性清除 0.3.5 及更早的旧进度键（owner 2026-10-20 授权）。
     // 只删白名单里的两个键，不碰 ep_learning_v2_*；失败也不影响启动。
     try {
