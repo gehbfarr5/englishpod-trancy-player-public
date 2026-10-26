@@ -104,10 +104,10 @@ function normalizeIndex(targetIndex: number): number {
 /**
  * 生成一次加载计划（§2 矩阵 / §3.2）。
  *
- * 决策表：
+ * 决策表（EP-PBC-001 v1.5 方案 B）：
  *   | mode      | track        | startMs                    | autoPlay     | 关单句循环 |
  *   | library   | pb           | PB 有效断点（完成/末尾→0） | true         | false      |
- *   | resume    | pb           | 同上                       | true         | false      |
+ *   | resume    | pb           | 同上                       | = wasPlaying | false      |
  *   | manualNav | 继承当前音轨 | **0**                      | = wasPlaying | **true**   |
  *   | autoNext  | pb           | **0**                      | true         | **true**   |
  */
@@ -145,6 +145,18 @@ export function planEntry(input: EntryPlanInput): EntryPlan {
         autoNextTargetIndex,
       };
     case 'resume':
+      return {
+        // §2 矩阵：普通列表与继续收听**一律 PB**，不恢复 DG 作为默认音轨。
+        track: 'pb',
+        // §4.1.6：已完成 PB / 停在末尾的 DG → 0；否则按有效断点恢复。
+        startMs: resolveResumePositionMs(input.record, 'pb'),
+        // §2 (EP-PBC-001 v1.5 方案 B)：点击继续收听卡主体继承会话播放态（已暂停保持暂停，正在播放保持播放）。
+        autoPlay: input.wasPlaying,
+        resetSingleSentenceLoop: false,
+        canGoPrev,
+        canGoNext,
+        autoNextTargetIndex,
+      };
     case 'library':
     default:
       return {

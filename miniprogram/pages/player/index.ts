@@ -455,8 +455,18 @@ Page<PageData, PageCustom>({
     // 入口意图：普通列表 / 继续收听 / 页内手动切课（§2 行为矩阵）。
     // 迁移兼容：旧调用方只带 lessonId，按普通列表入口处理。
     const initialMode = toInitialMode(query.intent);
-    // 进入播放页即请求播放（0.3.x 已发布行为；§2「新启动默认暂停」的差异见方案 R6）。
-    this.playRequested = true;
+    // EP-PBC-001 v1.5（方案 B）：继续收听卡主体继承播放态（已暂停保持暂停，正在播放保持播放）
+    const queryAutoPlay = query.autoPlay;
+    if (queryAutoPlay === '0') {
+      this.playRequested = false;
+    } else if (queryAutoPlay === '1') {
+      this.playRequested = true;
+    } else if (initialMode === 'resume') {
+      const isThisLessonActive = playbackSession.isLessonActive(query.lessonId || '1', 'pb');
+      this.playRequested = Boolean(isThisLessonActive.isActive && isThisLessonActive.isPlaying);
+    } else {
+      this.playRequested = true;
+    }
 
     // 载源未就绪窗口内的进度写入被拒（§4.1.2）：只接一条白名单诊断事件。
     progressJournal.setHoldListener(() => {
@@ -1921,7 +1931,7 @@ Page<PageData, PageCustom>({
     } else {
       // 不经过 `pause()`：这里不是用户意图，不能把 playRequested 再改回去。
       this.audio.pause();
-      this.setData({ isPlaying: false });
+      this.setData({ isPlaying: false, isAudioLoading: false });
     }
   },
 
