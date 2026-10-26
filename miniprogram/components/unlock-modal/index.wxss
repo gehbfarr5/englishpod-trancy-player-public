@@ -38,13 +38,12 @@
   transform: translateY(0);
 }
 
-/* 顶部操作条（把手与关闭键） */
+/* 顶部操作条（居中把手） */
 .unlock-sheet__header {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 24px;
+  height: 20px;
   margin-bottom: 12px;
 }
 
@@ -53,30 +52,6 @@
   height: 4px;
   border-radius: 2px;
   background-color: var(--ep-border);
-}
-
-.unlock-sheet__close {
-  position: absolute;
-  right: -4px;
-  top: -4px;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--ep-surface-inset);
-}
-
-.unlock-sheet__close--hover {
-  opacity: 0.7;
-}
-
-.unlock-sheet__close-text {
-  font-size: 14px;
-  color: var(--ep-text-passed);
-  font-weight: 500;
-  line-height: 1;
 }
 
 /* 标题区域 */
