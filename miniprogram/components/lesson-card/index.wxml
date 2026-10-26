@@ -4,7 +4,7 @@
   - 点击直接触发 lessonTap。
 -->
 <view
-  class="lcard {{isCurrent ? 'is-current' : ''}} {{isDone ? 'is-done' : ''}}"
+  class="lcard {{isCurrent ? 'is-current' : ''}} {{isDone ? 'is-done' : ''}} {{isLocked ? 'is-locked' : ''}}"
   data-lesson-id="{{lessonId}}"
   bindtap="onTap"
 >
@@ -21,7 +21,8 @@
     </view>
   </view>
 
-  <view class="lcard__status {{highlight ? 'is-highlight' : ''}}">
-    <text class="lcard__status-text">{{statusLabel}}</text>
+  <view class="lcard__status {{highlight ? 'is-highlight' : ''}} {{isLocked ? 'is-locked' : ''}}">
+    <view wx:if="{{isLocked && !isDone}}" class="lcard__lock-ic"></view>
+    <text class="lcard__status-text">{{isLocked && !isDone ? (statusLabel === 'New' ? '试听' : statusLabel) : statusLabel}}</text>
   </view>
 </view>

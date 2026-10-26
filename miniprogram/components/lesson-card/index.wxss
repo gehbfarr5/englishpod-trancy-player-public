@@ -104,6 +104,39 @@
   background-color: var(--ep-surface-inset);
 }
 
+.lcard__lock-ic {
+  width: 8px;
+  height: 7px;
+  margin-right: 4px;
+  border-radius: 1.5px;
+  background-color: var(--ep-text-passed);
+  position: relative;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.lcard__lock-ic::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 1.5px;
+  width: 5px;
+  height: 4px;
+  border: 1.5px solid var(--ep-text-passed);
+  border-bottom: none;
+  border-top-left-radius: 2.5px;
+  border-top-right-radius: 2.5px;
+  box-sizing: border-box;
+}
+
+.lcard__status.is-highlight .lcard__lock-ic {
+  background-color: var(--ep-accent);
+}
+
+.lcard__status.is-highlight .lcard__lock-ic::before {
+  border-color: var(--ep-accent);
+}
+
 .lcard__status.is-highlight {
   background-color: var(--ep-accent-soft);
 }

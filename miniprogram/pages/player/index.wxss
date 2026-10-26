@@ -334,3 +334,98 @@ control-dock {
   font-size: var(--ep-font-continue-title);
   color: var(--ep-text-passed);
 }
+
+/* 试听截断锁定卡片 */
+.pl__trial-lock-card {
+  position: relative;
+  margin: 20px 16px 32px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pl__trial-lock-mask {
+  width: 100%;
+  height: 48px;
+  background: linear-gradient(to bottom, rgba(242, 237, 226, 0) 0%, var(--ep-surface-1) 100%);
+  margin-top: -36px;
+  margin-bottom: 8px;
+  pointer-events: none;
+}
+
+.pl__trial-lock-box {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 24px 20px;
+  border-radius: var(--ep-radius-card);
+  background: var(--ep-surface-1);
+  border: 1px dashed var(--ep-accent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(204, 120, 92, 0.08);
+}
+
+.pl__trial-lock-icon {
+  width: 18px;
+  height: 16px;
+  border-radius: 3px;
+  background-color: var(--ep-accent);
+  position: relative;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+}
+
+.pl__trial-lock-icon::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 3px;
+  width: 12px;
+  height: 10px;
+  border: 2.5px solid var(--ep-accent);
+  border-bottom: none;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  box-sizing: border-box;
+}
+
+.pl__trial-lock-title {
+  font-size: 16px;
+  font-weight: var(--ep-fw-bold);
+  color: var(--ep-text-primary);
+  margin-bottom: 6px;
+}
+
+.pl__trial-lock-desc {
+  font-size: 12px;
+  color: var(--ep-text-passed);
+  margin-bottom: 18px;
+  line-height: 1.5;
+}
+
+.pl__trial-lock-btn {
+  width: 100% !important;
+  height: 44px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #E08768 0%, var(--ep-accent) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  box-shadow: 0 4px 14px rgba(204, 120, 92, 0.3);
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.pl__trial-lock-btn--hover {
+  transform: scale(0.985);
+  opacity: 0.92;
+}
+
+.pl__trial-lock-btn-text {
+  font-size: 14px;
+  font-weight: var(--ep-fw-bold);
+  color: #FFFFFF;
+}

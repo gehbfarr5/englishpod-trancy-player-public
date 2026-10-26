@@ -13,6 +13,7 @@ Component({
     level: { type: String, value: '' },
     statusLabel: { type: String, value: 'New' },
     isDone: { type: Boolean, value: false },
+    isLocked: { type: Boolean, value: false },
     isCurrent: { type: Boolean, value: false },
     highlight: { type: Boolean, value: false },
     barValue: { type: Number, value: 0 },

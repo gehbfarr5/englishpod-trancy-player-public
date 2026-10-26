@@ -2,7 +2,8 @@
   "navigationStyle": "custom",
   "usingComponents": {
     "transcript": "/components/transcript/index",
-    "control-dock": "/components/control-dock/index"
+    "control-dock": "/components/control-dock/index",
+    "unlock-modal": "/components/unlock-modal/index"
   },
   "disableScroll": true
 }
