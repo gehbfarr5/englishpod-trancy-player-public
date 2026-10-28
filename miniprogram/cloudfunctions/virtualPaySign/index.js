@@ -22,7 +22,7 @@ exports.main = async (event, context) => {
     const outTradeNo = `EP_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
     const signData = {
-      offerId: process.env.VIRTUAL_PAY_OFFER_ID || '',
+      offerId: process.env.VIRTUAL_PAY_OFFER_ID || '1450696404',
       buyQuantity: 1,
       env: 0, // 0: 正式版, 1: 沙箱
       currencyType: 'CNY',
@@ -34,7 +34,7 @@ exports.main = async (event, context) => {
     };
 
     // 微信虚拟支付签名（如果环境变量配置了 XPAY_APP_KEY，则计算真实 HMAC-SHA256 签名）
-    const appKey = process.env.XPAY_APP_KEY || '';
+    const appKey = process.env.XPAY_APP_KEY || 'i2kMfPQP9Jii8TojafGTmdIyo58cUBFT';
     let paySig = '';
     let signature = '';
     if (appKey) {
