@@ -3753,6 +3753,42 @@ LessonProgressRecord nextLessonProgressSnapshot({
   );
 }
 
+/// Platform-adaptive scroll behavior tailored for Web and in-car Chromium (Tesla OS / Linux):
+/// - Enforces [BouncingScrollPhysics] across all platforms so Tesla Linux Chromium retains natural
+///   momentum and bounce animations instead of abruptly halting on boundaries.
+/// - Returns child directly in [buildScrollbar], preventing Flutter from auto-injecting
+///   a duplicate desktop scrollbar on Linux that collides with the app's custom [RawScrollbar].
+/// - Expands [dragDevices] to accept touch, mouse, stylus, and trackpad inputs.
+class TeslaWebScrollBehavior extends MaterialScrollBehavior {
+  const TeslaWebScrollBehavior();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    // Rely exclusively on the custom RawScrollbar in the application layer
+    // to avoid overlapping double scrollbars on Linux/Tesla Web.
+    return child;
+  }
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const BouncingScrollPhysics(
+      parent: AlwaysScrollableScrollPhysics(),
+    );
+  }
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => const <PointerDeviceKind>{
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.trackpad,
+  };
+}
+
 class EnglishPodTrancyApp extends StatelessWidget {
   final AppThemePreference initialPreference;
 
@@ -3765,6 +3801,7 @@ class EnglishPodTrancyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'EnglishPod Player',
+      scrollBehavior: const TeslaWebScrollBehavior(),
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.system,
       theme: ThemeData(
