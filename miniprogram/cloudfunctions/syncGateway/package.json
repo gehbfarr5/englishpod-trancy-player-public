@@ -1,0 +1,9 @@
+{
+  "name": "syncGateway",
+  "version": "1.0.0",
+  "description": "EnglishPod 多端进度同步网关云函数（签名透传 Go 同步服务）",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

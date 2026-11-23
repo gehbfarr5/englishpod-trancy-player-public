@@ -1,6 +1,7 @@
 import { LearningStore } from './adapters/wechat/learningStore';
 import { CLOUD_ENV_ID } from './config/env';
 import { entitlementService } from './services/entitlementService';
+import { syncService } from './services/syncService';
 
 /**
  * 小程序入口。
@@ -72,8 +73,17 @@ App<IAppOption>({
       console.info(`[app] 云开发初始化完成，envId=${CLOUD_ENV_ID}`);
       // 启动时后台异步对账云端 VIP 权益（跨设备与重装恢复）
       void entitlementService.refreshFromCloud();
+      syncService.init();
     } catch (err) {
       console.error('[app] 云开发初始化失败：', err);
     }
+  },
+
+  onShow(): void {
+    syncService.onAppShow();
+  },
+
+  onHide(): void {
+    syncService.onAppHide();
   },
 });

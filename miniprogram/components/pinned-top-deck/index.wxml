@@ -2,13 +2,22 @@
   <!-- 胶囊按钮安全区（透明，仅占位，让渐变在胶囊后方自然延伸） -->
   <view class="deck__nav" style="height: {{navBarPx}}px;"></view>
 
-  <!-- Header Row：品牌 + 副标题（左），完成度 pill（右） -->
+  <!-- Header Row：品牌 + 副标题（左），完成度/多端同步入口 pill（右） -->
   <view class="deck__header">
     <view class="deck__brand">
       <text class="deck__brand-name">{{appName}}</text>
       <text class="deck__brand-sub">{{subtitle}}</text>
     </view>
-    <view class="deck__completion">
+    <view
+      class="deck__completion {{syncStatus !== 'unlinked' ? 'is-linked' : ''}}"
+      hover-class="deck__completion--hover"
+      hover-stay-time="120"
+      bindtap="onCompletionTap"
+    >
+      <view
+        wx:if="{{syncStatus !== 'unlinked'}}"
+        class="deck__sync-dot deck__sync-dot--{{syncStatus}}"
+      ></view>
       <text class="deck__completion-text">{{completionText}}</text>
     </view>
   </view>

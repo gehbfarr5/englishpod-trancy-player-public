@@ -28,6 +28,7 @@ import { MockCloudAdapter } from '../../mock/index';
 import { entitlementService } from '../../services/entitlementService';
 import { playbackSession } from '../../services/playbackSession';
 import { progressJournal } from '../../services/progressJournal';
+import { syncService } from '../../services/syncService';
 
 const CACHE_KEY_LESSON_INDEX = 'ep_cached_lesson_index_v1';
 const CHUNK_SIZE = 30;
@@ -62,6 +63,9 @@ interface PageData {
   appName: string;
   subtitle: string;
   completionText: string;
+  completedCount: number;
+  syncStatus: string;
+  syncModalVisible: boolean;
   safeTopPx: number;
   navBarPx: number;
   isIndexLoading: boolean;
@@ -87,6 +91,8 @@ interface PageCustom {
   unsubscribeLessonChange?: () => void;
   unsubscribeState?: () => void;
   unsubscribeEntitlement?: () => void;
+  unsubscribeSync?: () => void;
+  unsubscribeJournalChange?: () => void;
 
   initNavMetrics(): void;
   loadLibraryData(): Promise<void>;
@@ -98,6 +104,8 @@ interface PageCustom {
   getContinueLessonId(): string;
   syncBackgroundAudioState(): void;
 
+  onCompletionTap(): void;
+  onSyncModalClose(): void;
   onWellScrollToLower(): void;
   onLessonTap(event: WechatMiniprogram.CustomEvent<{ lessonId: string }>): void;
   onContinueTap(): void;
@@ -112,6 +120,9 @@ Page<PageData, PageCustom>({
     appName: APP_DISPLAY_NAME,
     subtitle: 'Elementary · 335 Lessons',
     completionText: '0 / 335 Done',
+    completedCount: 0,
+    syncStatus: 'unlinked',
+    syncModalVisible: false,
     safeTopPx: 44,
     navBarPx: 44,
     isIndexLoading: true,
@@ -166,6 +177,21 @@ Page<PageData, PageCustom>({
       }
     });
 
+    // 订阅多端进度同步状态与远端合并：保持顶部胶囊状态点与课程列表实时一致
+    const initialSync = syncService.init();
+    this.setData({ syncStatus: initialSync.status });
+    this.unsubscribeSync = syncService.subscribe((snap) => {
+      if (this.data.syncStatus !== snap.status) {
+        this.setData({ syncStatus: snap.status });
+      }
+    });
+    this.unsubscribeJournalChange = progressJournal.subscribeChanges((ev) => {
+      if (ev.kind === 'remoteMerge' && this.isPageVisible) {
+        this.reloadFromStorage();
+        this.refreshLibraryView();
+      }
+    });
+
     // 1. 同步尝试从 Storage 读取已缓存的 335 课索引，实现 0ms 秒开呈现
     try {
       const cached = wx.getStorageSync(CACHE_KEY_LESSON_INDEX);
@@ -189,10 +215,15 @@ Page<PageData, PageCustom>({
     if (session.lessonId) {
       this.lastPlayedId = session.lessonId;
     }
-    this.setData({ isPlaying: session.isPlaying });
+    const syncSnap = syncService.getSnapshot();
+    this.setData({
+      isPlaying: session.isPlaying,
+      syncStatus: syncSnap.status,
+    });
     if (this.lessons && this.lessons.length > 0) {
       this.refreshLibraryView();
     }
+    void syncService.pullIfDue();
   },
 
   onHide() {
@@ -205,6 +236,8 @@ Page<PageData, PageCustom>({
     this.unsubscribeLessonChange?.();
     this.unsubscribeState?.();
     this.unsubscribeEntitlement?.();
+    this.unsubscribeSync?.();
+    this.unsubscribeJournalChange?.();
   },
 
   initNavMetrics(): void {
@@ -284,6 +317,7 @@ Page<PageData, PageCustom>({
 
     this.setData({
       completionText,
+      completedCount: doneCount,
       subtitle,
       totalLessonCount: visibleLessons.length,
       continueInfo,
@@ -292,6 +326,14 @@ Page<PageData, PageCustom>({
       emptyHint: 'No listening lessons available yet',
     });
     this.updateRenderedLessons();
+  },
+
+  onCompletionTap(): void {
+    this.setData({ syncModalVisible: true });
+  },
+
+  onSyncModalClose(): void {
+    this.setData({ syncModalVisible: false });
   },
 
   buildVisibleLessons(): LessonCardModel[] {

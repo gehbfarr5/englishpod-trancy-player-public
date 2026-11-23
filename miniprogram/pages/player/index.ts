@@ -50,6 +50,7 @@ import { TrackStateMachine } from '../../core/trackStateMachine';
 import { entitlementService } from '../../services/entitlementService';
 import { playbackSession } from '../../services/playbackSession';
 import { progressJournal } from '../../services/progressJournal';
+import { syncService } from '../../services/syncService';
 import {
   TranscriptBlockVM,
   VocabEntryVM,
@@ -571,6 +572,7 @@ Page<PageData, PageCustom>({
     // §4.1.1：页面隐藏立即尝试保存；§4.1.7 锚点已在打开课程时写入，这里不动。
     this.commitProgress('appHide');
     this.flushStorage();
+    void syncService.flushSoon();
     // 退到后台后由会话接管后台周期提交（若平台仍给 timeUpdate）。
     playbackSession.setForegroundOwner(false);
   },
@@ -584,6 +586,7 @@ Page<PageData, PageCustom>({
     progressJournal.setHoldListener(null);
     this.commitProgress('lessonSwitch');
     this.flushStorage();
+    void syncService.flushSoon();
     playbackSession.setForegroundOwner(false);
     this.setKeepScreenOn(false);
   },

@@ -28,12 +28,20 @@ import {
   CommitReason,
   DevicePreferences,
   LessonLearningRecord,
+  TrackPoint,
   applyTrackPoint,
   decidePositionCommit,
   markLessonCompleted,
   resolveResumePositionMs,
   toProgressView,
 } from '../core/learningRecord';
+import {
+  MAX_SEGMENT_INDEX,
+  MAX_TRACK_DURATION_MS,
+  SyncLastOpenedOutput,
+  SyncLessonPullOutput,
+  isValidCanonicalLessonId,
+} from '../core/syncModels';
 import { AudioTrackKey, ProgressMap } from '../core/types';
 
 /** 加载锁兜底有效期（毫秒）：canplay 永不到达时也必须允许后续写入。 */
@@ -73,6 +81,21 @@ export interface JournalHoldEvent {
   readonly reason: JournalFailureReason;
 }
 
+/** 进度写入/远端合并事件（供同步服务与页面刷新订阅）。 */
+export type JournalChangeEvent =
+  | { readonly kind: 'commit'; readonly lessonId: string; readonly reason: CommitReason }
+  | { readonly kind: 'completed'; readonly lessonId: string }
+  | { readonly kind: 'lastOpened'; readonly lessonId: string }
+  | { readonly kind: 'remoteMerge'; readonly lessonIds: readonly string[] };
+
+export type JournalChangeListener = (event: JournalChangeEvent) => void;
+
+export interface RemoteSyncApplyOptions {
+  readonly lessons: readonly SyncLessonPullOutput[];
+  readonly lastOpened: SyncLastOpenedOutput | null;
+  readonly isTrackActivelyPlaying?: (lessonId: string, track: AudioTrackKey) => boolean;
+}
+
 export interface ProgressJournalOptions {
   /** 存储实现（默认微信存储）。 */
   readonly store?: LearningStore;
@@ -108,10 +131,18 @@ export class ProgressJournal {
   /** 未成功落盘的提交（供 flush() 重试，§4.1.8「后续允许重试」）。 */
   private readonly pending = new Map<string, JournalCommitRequest>();
 
+  private readonly changeListeners = new Set<JournalChangeListener>();
+
   constructor(options: ProgressJournalOptions = {}) {
     this.store = options.store ?? new LearningStore();
     this.now = options.now ?? (() => Date.now());
     this.onHold = options.onHold ?? null;
+  }
+
+  /** 订阅进度持久化变更（不含本地临时播放头插值）。 */
+  subscribeChanges(listener: JournalChangeListener): () => void {
+    this.changeListeners.add(listener);
+    return () => this.changeListeners.delete(listener);
   }
 
   /** 接线/断开诊断回调。 */
@@ -172,6 +203,7 @@ export class ProgressJournal {
     if (request.reason === 'userSeek') {
       this.anchors.set(key, decision.point.committedPositionMs);
     }
+    this.emitChange({ kind: 'commit', lessonId: request.lessonId, reason: request.reason });
     return { committed: true, failureReason: null };
   }
 
@@ -190,7 +222,11 @@ export class ProgressJournal {
     if (next === record) {
       return true; // 已是完成态，幂等
     }
-    return this.store.saveRecord(next) === 'ok';
+    const saved = this.store.saveRecord(next) === 'ok';
+    if (saved) {
+      this.emitChange({ kind: 'completed', lessonId });
+    }
+    return saved;
   }
 
   /**
@@ -202,10 +238,14 @@ export class ProgressJournal {
     if (!lessonId) {
       return false;
     }
-    return this.store.saveResumeAnchor({
+    const saved = this.store.saveResumeAnchor({
       schemaVersion: this.store.loadResumeAnchor().schemaVersion,
       lastOpenedLessonId: lessonId,
     });
+    if (saved) {
+      this.emitChange({ kind: 'lastOpened', lessonId });
+    }
+    return saved;
   }
 
   /** 更新设备偏好（§4 / §6）。 */
@@ -303,6 +343,102 @@ export class ProgressJournal {
     return this.store.loadPreferences();
   }
 
+  /** 枚举所有有断点或已完成的单课记录（供跨端基线同步）。 */
+  readAllNonEmptyRecords(): LessonLearningRecord[] {
+    const out: LessonLearningRecord[] = [];
+    for (const lessonId of this.store.knownLessonIds()) {
+      const record = this.store.loadRecord(lessonId, this.now());
+      if (record.lessonCompleted || record.podcast !== null || record.dialogue !== null) {
+        out.push(record);
+      }
+    }
+    return out;
+  }
+
+  /**
+   * 合并来自同步服务端的远端增量/基线（EP-SYNC-001 §5）。
+   * - lessonCompleted 仅单调置 true（绝不撤销已完成状态）；
+   * - 正在活跃播放中的 (lessonId, track) 不在播放中途覆盖，避免打断当前播放进度；
+   * - 发出 remoteMerge 变更通知以刷新 UI，但不回环触发 Sync Push。
+   */
+  applyRemoteSnapshot(options: RemoteSyncApplyOptions): boolean {
+    const now = this.now();
+    const changedLessons: string[] = [];
+
+    for (const item of options.lessons) {
+      if (!isValidCanonicalLessonId(item.lessonId)) {
+        continue;
+      }
+      const existing = this.store.loadRecord(item.lessonId, now);
+      let nextCompleted = existing.lessonCompleted;
+      let nextPb: TrackPoint | null = existing.podcast;
+      let nextDg: TrackPoint | null = existing.dialogue;
+      let changed = false;
+
+      if (item.lessonCompleted && !existing.lessonCompleted) {
+        nextCompleted = true;
+        changed = true;
+      }
+
+      if (item.pb && !options.isTrackActivelyPlaying?.(item.lessonId, 'pb')) {
+        const mergedPb = toMergedTrackPoint(item.pb, existing.podcast);
+        if (!sameTrackPoint(existing.podcast, mergedPb)) {
+          nextPb = mergedPb;
+          changed = true;
+        }
+      }
+
+      if (item.dg && !options.isTrackActivelyPlaying?.(item.lessonId, 'dg')) {
+        const mergedDg = toMergedTrackPoint(item.dg, existing.dialogue);
+        if (!sameTrackPoint(existing.dialogue, mergedDg)) {
+          nextDg = mergedDg;
+          changed = true;
+        }
+      }
+
+      if (!changed) {
+        continue;
+      }
+
+      const maxRemoteTs = Math.max(
+        now,
+        item.completedAtMs ?? 0,
+        item.pb?.updatedAtMs ?? 0,
+        item.dg?.updatedAtMs ?? 0,
+      );
+      const saved = this.store.saveRecord({
+        schemaVersion: existing.schemaVersion,
+        lessonId: existing.lessonId,
+        lessonCompleted: nextCompleted,
+        podcast: nextPb,
+        dialogue: nextDg,
+        revision: existing.revision + 1,
+        updatedAtMs: maxRemoteTs,
+      });
+      if (saved === 'ok') {
+        changedLessons.push(item.lessonId);
+      }
+    }
+
+    let lastOpenedChanged = false;
+    const remoteLastId = options.lastOpened?.lessonId ?? '';
+    if (isValidCanonicalLessonId(remoteLastId) && remoteLastId !== this.lastOpenedLessonId()) {
+      const saved = this.store.saveResumeAnchor({
+        schemaVersion: this.store.loadResumeAnchor().schemaVersion,
+        lastOpenedLessonId: remoteLastId,
+      });
+      if (saved) {
+        lastOpenedChanged = true;
+      }
+    }
+
+    if (changedLessons.length > 0 || lastOpenedChanged) {
+      this.emitChange({ kind: 'remoteMerge', lessonIds: changedLessons });
+      return true;
+    }
+    return false;
+  }
+
   /** 课程库投影（含内存镜像，供列表/继续收听卡使用）。 */
   progressViews(): ProgressMap {
     const map: ProgressMap = {};
@@ -325,9 +461,49 @@ export class ProgressJournal {
 
   // ---------------------------------------------------------------- 内部
 
+  private emitChange(event: JournalChangeEvent): void {
+    for (const listener of this.changeListeners) {
+      listener(event);
+    }
+  }
+
   private reportHold(request: JournalCommitRequest, reason: JournalFailureReason): void {
     this.onHold?.({ lessonId: request.lessonId, track: request.track, reason });
   }
+}
+
+function clampMetric(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  const rounded = Math.round(value);
+  return Math.max(min, Math.min(max, rounded));
+}
+
+function toMergedTrackPoint(
+  remote: NonNullable<SyncLessonPullOutput['pb']>,
+  existing: TrackPoint | null,
+): TrackPoint {
+  const posMs = clampMetric(remote.positionMs, 0, MAX_TRACK_DURATION_MS);
+  const seg =
+    typeof remote.segmentIndex === 'number'
+      ? clampMetric(remote.segmentIndex, 0, MAX_SEGMENT_INDEX)
+      : existing?.committedSegmentIndex ?? 0;
+  const durMs =
+    typeof remote.durationMs === 'number' && remote.durationMs > 0
+      ? clampMetric(remote.durationMs, 0, MAX_TRACK_DURATION_MS)
+      : existing?.durationMs;
+  return durMs !== undefined
+    ? { committedPositionMs: posMs, committedSegmentIndex: seg, durationMs: durMs }
+    : { committedPositionMs: posMs, committedSegmentIndex: seg };
+}
+
+function sameTrackPoint(a: TrackPoint | null, b: TrackPoint | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.committedPositionMs === b.committedPositionMs &&
+    a.committedSegmentIndex === b.committedSegmentIndex &&
+    a.durationMs === b.durationMs
+  );
 }
 
 /** 全局单例：页面与会话共用同一个写入通道。 */

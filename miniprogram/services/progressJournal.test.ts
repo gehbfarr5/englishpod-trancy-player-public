@@ -489,3 +489,59 @@ describe('progressJournal · 设备偏好与倍速持久化', () => {
     assert.equal(fresh.journal.preferences().playbackRate, 1.25);
   });
 });
+
+describe('progressJournal · 多端远端合并与变更订阅', () => {
+  test('applyRemoteSnapshot 单调合并完成态、保护正在播放中的音轨，并仅发射 remoteMerge', () => {
+    const kv = createMemoryKeyValue();
+    const clock = createClock();
+    const { journal } = bootProcess(kv, clock);
+
+    const events: string[] = [];
+    journal.subscribeChanges((ev) => {
+      events.push(`${ev.kind}:${'lessonId' in ev ? ev.lessonId : ev.lessonIds.join(',')}`);
+    });
+
+    // 0001 本地正在播放 PB（位置 100s）
+    journal.commit({
+      lessonId: '0001',
+      track: 'pb',
+      positionMs: 100_000,
+      segmentIndex: 5,
+      durationMs: 600_000,
+      reason: 'periodic',
+    });
+    journal.commitCompleted('0002');
+    events.length = 0;
+
+    const changed = journal.applyRemoteSnapshot({
+      lessons: [
+        {
+          // 0001 远端 PB 不应覆盖正在活跃播放中的 (0001, pb)，但 DG 应被合并，且完成态应置 true
+          lessonId: '0001',
+          lessonCompleted: true,
+          seq: 10,
+          pb: { positionMs: 420_000, segmentIndex: 20, updatedAtMs: clock.now(), seq: 10 },
+          dg: { positionMs: 55_000, segmentIndex: 3, updatedAtMs: clock.now(), seq: 10 },
+        },
+        {
+          // 0002 远端 lessonCompleted=false 绝不能撤销本地已完成状态
+          lessonId: '0002',
+          lessonCompleted: false,
+          seq: 11,
+          pb: null,
+          dg: null,
+        },
+      ],
+      lastOpened: { lessonId: '0015', updatedAtMs: clock.now(), seq: 11 },
+      isTrackActivelyPlaying: (lessonId, track) => lessonId === '0001' && track === 'pb',
+    });
+
+    assert.equal(changed, true);
+    assert.equal(journal.readRecord('0001').lessonCompleted, true);
+    assert.equal(journal.readRecord('0001').podcast?.committedPositionMs, 100_000, '活跃 PB 不被远端覆写');
+    assert.equal(journal.readRecord('0001').dialogue?.committedPositionMs, 55_000, '空闲 DG 正常合并');
+    assert.equal(journal.readRecord('0002').lessonCompleted, true, '已完成状态不可撤销');
+    assert.equal(journal.lastOpenedLessonId(), '0015');
+    assert.deepEqual(events, ['remoteMerge:0001']);
+  });
+});
