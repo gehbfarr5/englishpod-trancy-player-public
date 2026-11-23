@@ -47,6 +47,19 @@
       "memorySize": 256,
       "description": "微信虚拟支付发货回调通知处理",
       "installDependency": true
+    },
+    {
+      "name": "syncGateway",
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "timeout": 15,
+      "memorySize": 256,
+      "description": "多端学习进度同步签名透传网关",
+      "installDependency": true,
+      "ignore": [
+        "*.test.mjs",
+        "*.test.js"
+      ]
     }
   ]
 }

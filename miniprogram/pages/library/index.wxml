@@ -10,8 +10,10 @@
     app-name="{{appName}}"
     subtitle="{{subtitle}}"
     completion-text="{{completionText}}"
+    sync-status="{{syncStatus}}"
     safe-top-px="{{safeTopPx}}"
     nav-bar-px="{{navBarPx}}"
+    bind:completiontap="onCompletionTap"
   >
     <!-- 主页保留播放空间（有进度记录时展示） -->
     <view slot="continue" wx:if="{{continueInfo}}">
@@ -84,4 +86,11 @@
 
     <view class="lib__footer-space"></view>
   </scroll-view>
+
+  <sync-modal
+    visible="{{syncModalVisible}}"
+    completed-count="{{completedCount}}"
+    total-count="{{totalLessonCount || 335}}"
+    bind:close="onSyncModalClose"
+  />
 </view>

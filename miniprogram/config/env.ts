@@ -75,6 +75,7 @@ export const CLOUD_FUNCTION_NAMES = {
   getEntitlement: 'getEntitlement',
   virtualPaySign: 'virtualPaySign',
   virtualPayDeliver: 'virtualPayDeliver',
+  syncGateway: 'syncGateway',
 } as const;
 
 /** 单次云函数调用的超时时间（毫秒）。 */

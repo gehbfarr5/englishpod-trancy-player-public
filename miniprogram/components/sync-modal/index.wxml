@@ -1,0 +1,231 @@
+<!-- 多端进度同步底抽屉弹窗 -->
+<view class="sync-mask {{visible ? 'is-visible' : ''}}" bindtap="onClose">
+  <view class="sync-sheet {{visible ? 'is-open' : ''}}" catchtap="noop">
+    <!-- 顶部拖拽把手与标题栏 -->
+    <view class="sync-sheet__grabber-wrap">
+      <view class="sync-sheet__grabber"></view>
+    </view>
+
+    <view class="sync-sheet__head">
+      <view class="sync-sheet__title-group">
+        <text class="sync-sheet__title">多端进度同步</text>
+        <text class="sync-sheet__sub">{{linked ? statusLabel + ' · ' + lastSyncLabel : '无需账号 · 扫码或输码即连'}}</text>
+      </view>
+      <view class="sync-sheet__close" hover-class="sync-sheet__close--hover" bindtap="onClose">
+        <text class="sync-sheet__close-text">✕</text>
+      </view>
+    </view>
+
+    <!-- RareUI FolderComponent 立体文件夹动效区（纯 GPU CSS 3D，点击可切换开合） -->
+    <view class="sync-folder-stage" bindtap="onToggleFolder">
+      <view class="sync-folder {{folderOpen ? 'is-open' : ''}}">
+        <!-- 背板与左上角耳片 -->
+        <view class="sync-folder__tab"></view>
+        <view class="sync-folder__back"></view>
+
+        <!-- 三张交错弹出的进度卡片（0ms / 50ms / 100ms 延迟） -->
+        <view class="sync-folder__card sync-folder__card--left">
+          <text class="sync-folder__card-tag">已完成</text>
+          <text class="sync-folder__card-val">{{completedCount}}</text>
+          <text class="sync-folder__card-meta">/ {{totalCount}} 课</text>
+        </view>
+
+        <view class="sync-folder__card sync-folder__card--center">
+          <view class="sync-folder__center-pill sync-folder__center-pill--{{status}}">
+            <text class="sync-folder__center-pill-text">{{statusLabel}}</text>
+          </view>
+          <text class="sync-folder__card-title">{{deviceName}}</text>
+          <text class="sync-folder__card-meta">{{lastSyncLabel}}</text>
+        </view>
+
+        <view class="sync-folder__card sync-folder__card--right">
+          <text class="sync-folder__card-tag">已连接</text>
+          <text class="sync-folder__card-val">{{linked ? deviceCount : 1}}</text>
+          <text class="sync-folder__card-meta">{{linked ? '台设备' : '待联接'}}</text>
+        </view>
+
+        <!-- 前层毛玻璃折盖 -->
+        <view class="sync-folder__flap">
+          <view class="sync-folder__flap-notch"></view>
+          <view class="sync-folder__flap-row">
+            <text class="sync-folder__flap-label">EP SYNC · NO ACCOUNT</text>
+            <text class="sync-folder__flap-hint">{{folderOpen ? 'PROGRESS READY' : 'TAP TO OPEN'}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 退组或异常提醒横幅 -->
+    <view wx:if="{{revokedNotice || errorMessage}}" class="sync-banner {{revokedNotice ? 'is-warn' : 'is-error'}}">
+      <text class="sync-banner__text">{{revokedNotice ? '此设备已被移出同步组，本机所有学习记录已完整保留。' : errorMessage}}</text>
+      <text class="sync-banner__dismiss" bindtap="onDismissNotice">知道了</text>
+    </view>
+
+    <!-- 滚动操作主体 -->
+    <scroll-view class="sync-sheet__body" scroll-y show-scrollbar="{{false}}">
+      <!-- 子视图 1：展示本机配对二维码与 8 位短码 -->
+      <view wx:if="{{subView === 'qr'}}" class="sync-panel">
+        <view class="sync-qr-box">
+          <view wx:if="{{displayCode}}" class="sync-qr-frame">
+            <canvas
+              id="syncQrCanvas"
+              type="2d"
+              class="sync-qr__canvas"
+              style="width: {{qrSizePx}}px; height: {{qrSizePx}}px;"
+            />
+          </view>
+          <view wx:else class="sync-qr-placeholder">
+            <text class="sync-qr-placeholder__text">{{busy ? '正在生成配对码…' : '暂无可用配对码'}}</text>
+          </view>
+
+          <view wx:if="{{displayCode}}" class="sync-qr-code-row">
+            <text class="sync-qr-code">{{displayCode}}</text>
+            <view class="sync-chip-btn" hover-class="sync-chip-btn--hover" bindtap="onCopyCode">
+              <text class="sync-chip-btn__text">复制</text>
+            </view>
+          </view>
+
+          <text class="sync-qr-hint">
+            {{ticketStatus === 'expired' ? '配对码已过期，请返回重新生成' : '另一台设备打开 EnglishPod 扫码或输码即连 · 剩余有效 ' + countdownText}}
+          </text>
+        </view>
+
+        <view class="sync-btn sync-btn--ghost" hover-class="sync-btn--hover" bindtap="onCancelSubView">
+          <text class="sync-btn__text">返回</text>
+        </view>
+      </view>
+
+      <!-- 子视图 2：手动输入 8 位设备码 -->
+      <view wx:elif="{{subView === 'code'}}" class="sync-panel">
+        <view class="sync-code-card">
+          <text class="sync-code-card__label">输入另一台设备上显示的 8 位配对码</text>
+          <input
+            class="sync-code-input"
+            type="text"
+            maxlength="9"
+            value="{{codeInput}}"
+            placeholder="例如 K7M9-P2XR"
+            placeholder-class="sync-code-input__placeholder"
+            focus="{{subView === 'code'}}"
+            bindinput="onCodeInput"
+            bindconfirm="onSubmitCode"
+          />
+          <text class="sync-code-card__hint">不区分大小写，自动忽略混淆字符（0 / O / 1 / I / L）</text>
+        </view>
+
+        <view class="sync-row-actions">
+          <view class="sync-btn sync-btn--ghost sync-row-actions__half" hover-class="sync-btn--hover" bindtap="onCancelSubView">
+            <text class="sync-btn__text">返回</text>
+          </view>
+          <view class="sync-btn sync-btn--primary sync-row-actions__half {{busy ? 'is-busy' : ''}}" hover-class="sync-btn--hover" bindtap="onSubmitCode">
+            <text class="sync-btn__text">{{busy ? '连接中…' : '立即连接'}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 主视图 A：尚未加入同步组 -->
+      <view wx:elif="{{!linked}}" class="sync-panel">
+        <view class="sync-btn sync-btn--primary" hover-class="sync-btn--hover" bindtap="onScanQr">
+          <text class="sync-btn__text">扫一扫连接设备</text>
+        </view>
+        <view class="sync-btn sync-btn--soft" hover-class="sync-btn--hover" bindtap="onGenerateCode">
+          <text class="sync-btn__text">生成本机配对码 / 二维码</text>
+        </view>
+        <view class="sync-btn sync-btn--ghost" hover-class="sync-btn--hover" bindtap="onShowCodeInput">
+          <text class="sync-btn__text">输入 8 位设备码</text>
+        </view>
+      </view>
+
+      <!-- 主视图 B：已连接同步组与设备管理 -->
+      <view wx:else class="sync-panel">
+        <view class="sync-row-actions">
+          <view class="sync-btn sync-btn--primary sync-row-actions__half {{busy ? 'is-busy' : ''}}" hover-class="sync-btn--hover" bindtap="onSyncNow">
+            <text class="sync-btn__text">{{status === 'syncing' ? '同步中…' : '立即同步'}}</text>
+          </view>
+          <view class="sync-btn sync-btn--soft sync-row-actions__half" hover-class="sync-btn--hover" bindtap="onGenerateCode">
+            <text class="sync-btn__text">展示配对码</text>
+          </view>
+        </view>
+
+        <view class="sync-row-actions">
+          <view class="sync-btn sync-btn--ghost sync-row-actions__half" hover-class="sync-btn--hover" bindtap="onScanQr">
+            <text class="sync-btn__text">扫一扫换组</text>
+          </view>
+          <view class="sync-btn sync-btn--ghost sync-row-actions__half" hover-class="sync-btn--hover" bindtap="onShowCodeInput">
+            <text class="sync-btn__text">输码换组</text>
+          </view>
+        </view>
+
+        <!-- 设备列表 -->
+        <view class="sync-devices">
+          <view class="sync-devices__header">
+            <text class="sync-devices__title">同步组内设备（{{deviceCount}} / 10）</text>
+          </view>
+
+          <view wx:for="{{devices}}" wx:key="deviceId" class="sync-device-item">
+            <view class="sync-device-item__badge">
+              <text class="sync-device-item__badge-text">{{item.platformShort}}</text>
+            </view>
+
+            <view class="sync-device-item__info">
+              <view class="sync-device-item__name-row">
+                <text class="sync-device-item__name">{{item.deviceName}}</text>
+                <text wx:if="{{item.isCurrent}}" class="sync-device-item__self">本机</text>
+              </view>
+              <text class="sync-device-item__meta">{{item.platformLabel}} · {{item.lastSeenLabel}}</text>
+            </view>
+
+            <view
+              wx:if="{{item.isCurrent && !renaming}}"
+              class="sync-chip-btn"
+              hover-class="sync-chip-btn--hover"
+              bindtap="onStartRename"
+            >
+              <text class="sync-chip-btn__text">改名</text>
+            </view>
+            <view
+              wx:elif="{{!item.isCurrent}}"
+              class="sync-chip-btn sync-chip-btn--danger"
+              hover-class="sync-chip-btn--hover"
+              data-id="{{item.deviceId}}"
+              data-name="{{item.deviceName}}"
+              bindtap="onRemoveDevice"
+            >
+              <text class="sync-chip-btn__text">移除</text>
+            </view>
+          </view>
+
+          <!-- 本机内联重命名条 -->
+          <view wx:if="{{renaming}}" class="sync-rename-row">
+            <input
+              class="sync-rename-input"
+              type="text"
+              maxlength="32"
+              value="{{renameInput}}"
+              placeholder="输入设备名称"
+              bindinput="onRenameInput"
+              bindconfirm="onConfirmRename"
+            />
+            <view class="sync-chip-btn" bindtap="onCancelRename">
+              <text class="sync-chip-btn__text">取消</text>
+            </view>
+            <view class="sync-chip-btn sync-chip-btn--accent" bindtap="onConfirmRename">
+              <text class="sync-chip-btn__text">保存</text>
+            </view>
+          </view>
+        </view>
+
+        <view class="sync-leave-wrap">
+          <view class="sync-leave-btn" hover-class="sync-btn--hover" bindtap="onLeaveGroup">
+            <text class="sync-leave-btn__text">退出当前同步组</text>
+          </view>
+        </view>
+      </view>
+    </scroll-view>
+
+    <!-- 同步边界与隐私声明 -->
+    <view class="sync-sheet__footer">
+      <text class="sync-sheet__footer-text">仅同步课程完成状态与断点 · 倍速偏好及解锁权益保留在本机</text>
+    </view>
+  </view>
+</view>
