@@ -1,0 +1,9 @@
+[Unit]
+Description=Online SQLite backup for ep-syncd
+After=ep-syncd.service
+
+[Service]
+Type=oneshot
+User=ep-sync
+Group=ep-sync
+ExecStart=/bin/sh -c 'mkdir -p /var/backups/ep-syncd && /usr/bin/sqlite3 /var/lib/ep-syncd/ep-sync.db ".backup '\''/var/backups/ep-syncd/ep-sync-$(date -u +%%Y%%m%%d-%%H%%M%%S).db'\''" && find /var/backups/ep-syncd -name "ep-sync-*.db" -mtime +7 -delete'

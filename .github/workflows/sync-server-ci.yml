@@ -1,0 +1,46 @@
+name: Sync Server CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sync_server/**"
+      - ".github/workflows/sync-server-ci.yml"
+  pull_request:
+    paths:
+      - "sync_server/**"
+      - ".github/workflows/sync-server-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-server-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go-sync-server:
+    name: Go vet, race tests, and Linux amd64 build
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: sync_server
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: sync_server/go.mod
+          cache-dependency-path: sync_server/go.sum
+      - name: Vet
+        run: go vet ./...
+      - name: Test with race detector
+        run: go test -race -v ./...
+      - name: Cross-compile static Linux amd64 binary
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: amd64
+        run: go build -trimpath -o /tmp/ep-syncd ./cmd/ep-syncd

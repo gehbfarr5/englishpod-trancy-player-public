@@ -1,0 +1,24 @@
+[Unit]
+Description=EnglishPod Multi-Device Sync Service (EP-SYNC-001)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ep-sync
+Group=ep-sync
+EnvironmentFile=/etc/ep-syncd/env
+WorkingDirectory=/var/lib/ep-syncd
+ExecStart=/usr/local/bin/ep-syncd
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=15s
+MemoryMax=128M
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/ep-syncd
+
+[Install]
+WantedBy=multi-user.target
