@@ -20,6 +20,7 @@ The original includes dual-audio rules. For the proposed new Mini Program scope,
 3. miniprogram-platform-evidence.md — M0 evidence register; official page bodies remain unverified where automated retrieval failed.
 4. miniprogram-test-policy.md — separates routine CI, development previews, and optional quota-aware cloud testing.
 5. miniprogram-audio-experiment.md — M1 podcast-only audio experiment matrix; not yet executed.
+6. device-sync-spec.md — EP-SYNC-001 v1.0 multi-device progress sync specification (account-free QR / 8-char code pairing, Go + SQLite backend, CloudBase proxy, and top-right progress folder modal UI/motion).
 
 ## Remaining audit boundaries
 - Identify other missing non-sensitive Web/product documentation through a dedicated old/public inventory before declaring all migration documentation complete.
