@@ -49,6 +49,9 @@ class ContractPlayer extends ChangeNotifier {
   final Future<LessonDetail> Function(String) readLesson;
   final Future<void> Function(String) write;
   final Duration retryDelay, loadTimeout;
+  void Function(String lessonId, String track, double positionSec,
+      double durationSec, bool completed, String trigger)? onSyncCommit;
+  void Function(String lessonId)? onSyncLastOpened;
   List<LessonSummary> lessons = [];
   final records = <String, LearningRecord>{};
   LessonDetail? lesson;
@@ -109,13 +112,81 @@ class ContractPlayer extends ChangeNotifier {
     });
     return _writes;
   }
-  Future<void> checkpoint() {
+  Future<void> checkpoint({String trigger = 'periodic'}) {
     if (lesson != null && !loading && !pendingZero) {
+      final id = lesson!.lessonId;
       final r = currentRecord;
-      r.position = position; r.duration = duration; r.ended = ended;
+      r.position = position;
+      r.duration = duration;
+      r.ended = ended;
+      onSyncCommit?.call(
+        id,
+        track,
+        position,
+        duration,
+        record(id).completed,
+        trigger,
+      );
     }
     _lastSave = DateTime.now();
     return persist();
+  }
+
+  Future<void> applyRemoteSync({
+    required Map<String, ({
+      bool completed,
+      double? pbPos,
+      double? pbDur,
+      double? dgPos,
+      double? dgDur,
+    })> updates,
+    String? remoteLastOpened,
+  }) async {
+    var changed = false;
+    updates.forEach((id, u) {
+      if (!lessons.any((x) => x.lessonId == id)) return;
+      final r = record(id);
+      if (u.completed && !r.completed) {
+        r.completed = true;
+        changed = true;
+      }
+      if (u.pbPos != null) {
+        final pb = r.tracks['pb']!;
+        final dur = (u.pbDur != null && u.pbDur! > 0) ? u.pbDur! : pb.duration;
+        final pos = dur > 0 ? u.pbPos!.clamp(0.0, dur).toDouble() : u.pbPos!;
+        final endedFlag = dur > 0 && pos >= dur - 1.5;
+        if (pb.position != pos || pb.duration != dur || pb.ended != endedFlag) {
+          pb.position = pos;
+          if (dur > 0) pb.duration = dur;
+          pb.ended = endedFlag;
+          changed = true;
+        }
+      }
+      if (u.dgPos != null) {
+        final dg = r.tracks['dg']!;
+        final dur = (u.dgDur != null && u.dgDur! > 0) ? u.dgDur! : dg.duration;
+        final pos = dur > 0 ? u.dgPos!.clamp(0.0, dur).toDouble() : u.dgPos!;
+        final endedFlag = dur > 0 && pos >= dur - 1.5;
+        if (dg.position != pos || dg.duration != dur || dg.ended != endedFlag) {
+          dg.position = pos;
+          if (dur > 0) dg.duration = dur;
+          dg.ended = endedFlag;
+          changed = true;
+        }
+      }
+    });
+    if (remoteLastOpened != null &&
+        lessons.any((x) => x.lessonId == remoteLastOpened) &&
+        !playing &&
+        !loading &&
+        lastOpened != remoteLastOpened) {
+      lastOpened = remoteLastOpened;
+      changed = true;
+    }
+    if (changed) {
+      await persist();
+      _notify();
+    }
   }
   double _resumePosition(String id, String target, {bool entry = false}) {
     final r = record(id), t = r.tracks[target]!;
@@ -135,13 +206,17 @@ class ContractPlayer extends ChangeNotifier {
         manualZero = false;
       }
       tab = 'pb';
-      if (updateAnchor) { lastOpened = id; unawaited(persist()); }
+      if (updateAnchor) {
+        lastOpened = id;
+        onSyncLastOpened?.call(id);
+        unawaited(persist());
+      }
       if (requestPlay && playIntent == _playIntent) await setPlaying(true);
       _notify(); return;
     }
     // Capture outgoing valid state before changing identity; do not await storage
     // before reserving the new generation (rapid A/B/C remains latest wins).
-    unawaited(checkpoint());
+    unawaited(checkpoint(trigger: 'switch'));
     final my = ++generation;
     final deadline = DateTime.now().add(loadTimeout);
     Duration remaining() {
@@ -159,7 +234,11 @@ class ContractPlayer extends ChangeNotifier {
     try {
       final detail = await readLesson(id).timeout(remaining());
       if (my != generation || _disposed) return;
-      lesson = detail; track = target; tab = target; if (updateAnchor) lastOpened = id;
+      lesson = detail; track = target; tab = target;
+      if (updateAnchor) {
+        lastOpened = id;
+        onSyncLastOpened?.call(id);
+      }
       manualZero = intent == EntryIntent.manualNav;
       final startZero = manualZero || intent == EntryIntent.autoNext;
       pendingZero = true;
@@ -173,7 +252,7 @@ class ContractPlayer extends ChangeNotifier {
         audio.onError = (e) {
           if (my == generation && identical(_audio, audio) && !loading) {
             error = 'Audio interrupted. Retry or return to library.';
-            playing = false; wantsPlay = false; unawaited(audio.pause()); unawaited(checkpoint()); _notify();
+            playing = false; wantsPlay = false; unawaited(audio.pause()); unawaited(checkpoint(trigger: 'pause')); _notify();
           }
         };
         try {
@@ -223,7 +302,7 @@ class ContractPlayer extends ChangeNotifier {
     if (loading || _audio == null) { _notify(); return; }
     final my = generation, audio = _audio!, intent = _playIntent;
     if (!value) {
-      playing = false; await audio.pause(); unawaited(checkpoint()); _notify(); return;
+      playing = false; await audio.pause(); unawaited(checkpoint(trigger: 'pause')); _notify(); return;
     }
     if (ended) { pendingZero = true; await seek(0, user: false); }
     if (my != generation || intent != _playIntent || !wantsPlay) return;
@@ -260,7 +339,7 @@ class ContractPlayer extends ChangeNotifier {
     await audio.seek(position);
     if (my != generation || seekIntent != _seekIntent) return;
     _seeking = false; _previous = position;
-    if (user) unawaited(checkpoint());
+    if (user) unawaited(checkpoint(trigger: 'seek'));
     _notify();
   }
   void tick(double value) {
@@ -270,14 +349,14 @@ class ContractPlayer extends ChangeNotifier {
     if (playing && prior != null && position > prior) {
       _advanced = true; pendingZero = false; manualZero = false;
       if (track == 'pb' && prior < duration * .95 && position >= duration * .95) {
-        record(lesson!.lessonId).completed = true; unawaited(checkpoint());
+        record(lesson!.lessonId).completed = true; unawaited(checkpoint(trigger: 'complete'));
       }
       if (sentenceLoop && segments.isNotEmpty && position >= segments[_loopIndex.clamp(0, segments.length - 1)].end) {
         unawaited(seek(segments[_loopIndex.clamp(0, segments.length - 1)].start, user: false));
       }
     }
     _previous = position;
-    if (playing && DateTime.now().difference(_lastSave).inMilliseconds >= 3000) unawaited(checkpoint());
+    if (playing && DateTime.now().difference(_lastSave).inMilliseconds >= 3000) unawaited(checkpoint(trigger: 'periodic'));
     _notify();
   }
   Future<void> naturalEnd() async {
@@ -293,6 +372,14 @@ class ContractPlayer extends ChangeNotifier {
     currentRecord.position = duration;
     currentRecord.duration = duration;
     currentRecord.ended = true;
+    onSyncCommit?.call(
+      lesson!.lessonId,
+      track,
+      duration,
+      duration,
+      record(lesson!.lessonId).completed,
+      'complete',
+    );
     unawaited(persist());
     if (trackLoop) {
       ended = true;
@@ -318,6 +405,6 @@ class ContractPlayer extends ChangeNotifier {
   void toggleImmersive() { immersive = !immersive; unawaited(persist()); _notify(); }
   Future<void> setRate(double value) async { rate = value; await _audio?.speed(value); unawaited(persist()); _notify(); }
   @override
-  void dispose() { _disposed = true; ++generation; unawaited(checkpoint()); unawaited(_audio?.dispose() ?? Future.value()); super.dispose(); }
+  void dispose() { _disposed = true; ++generation; unawaited(checkpoint(trigger: 'background')); unawaited(_audio?.dispose() ?? Future.value()); super.dispose(); }
 }
 
