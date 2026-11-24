@@ -2,7 +2,7 @@
  * ============================================================================
  *  多端设备同步弹窗组件（components/sync-modal/index.ts）
  * ============================================================================
- *  - RareUI FolderComponent 启发的三层立体文件夹动效（纯 GPU CSS 3D，零逐帧 setData）；
+ *  - 双端光束流主视觉（Animated Beam 风格，纯 GPU CSS 动画，零逐帧 setData）；
  *  - 双主题设计令牌完全对齐 Warm Parchment / Dark Cocoon；
  *  - 支持 wx.scanCode 扫码直连、Canvas 2D 二维码生成与 8 位码展示、手动输入配对码、
  *    设备列表管理（重命名/移除/手动同步/退出同步组）。
@@ -32,7 +32,7 @@ type ModalSubView = 'menu' | 'qr' | 'code';
 interface ModalRuntime {
   unsubscribeSync?: () => void;
   countdownTimer?: ReturnType<typeof setInterval>;
-  folderOpenTimer?: ReturnType<typeof setTimeout>;
+  beamPulseTimer?: ReturnType<typeof setTimeout>;
   qrRetryTimer?: ReturnType<typeof setTimeout>;
   lastDrawnQrPayload: string;
 }
@@ -130,7 +130,10 @@ Component({
   },
 
   data: {
-    folderOpen: false,
+    beamPulsing: false,
+    hasPeer: false,
+    peerShort: '扫码',
+    peerLabel: '待扫码接入',
     linked: false,
     status: 'unlinked',
     statusLabel: '本机独立记录',
@@ -174,7 +177,7 @@ Component({
         codeInput: '',
         busy: false,
         renaming: false,
-        folderOpen: false,
+        beamPulsing: false,
       });
 
       const snap = syncService.getSnapshot();
@@ -183,33 +186,32 @@ Component({
         void syncService.refreshDevices();
       }
 
-      this.clearFolderOpenTimer();
-      rt.folderOpenTimer = setTimeout(() => {
-        rt.folderOpenTimer = undefined;
-        if (this.data.visible) {
-          this.setData({ folderOpen: true });
-        }
-      }, 60);
+      this.triggerBeamPulse();
     },
 
     handleCloseCleanup(): void {
       const rt = getModalRuntime(this);
-      this.clearFolderOpenTimer();
+      this.clearBeamPulseTimer();
       this.clearCountdownTimer();
       this.clearQrRetryTimer();
       rt.unsubscribeSync?.();
       rt.unsubscribeSync = undefined;
       syncService.cancelPairingPoll();
       rt.lastDrawnQrPayload = '';
-      if (this.data.folderOpen) {
-        this.setData({ folderOpen: false });
+      if (this.data.beamPulsing) {
+        this.setData({ beamPulsing: false });
       }
     },
 
     applySnapshot(snap: SyncEngineSnapshot): void {
       const devices = toDeviceViewModels(snap.devices);
+      const peer = devices.find((d) => !d.isCurrent);
+      const prevStatus = this.data.status;
       const patch: Record<string, unknown> = {
         linked: snap.linked,
+        hasPeer: Boolean(peer),
+        peerShort: peer ? peer.platformShort : '扫码',
+        peerLabel: peer ? peer.deviceName : devices.length > 1 ? `${devices.length - 1} 台对端` : '待扫码接入',
         status: snap.status,
         statusLabel: mapStatusText(snap),
         lastSyncLabel: snap.linked
@@ -250,6 +252,10 @@ Component({
 
       this.setData(patch);
 
+      if (prevStatus !== snap.status && snap.status === 'synced') {
+        this.triggerBeamPulse();
+      }
+
       if (this.data.visible && this.data.subView === 'qr' && snap.activeTicket?.qrPayload) {
         this.scheduleDrawQr(snap.activeTicket.qrPayload);
       }
@@ -264,8 +270,24 @@ Component({
       // 阻止事件穿透到底层列表
     },
 
-    onToggleFolder(): void {
-      this.setData({ folderOpen: !this.data.folderOpen });
+    onPulseBeam(): void {
+      this.triggerBeamPulse();
+    },
+
+    triggerBeamPulse(): void {
+      const rt = getModalRuntime(this);
+      this.clearBeamPulseTimer();
+      this.setData({ beamPulsing: false });
+      wx.nextTick(() => {
+        if (!this.data.visible) return;
+        this.setData({ beamPulsing: true });
+        rt.beamPulseTimer = setTimeout(() => {
+          rt.beamPulseTimer = undefined;
+          if (this.data.beamPulsing) {
+            this.setData({ beamPulsing: false });
+          }
+        }, 1200);
+      });
     },
 
     onDismissNotice(): void {
@@ -579,11 +601,11 @@ Component({
       }
     },
 
-    clearFolderOpenTimer(): void {
+    clearBeamPulseTimer(): void {
       const rt = getModalRuntime(this);
-      if (rt.folderOpenTimer) {
-        clearTimeout(rt.folderOpenTimer);
-        rt.folderOpenTimer = undefined;
+      if (rt.beamPulseTimer) {
+        clearTimeout(rt.beamPulseTimer);
+        rt.beamPulseTimer = undefined;
       }
     },
 

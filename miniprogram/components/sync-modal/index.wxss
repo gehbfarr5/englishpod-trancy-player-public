@@ -104,227 +104,270 @@
 }
 
 /* ============================================================================
- * RareUI FolderComponent 启发的三层 3D 文件夹交互舞台（纯 GPU 合成层）
+ * 双端光束流主视觉（Animated Beam 风格 —— 纯 GPU 动画层）
  * ============================================================================ */
-.sync-folder-stage {
-  display: flex;
-  justify-content: center;
-  padding: 26px 0 8px;
-  perspective: 900px;
-}
-
-.sync-folder {
-  position: relative;
-  width: 224px;
-  height: 116px;
-  transform-style: preserve-3d;
-}
-
-.sync-folder__tab {
-  position: absolute;
-  top: -10px;
-  left: 0;
-  width: 78px;
-  height: 18px;
-  border-top-left-radius: 10px;
-  border-top-right-radius: 10px;
-  background-color: var(--ep-surface-3);
-  border: 1px solid var(--ep-deck-border);
-  border-bottom: none;
-}
-
-.sync-folder__back {
-  position: absolute;
-  inset: 0;
-  border-radius: 16px;
-  border-top-left-radius: 4px;
-  background: linear-gradient(180deg, var(--ep-surface-3) 0%, var(--ep-surface-2) 100%);
-  border: 1px solid var(--ep-deck-border);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
-}
-
-/* 3 张交错弹出卡片（左/中/右，delay: 0ms / 50ms / 100ms） */
-.sync-folder__card {
-  position: absolute;
-  left: 50%;
-  bottom: 22px;
-  box-sizing: border-box;
-  width: 96px;
-  height: 80px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  background-color: var(--ep-deck-bg);
-  border: 1px solid var(--ep-deck-border);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.14);
+.sync-beam-stage {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  padding: 16px 14px 12px;
+  border-radius: var(--ep-radius-card);
+  border: 1px solid var(--ep-border);
+  background-color: var(--ep-surface-inset);
+  background-image: radial-gradient(
+    75% 85% at 50% 42%,
+    var(--ep-accent-soft) 0%,
+    transparent 100%
+  );
+}
+
+.sync-beam__row {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
   justify-content: space-between;
-  opacity: 0;
-  transform: translate3d(-50%, 10px, 0) scale(0.9);
-  transition: transform 500ms var(--ep-ease-bounce), opacity 280ms ease-out;
+}
+
+.sync-beam__node {
+  width: 68px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sync-beam__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background-color: var(--ep-surface-2);
+  border: 1px solid var(--ep-deck-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+}
+
+.sync-beam__icon--active {
+  border-color: var(--ep-stage-box-border);
+}
+
+.sync-beam__icon--dashed {
+  border-style: dashed;
+  border-color: var(--ep-metro-outline);
+  opacity: 0.72;
+}
+
+.sync-beam__icon-text {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ep-text-primary);
+}
+
+.sync-beam__node-label {
+  margin-top: 6px;
+  max-width: 68px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ep-text-passed);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-beam__rail-wrap {
+  flex: 1;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+}
+
+.sync-beam__rail {
+  position: relative;
+  width: 100%;
+  height: 2px;
+  border-radius: 2px;
+  background-color: var(--ep-border);
+  overflow: hidden;
+}
+
+.sync-beam__rail.is-lit {
+  background-color: var(--ep-stage-box-border);
+}
+
+.sync-beam__rail.is-dashed {
+  height: 0;
+  background: transparent;
+  border-top: 1.5px dashed var(--ep-metro-outline);
+}
+
+.sync-beam-stage.is-synced .sync-beam__rail.is-lit {
+  background-color: var(--ep-accent);
+  opacity: 0.85;
+}
+
+.sync-beam__comet {
+  position: absolute;
+  top: -1px;
+  width: 36%;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent 0%, var(--ep-accent) 75%, #FFFFFF 100%);
+  will-change: transform;
+}
+
+.sync-beam__comet--fwd {
+  animation: epBeamFwd 1.1s linear infinite;
+}
+
+.sync-beam__comet--rev {
+  background: linear-gradient(270deg, transparent 0%, var(--ep-accent) 75%, #FFFFFF 100%);
+  animation: epBeamRev 1.1s linear infinite;
+}
+
+.sync-beam__hub-wrap {
+  position: relative;
+  width: 52px;
+  height: 44px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sync-beam__ping {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid var(--ep-accent);
+  animation: epBeamPing 1.15s cubic-bezier(0, 0, 0.2, 1) infinite;
   will-change: transform, opacity;
 }
 
-.sync-folder__card--left {
+.sync-beam__hub {
+  position: relative;
   z-index: 2;
-  transition-delay: 0ms;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background-color: var(--ep-surface-1);
+  border: 1.8px solid var(--ep-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px var(--ep-accent-soft);
 }
 
-.sync-folder__card--center {
-  z-index: 4;
-  width: 118px;
-  height: 92px;
-  background: linear-gradient(160deg, var(--ep-deck-gradient-top) 0%, var(--ep-deck-bg) 100%);
-  border-color: var(--ep-stage-box-border);
-  transition-delay: 50ms;
+.sync-beam__hub--synced {
+  background-color: var(--ep-accent);
 }
 
-.sync-folder__card--right {
-  z-index: 3;
-  transition-delay: 100ms;
+.sync-beam__hub--offline,
+.sync-beam__hub--error {
+  border-color: #D99B26;
 }
 
-.sync-folder.is-open .sync-folder__card--left {
-  opacity: 1;
-  transform: translate3d(-98%, -26px, 0) rotate(-9deg) scale(1);
+@media (prefers-color-scheme: dark) {
+  .sync-beam__hub--offline,
+  .sync-beam__hub--error {
+    border-color: #F5B73B;
+  }
 }
 
-.sync-folder.is-open .sync-folder__card--center {
-  opacity: 1;
-  transform: translate3d(-50%, -36px, 0) scale(1);
-}
-
-.sync-folder.is-open .sync-folder__card--right {
-  opacity: 1;
-  transform: translate3d(-2%, -26px, 0) rotate(9deg) scale(1);
-}
-
-.sync-folder__card-tag {
-  font-size: 9.5px;
-  font-weight: 700;
-  color: var(--ep-text-passed);
-}
-
-.sync-folder__card-val {
-  font-size: 20px;
+.sync-beam__hub-check {
+  font-size: 19px;
   font-weight: 800;
-  color: var(--ep-text-primary);
-  line-height: 1.1;
+  color: var(--ep-accent-fg);
+  animation: epBeamCheckPop 360ms var(--ep-ease-bounce) forwards;
 }
 
-.sync-folder__card-title {
-  font-size: 13px;
+.sync-beam__hub-text {
+  font-size: 11px;
   font-weight: 800;
-  color: var(--ep-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--ep-accent);
+  letter-spacing: 0.3px;
 }
 
-.sync-folder__card-meta {
-  font-size: 9.5px;
-  color: var(--ep-text-passed);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sync-folder__center-pill {
-  align-self: flex-start;
-  padding: 2px 7px;
+.sync-beam__status-pill {
+  margin-top: 10px;
+  padding: 4px 12px;
   border-radius: var(--ep-radius-pill);
   background-color: var(--ep-accent-soft);
   border: 1px solid var(--ep-stage-box-border);
 }
 
-.sync-folder__center-pill-text {
-  font-size: 9px;
+.sync-beam__status-pill--offline,
+.sync-beam__status-pill--error {
+  border-color: rgba(217, 155, 38, 0.45);
+}
+
+.sync-beam__status-text {
+  font-size: 11px;
   font-weight: 700;
   color: var(--ep-accent);
 }
 
-/* 前层磨砂折盖 */
-.sync-folder__flap {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 6;
-  height: 76px;
-  box-sizing: border-box;
-  padding: 10px 14px 12px;
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.56) 0%, rgba(255, 255, 255, 0.34) 100%);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--ep-deck-border);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  transform-origin: bottom center;
-  transform: rotateX(-14deg);
-  transition: transform 520ms var(--ep-ease-bounce);
-  will-change: transform;
+.sync-beam__status-pill--offline .sync-beam__status-text,
+.sync-beam__status-pill--error .sync-beam__status-text {
+  color: #D99B26;
 }
 
 @media (prefers-color-scheme: dark) {
-  .sync-folder__flap {
-    background: linear-gradient(180deg, rgba(35, 39, 52, 0.78) 0%, rgba(22, 24, 33, 0.68) 100%);
+  .sync-beam__status-pill--offline .sync-beam__status-text,
+  .sync-beam__status-pill--error .sync-beam__status-text {
+    color: #F5B73B;
   }
 }
 
-.sync-folder.is-open .sync-folder__flap {
-  transform: rotateX(-40deg);
+@keyframes epBeamFwd {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
 }
 
-.sync-folder__flap-notch {
-  align-self: center;
-  width: 34px;
-  height: 3.5px;
-  border-radius: 2px;
-  background-color: var(--ep-metro-outline);
+@keyframes epBeamRev {
+  0% {
+    transform: translateX(300%);
+  }
+  100% {
+    transform: translateX(-110%);
+  }
 }
 
-.sync-folder__flap-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
+@keyframes epBeamPing {
+  0% {
+    transform: scale(0.88);
+    opacity: 0.7;
+  }
+  90%, 100% {
+    transform: scale(1.48);
+    opacity: 0;
+  }
 }
 
-.sync-folder__flap-label {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.7px;
-  color: var(--ep-text-primary);
-}
-
-.sync-folder__flap-hint {
-  font-size: 8.5px;
-  font-weight: 700;
-  color: var(--ep-accent);
+@keyframes epBeamCheckPop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sync-folder__card {
-    transition: opacity 160ms ease-out;
-    transform: translate3d(-50%, 0, 0);
-  }
-  .sync-folder.is-open .sync-folder__card--left {
-    transform: translate3d(-96%, -18px, 0);
-  }
-  .sync-folder.is-open .sync-folder__card--center {
-    transform: translate3d(-50%, -22px, 0);
-  }
-  .sync-folder.is-open .sync-folder__card--right {
-    transform: translate3d(-4%, -18px, 0);
-  }
-  .sync-folder__flap {
-    transition: transform 160ms ease-out;
-    transform: none;
-  }
-  .sync-folder.is-open .sync-folder__flap {
-    transform: translateY(6px);
+  .sync-beam__comet,
+  .sync-beam__ping,
+  .sync-beam__hub-check {
+    animation: none !important;
   }
 }
 
