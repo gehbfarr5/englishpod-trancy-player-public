@@ -16,42 +16,62 @@
       </view>
     </view>
 
-    <!-- RareUI FolderComponent 立体文件夹动效区（纯 GPU CSS 3D，点击可切换开合） -->
-    <view class="sync-folder-stage" bindtap="onToggleFolder">
-      <view class="sync-folder {{folderOpen ? 'is-open' : ''}}">
-        <!-- 背板与左上角耳片 -->
-        <view class="sync-folder__tab"></view>
-        <view class="sync-folder__back"></view>
-
-        <!-- 三张交错弹出的进度卡片（0ms / 50ms / 100ms 延迟） -->
-        <view class="sync-folder__card sync-folder__card--left">
-          <text class="sync-folder__card-tag">已完成</text>
-          <text class="sync-folder__card-val">{{completedCount}}</text>
-          <text class="sync-folder__card-meta">/ {{totalCount}} 课</text>
-        </view>
-
-        <view class="sync-folder__card sync-folder__card--center">
-          <view class="sync-folder__center-pill sync-folder__center-pill--{{status}}">
-            <text class="sync-folder__center-pill-text">{{statusLabel}}</text>
+    <!-- 双端光束流同步主视觉（Animated Beam 风格，纯 GPU CSS 动画，点击可重放光束脉冲） -->
+    <view
+      class="sync-beam-stage is-{{status}} {{beamPulsing ? 'is-pulsing' : ''}}"
+      bindtap="onPulseBeam"
+    >
+      <view class="sync-beam__row">
+        <!-- 左侧：本机节点 -->
+        <view class="sync-beam__node">
+          <view class="sync-beam__icon sync-beam__icon--active">
+            <text class="sync-beam__icon-text">微信</text>
           </view>
-          <text class="sync-folder__card-title">{{deviceName}}</text>
-          <text class="sync-folder__card-meta">{{lastSyncLabel}}</text>
+          <text class="sync-beam__node-label">本机</text>
         </view>
 
-        <view class="sync-folder__card sync-folder__card--right">
-          <text class="sync-folder__card-tag">已连接</text>
-          <text class="sync-folder__card-val">{{linked ? deviceCount : 1}}</text>
-          <text class="sync-folder__card-meta">{{linked ? '台设备' : '待联接'}}</text>
-        </view>
-
-        <!-- 前层毛玻璃折盖 -->
-        <view class="sync-folder__flap">
-          <view class="sync-folder__flap-notch"></view>
-          <view class="sync-folder__flap-row">
-            <text class="sync-folder__flap-label">EP SYNC · NO ACCOUNT</text>
-            <text class="sync-folder__flap-hint">{{folderOpen ? 'PROGRESS READY' : 'TAP TO OPEN'}}</text>
+        <!-- 左光束轨道 -->
+        <view class="sync-beam__rail-wrap">
+          <view class="sync-beam__rail {{status === 'synced' || status === 'syncing' ? 'is-lit' : 'is-dashed'}}">
+            <view
+              wx:if="{{status === 'syncing' || beamPulsing}}"
+              class="sync-beam__comet sync-beam__comet--fwd"
+            ></view>
           </view>
         </view>
+
+        <!-- 中心进度同步枢纽 -->
+        <view class="sync-beam__hub-wrap">
+          <view wx:if="{{status === 'syncing' || beamPulsing}}" class="sync-beam__ping"></view>
+          <view class="sync-beam__hub sync-beam__hub--{{status}}">
+            <text wx:if="{{status === 'synced'}}" class="sync-beam__hub-check">✓</text>
+            <text wx:elif="{{status === 'syncing'}}" class="sync-beam__hub-text">SYNC</text>
+            <text wx:elif="{{status === 'offline' || status === 'error'}}" class="sync-beam__hub-text">!</text>
+            <text wx:else class="sync-beam__hub-text">EP</text>
+          </view>
+        </view>
+
+        <!-- 右光束轨道 -->
+        <view class="sync-beam__rail-wrap">
+          <view class="sync-beam__rail {{(status === 'synced' || status === 'syncing') && hasPeer ? 'is-lit' : 'is-dashed'}}">
+            <view
+              wx:if="{{status === 'syncing' || beamPulsing}}"
+              class="sync-beam__comet {{hasPeer ? 'sync-beam__comet--rev' : 'sync-beam__comet--fwd'}}"
+            ></view>
+          </view>
+        </view>
+
+        <!-- 右侧：对端或待扫码槽位 -->
+        <view class="sync-beam__node">
+          <view class="sync-beam__icon {{hasPeer ? 'sync-beam__icon--active' : 'sync-beam__icon--dashed'}}">
+            <text class="sync-beam__icon-text">{{peerShort}}</text>
+          </view>
+          <text class="sync-beam__node-label">{{peerLabel}}</text>
+        </view>
+      </view>
+
+      <view class="sync-beam__status-pill sync-beam__status-pill--{{status}}">
+        <text class="sync-beam__status-text">已完成 {{completedCount}} / {{totalCount}} 课 · {{linked ? deviceCount + ' 台设备' : '扫码或输码即连'}}</text>
       </view>
     </view>
 

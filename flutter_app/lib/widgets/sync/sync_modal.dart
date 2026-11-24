@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import '../../services/sync/sync_engine.dart';
 import '../../services/sync/sync_models.dart';
 import '../../services/sync/sync_platform.dart';
-import 'sync_folder_hero.dart';
+import 'sync_beam_hero.dart';
 import 'sync_qr_code.dart';
 import 'sync_theme.dart';
 
@@ -328,13 +328,11 @@ class _ProgressSyncDialogState extends State<_ProgressSyncDialog> {
     final t = widget.tokens;
     final media = MediaQuery.of(context);
     final size = media.size;
-    final compact = size.height < 640 || size.width < 400;
-    final heroScale = compact ? 0.42 : 0.48;
     final engine = widget.engine;
-    final platforms = engine.devices
-        .map((d) => _platformLabel(d.platform))
-        .toSet()
-        .toList();
+    final peerDevice = engine.devices.cast<SyncDeviceSummary?>().firstWhere(
+          (d) => d != null && !d.isCurrent,
+          orElse: () => null,
+        );
 
     return Center(
       child: Material(
@@ -418,17 +416,19 @@ class _ProgressSyncDialogState extends State<_ProgressSyncDialog> {
                   ),
 
                   if (_mode == _ModalViewMode.overview) ...[
-                    Center(
-                      child: SyncFolderHero(
-                        tokens: t,
-                        completedCount: widget.completedCount,
-                        totalCount: widget.totalCount,
-                        deviceCount: engine.devices.length,
-                        syncStatus: engine.status,
-                        devicePlatforms: platforms,
-                        initiallyOpen: true,
-                        scale: heroScale,
-                      ),
+                    SyncBeamHero(
+                      tokens: t,
+                      completedCount: widget.completedCount,
+                      totalCount: widget.totalCount,
+                      deviceCount: engine.devices.length,
+                      syncStatus: engine.status,
+                      localPlatform: engine.platform,
+                      localDeviceName: engine.deviceName,
+                      peerPlatform: peerDevice?.platform,
+                      peerLabel: peerDevice?.deviceName ??
+                          (engine.devices.length > 1
+                              ? '${engine.devices.length - 1} 台对端'
+                              : null),
                     ),
                     const SizedBox(height: 12),
                   ],

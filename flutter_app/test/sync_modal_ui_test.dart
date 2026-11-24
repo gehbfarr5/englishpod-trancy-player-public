@@ -2,7 +2,7 @@ import 'package:englishpod_trancy/main.dart';
 import 'package:englishpod_trancy/services/sync/sync_engine.dart';
 import 'package:englishpod_trancy/services/sync/sync_storage_bridge.dart';
 import 'package:englishpod_trancy/services/web_contract_player.dart';
-import 'package:englishpod_trancy/widgets/sync/sync_folder_hero.dart';
+import 'package:englishpod_trancy/widgets/sync/sync_beam_hero.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,7 +11,7 @@ import 'tesla_contract_test.dart' show FakeAudio, make;
 
 void main() {
   for (final pref in [AppThemePreference.dark, AppThemePreference.light]) {
-    testWidgets('top-right Done pill opens RareUI folder sync modal (${pref.name})', (tester) async {
+    testWidgets('top-right Done pill opens animated beam sync modal (${pref.name})', (tester) async {
       tester.view.devicePixelRatio = 1.0;
       tester.view.physicalSize = const Size(430, 880);
       addTearDown(tester.view.resetPhysicalSize);
@@ -48,11 +48,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('多端进度同步'), findsOneWidget);
-      expect(find.byType(SyncFolderHero), findsOneWidget);
+      expect(find.byType(SyncBeamHero), findsOneWidget);
 
-      // Tap folder to toggle open/idle.
-      await tester.tap(find.byKey(const ValueKey('sync_folder_hero_tap')));
+      // Tap beam hero to replay pulse sweep without breaking settle.
+      await tester.tap(find.byKey(const ValueKey('sync_beam_hero_tap')));
       await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
 
       // Generate pairing code -> verifies QR widget has light quiet zone (#FAF8F5) and XXXX-XXXX code.
       final genBtn = find.byKey(const ValueKey('sync_generate_code_btn'));
@@ -141,7 +142,7 @@ void main() {
 
     expect(engine.isLinked, isTrue);
     expect(find.text('已连接设备 (2)'), findsOneWidget);
-    expect(find.text('iPhone 17'), findsOneWidget);
+    expect(find.text('iPhone 17'), findsNWidgets(2));
 
     // Revoke other device (dev-a).
     final revokeBtn = find.byKey(const ValueKey('sync_revoke_dev-a'));
