@@ -1423,9 +1423,17 @@ class _HoldToReplayHeroButtonState extends State<_HoldToReplayHeroButton>
         ),
         const SizedBox(width: 8),
         SizedBox(
-          width: 50,
+          width: 62,
           child: Text(
-            widget.isEnded ? 'Replay' : widget.isPlaying ? 'Pause' : 'Play',
+            widget.isLoading
+                ? 'Loading'
+                : widget.isEnded
+                    ? 'Replay'
+                    : widget.isPlaying
+                        ? 'Pause'
+                        : 'Play',
+            maxLines: 1,
+            softWrap: false,
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w800,
@@ -4307,6 +4315,9 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
   // Audio loading guard: prevents transient 0.0s emissions during setFilePath/setAsset
   // from ever resetting _currentPositionSec, _activeSegIndex, or saved progress!
   bool _isAudioLoading = false;
+  bool _isAudioBuffering = false;
+  Timer? _nativeLoadingIndicatorTimer;
+  bool _nativeShowAudioLoading = false;
   bool _isDraggingSlider = false;
   int _audioLoadToken = 0;
 
@@ -5581,6 +5592,11 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     _stateSub = _globalPlayer.playerStateStream.listen((st) {
       final bool nowPlaying =
           st.playing && st.processingState != ProcessingState.completed;
+      final bool nowBuffering =
+          st.processingState == ProcessingState.loading ||
+          st.processingState == ProcessingState.buffering;
+      _isAudioBuffering = nowBuffering;
+      _syncNativeAudioLoadingIndicator();
       if (mounted) {
         setState(() {
           _isPlaying = nowPlaying;
@@ -5593,6 +5609,35 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
         _onTrackPlaybackCompleted();
       }
     });
+  }
+
+  void _setNativeAudioLoading(bool loading) {
+    _isAudioLoading = loading;
+    _syncNativeAudioLoadingIndicator();
+  }
+
+  void _syncNativeAudioLoadingIndicator() {
+    final active = _isAudioLoading || _isAudioBuffering;
+    if (active) {
+      if (!_nativeShowAudioLoading && _nativeLoadingIndicatorTimer == null) {
+        _nativeLoadingIndicatorTimer = Timer(_webLoadingIndicatorDelay, () {
+          _nativeLoadingIndicatorTimer = null;
+          if (mounted && (_isAudioLoading || _isAudioBuffering)) {
+            setState(() => _nativeShowAudioLoading = true);
+          }
+        });
+      }
+    } else {
+      _nativeLoadingIndicatorTimer?.cancel();
+      _nativeLoadingIndicatorTimer = null;
+      if (_nativeShowAudioLoading) {
+        if (mounted) {
+          setState(() => _nativeShowAudioLoading = false);
+        } else {
+          _nativeShowAudioLoading = false;
+        }
+      }
+    }
   }
 
   /// Finds the active transcript segment index for `sec` using the Dynamic 0.5s Pre-Scroll Rule:
@@ -5935,7 +5980,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       _resetTranscriptScrollController();
 
       // Lock immediately before switching track state so no stale tick can fire
-      _isAudioLoading = true;
+      _setNativeAudioLoading(true);
       ++_audioLoadToken;
       final int oldIdx = _tabIndexFor(_playerTab);
       final int newIdx = _tabIndexFor(targetTrack);
@@ -5963,7 +6008,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     // Lock _isAudioLoading during seek(Duration.zero) so stale pre-seek position ticks
     // from just_audio can NEVER overwrite _currentPositionSec or progressPct!
     final int myToken = ++_audioLoadToken;
-    _isAudioLoading = true;
+    _setNativeAudioLoading(true);
 
     final segs = lesson.segmentsForTrack(targetTrack);
     final int firstSpokenIdx = _findSegmentIndexForSec(segs, 0.0, fallbackIdx: 0);
@@ -6017,7 +6062,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
           _activeSegIndex = firstSpokenIdx;
         });
       }
-      _isAudioLoading = false;
+      _setNativeAudioLoading(false);
       await _saveProgressSnapshot(forceDiskFlush: true);
       final bool canAutoPlayNow = autoPlay &&
           (allowBackgroundAutoPlay ||
@@ -6028,7 +6073,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       }
     } catch (_) {
       if (myToken == _audioLoadToken) {
-        _isAudioLoading = false;
+        _setNativeAudioLoading(false);
       }
     }
   }
@@ -6107,7 +6152,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
 
     // 2. Immediately lock _isAudioLoading and pause the outgoing player BEFORE loading new JSON
     //    so stale position ticks from the old lesson can NEVER pollute the new lesson!
-    _isAudioLoading = true;
+    _setNativeAudioLoading(true);
     ++_audioLoadToken;
     unawaited(_globalPlayer.pause());
 
@@ -6205,7 +6250,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     }
 
     _hideReturnBanner();
-    _isAudioLoading = true;
+    _setNativeAudioLoading(true);
     ++_audioLoadToken;
     unawaited(_globalPlayer.pause());
 
@@ -6268,7 +6313,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     bool resumeSavedPosition = true,
     bool allowBackgroundAutoPlay = false,
   }) async {
-    _isAudioLoading = true;
+    _setNativeAudioLoading(true);
     final rawJson =
         await rootBundle.loadString('assets/lessons_safe/lesson_$lessonId.json');
     final detail =
@@ -6344,7 +6389,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     if (lesson == null) return;
 
     final int myToken = ++_audioLoadToken;
-    _isAudioLoading = true;
+    _setNativeAudioLoading(true);
 
     final segs = lesson.segmentsForTrack(track);
     final resolvedInitialIdx = _findSegmentIndexForSec(
@@ -6435,7 +6480,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       await Future.delayed(const Duration(milliseconds: 60));
       if (myToken != _audioLoadToken) return;
 
-      _isAudioLoading = false;
+      _setNativeAudioLoading(false);
       await _saveProgressSnapshot(forceDiskFlush: true);
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -6450,7 +6495,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       }
     } catch (e) {
       if (myToken == _audioLoadToken) {
-        _isAudioLoading = false;
+        _setNativeAudioLoading(false);
       }
       debugPrint('Audio load warning: $e');
     }
@@ -6935,6 +6980,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
   void dispose() {
     _webIdleTimer?.cancel();
     _webLoadingIndicatorTimer?.cancel();
+    _nativeLoadingIndicatorTimer?.cancel();
     _web?.onSyncCommit = null;
     _web?.onSyncLastOpened = null;
     _web?.removeListener(_syncWebPlayer);
@@ -9270,6 +9316,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
               Expanded(
                 child: _HoldToReplayHeroButton(
                   isPlaying: _isPlaying,
+                  isLoading: _nativeShowAudioLoading,
                   palette: p,
                   onTap: () {
                     if (_isPlaying) {
