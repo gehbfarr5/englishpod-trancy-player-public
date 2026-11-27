@@ -23,6 +23,10 @@
     {
       "name": "permission_distributed_reason",
       "value": "用于跨端接续播放进度与学习状态"
+    },
+    {
+      "name": "permission_camera_reason",
+      "value": "用于扫描配对二维码，完成多端学习进度同步"
     }
   ]
 }

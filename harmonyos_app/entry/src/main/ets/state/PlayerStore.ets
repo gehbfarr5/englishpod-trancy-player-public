@@ -3,6 +3,7 @@ import { preferences } from '@kit.ArkData';
 import { window } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { scanBarcode, scanCore } from '@kit.ScanKit';
 import { AvSessionController, BackgroundAudioKeeper } from '@englishpod/ep_audio';
 
 const LOG_DOMAIN = 0xE001;
@@ -10,6 +11,7 @@ const LOG_TAG = 'EpFlutterHost';
 const LOCAL_ORIGIN = 'https://app.englishpod.local/';
 
 interface BridgePayload {
+  action?: string;
   screen?: string;
   ready?: boolean;
   isDark?: boolean;
@@ -33,6 +35,11 @@ interface AudioTickPayload {
   dur?: number;
   rate?: number;
   paused?: boolean;
+}
+
+interface ScanErrShape {
+  code?: number;
+  message?: string;
 }
 
 @ObservedV2
@@ -138,7 +145,7 @@ export class PlayerStore {
   }
 
   buildInitialWebUrl(): string {
-    return `${LOCAL_ORIGIN}index.html?topInset=${this.topSafeInsetVp}&bottomInset=${this.bottomSafeInsetVp}&theme=${this.isDark ? 'dark' : 'light'}`;
+    return `${LOCAL_ORIGIN}index.html?topInset=${this.topSafeInsetVp}&bottomInset=${this.bottomSafeInsetVp}&theme=${this.isDark ? 'dark' : 'light'}&epHost=harmonyos`;
   }
 
   private updateSystemBarStyle(): void {
@@ -174,6 +181,10 @@ export class PlayerStore {
       hilog.info(LOG_DOMAIN, LOG_TAG, '[EP_BRIDGE]%{public}s', rawJson);
       try {
         const parsed = JSON.parse(rawJson) as BridgePayload;
+        if (parsed.action === 'scanQr') {
+          void this.handleScanQrFromWeb();
+          return;
+        }
         if (parsed.ready === true && !this.flutterReady) {
           this.flutterReady = true;
         }
@@ -324,6 +335,55 @@ export class PlayerStore {
 
   navigateBackInWeb(): void {
     this.sendCommandToWeb('back');
+  }
+
+  private notifyWebQrScanResult(status: string, payload: string): void {
+    try {
+      const sJson = JSON.stringify(status);
+      const pJson = JSON.stringify(payload);
+      this.webController.runJavaScript(`window.__epOnQrScanResult && window.__epOnQrScanResult(${sJson}, ${pJson});`);
+    } catch {
+      // Ignore
+    }
+  }
+
+  private async handleScanQrFromWeb(): Promise<void> {
+    if (!this.abilityContext) {
+      this.notifyWebQrScanResult('error', 'Ability context unavailable');
+      return;
+    }
+    try {
+      const options: scanBarcode.ScanOptions = {
+        scanTypes: [scanCore.ScanType.QR_CODE],
+        enableMultiMode: false,
+        enableAlbum: true
+      };
+      const res: scanBarcode.ScanResult = await new Promise<scanBarcode.ScanResult>((resolve, reject) => {
+        scanBarcode.startScanForResult(this.abilityContext!, options, (err, data) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve(data);
+        });
+      });
+      const val = res && typeof res.originalValue === 'string' ? res.originalValue.trim() : '';
+      if (val.length > 0) {
+        this.notifyWebQrScanResult('success', val);
+      } else {
+        this.notifyWebQrScanResult('cancelled', '');
+      }
+    } catch (err) {
+      const bizErr = err as ScanErrShape;
+      const code = typeof bizErr?.code === 'number' ? bizErr.code : -1;
+      if (code === 1000500002) {
+        this.notifyWebQrScanResult('cancelled', '');
+      } else if (code === 201) {
+        this.notifyWebQrScanResult('permission_denied', '');
+      } else {
+        this.notifyWebQrScanResult('error', String(bizErr?.message ?? err ?? 'Scan failed'));
+      }
+    }
   }
 
   handleWebIntercept(request?: WebResourceRequest): WebResourceResponse | null {

@@ -28,6 +28,7 @@ import 'services/sync/sync_engine.dart';
 import 'services/sync/sync_models.dart';
 import 'services/sync/sync_platform.dart';
 import 'services/sync/sync_storage_bridge.dart';
+import 'widgets/player_transport_icons.dart';
 import 'widgets/sync/sync_modal.dart';
 import 'widgets/sync/sync_progress_pill.dart';
 import 'widgets/sync/sync_theme.dart';
@@ -1408,18 +1409,23 @@ class _HoldToReplayHeroButtonState extends State<_HoldToReplayHeroButton>
             child: FadeTransition(opacity: anim, child: child),
           ),
           child: widget.isLoading
-              ? SizedBox(
+              ? EpHeroLoadingIcon(
                   key: const ValueKey('hero_audio_loading'),
-                  width: 30, height: 30,
-                  child: Padding(padding: const EdgeInsets.all(3),
-                    child: CircularProgressIndicator(strokeWidth: 2.5, color: p.accentFg)),
-                )
-              : Icon(
-                  widget.isEnded ? Icons.replay_rounded : widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  key: ValueKey('hero_icon_${widget.isPlaying}_${widget.isEnded}'),
-                  size: 30,
                   color: p.accentFg,
-                ),
+                  size: 30,
+                )
+              : widget.isEnded
+                  ? EpReplayIcon(
+                      key: ValueKey('hero_icon_${widget.isPlaying}_${widget.isEnded}'),
+                      color: p.accentFg,
+                      size: 30,
+                    )
+                  : Icon(
+                      widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      key: ValueKey('hero_icon_${widget.isPlaying}_${widget.isEnded}'),
+                      size: 30,
+                      color: p.accentFg,
+                    ),
         ),
         const SizedBox(width: 8),
         SizedBox(
@@ -5224,6 +5230,61 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
         accentSoft: p.accentSoft,
       );
 
+  Future<String?> _scanQrWithPermissionFeedback(
+    BuildContext dialogCtx,
+    AppPalette p,
+  ) async {
+    final res = await invokePlatformQrScanner();
+    if (!dialogCtx.mounted) return null;
+    if (res.status == QrScanStatus.success &&
+        res.payload != null &&
+        res.payload!.trim().isNotEmpty) {
+      return res.payload!.trim();
+    }
+    if (res.status == QrScanStatus.permissionDenied) {
+      await showDialog<void>(
+        context: dialogCtx,
+        builder: (alertCtx) => AlertDialog(
+          backgroundColor: p.deckBg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(color: p.deckBorder),
+          ),
+          title: Text(
+            '未获得相机权限',
+            style: TextStyle(
+              color: p.textPrimary,
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+            ),
+          ),
+          content: Text(
+            '您可在系统设置中开启相机权限，或直接返回手动输入 8 位配对码。',
+            style: TextStyle(color: p.textPassed, fontSize: 13.5, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(alertCtx).pop(),
+              child: Text(
+                '去手动输入',
+                style: TextStyle(color: p.accent, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (res.status == QrScanStatus.unavailable ||
+        res.status == QrScanStatus.error) {
+      ScaffoldMessenger.maybeOf(dialogCtx)?.showSnackBar(
+        SnackBar(
+          content: const Text('暂无法打开相机扫码，请手动输入 8 位配对码'),
+          backgroundColor: p.deckBg,
+        ),
+      );
+    }
+    return null;
+  }
+
   Future<void> _openSyncModal(AppPalette p) async {
     if (_syncEngine == null) {
       await _initSyncEngine(webPlayer: _web);
@@ -5239,7 +5300,10 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       tokens: _syncTokensFor(p),
       completedCount: completedCount,
       totalCount: totalCount,
-      onScanQr: syncIsWeb ? null : widget.qrScanner,
+      onScanQr: syncIsWeb
+          ? null
+          : (widget.qrScanner ??
+              (ctx) => _scanQrWithPermissionFeedback(ctx, p)),
     );
   }
 

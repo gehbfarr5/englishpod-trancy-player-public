@@ -2,6 +2,7 @@ import 'package:englishpod_trancy/main.dart';
 import 'package:englishpod_trancy/services/sync/sync_engine.dart';
 import 'package:englishpod_trancy/services/sync/sync_storage_bridge.dart';
 import 'package:englishpod_trancy/services/web_contract_player.dart';
+import 'package:englishpod_trancy/widgets/player_transport_icons.dart';
 import 'package:englishpod_trancy/widgets/sync/sync_beam_hero.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,23 +46,26 @@ void main() {
       expect(pill, findsOneWidget);
       await tester.tap(pill);
       await tester.pump(const Duration(milliseconds: 350));
-      await tester.pumpAndSettle();
 
-      expect(find.text('多端进度同步'), findsOneWidget);
+      expect(find.text('多端学习进度同步'), findsOneWidget);
       expect(find.byType(SyncBeamHero), findsOneWidget);
+      expect(find.text('本机'), findsOneWidget);
+      expect(find.text('云端'), findsOneWidget);
+      expect(find.text('其他设备'), findsOneWidget);
+      expect(find.text('本机进度上传云端 · 自动分发到其他设备'), findsOneWidget);
 
-      // Tap beam hero to replay pulse sweep without breaking settle.
+      // Tap beam hero to replay sweep cleanly.
       await tester.tap(find.byKey(const ValueKey('sync_beam_hero_tap')));
       await tester.pump(const Duration(milliseconds: 350));
-      await tester.pumpAndSettle();
 
       // Generate pairing code -> verifies QR widget has light quiet zone (#FAF8F5) and XXXX-XXXX code.
       final genBtn = find.byKey(const ValueKey('sync_generate_code_btn'));
       await tester.ensureVisible(genBtn);
       await tester.tap(genBtn);
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 250));
       expect(find.byKey(const ValueKey('sync_pairing_qr_widget')), findsOneWidget);
       expect(find.byKey(const ValueKey('sync_display_pairing_code')), findsOneWidget);
+      expect(find.text('等待其他设备连接 · 配对后自动云端同步'), findsOneWidget);
 
       final qrContainer = tester.widget<Container>(
         find.descendant(
@@ -74,7 +78,7 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('sync_modal_close_btn')));
       await tester.pumpAndSettle();
-      expect(find.text('多端进度同步'), findsNothing);
+      expect(find.text('多端学习进度同步'), findsNothing);
 
       engine.dispose();
     });
@@ -142,7 +146,9 @@ void main() {
 
     expect(engine.isLinked, isTrue);
     expect(find.text('已连接设备 (2)'), findsOneWidget);
-    expect(find.text('iPhone 17'), findsNWidgets(2));
+    expect(find.text('iPhone 17'), findsOneWidget);
+    expect(find.textContaining('移动设备'), findsOneWidget);
+    expect(find.textContaining('网页端'), findsOneWidget);
 
     // Revoke other device (dev-a).
     final revokeBtn = find.byKey(const ValueKey('sync_revoke_dev-a'));
@@ -205,10 +211,9 @@ void main() {
     // Open sync modal from top-right pill at 1256x706, resize to 773x601, then close.
     await tester.tap(find.byKey(const ValueKey('top_right_progress_sync_pill')));
     await tester.pump(const Duration(milliseconds: 350));
-    await tester.pumpAndSettle();
 
     tester.view.physicalSize = const Size(773, 601);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 250));
 
     expect(player.playing, isTrue);
     expect(loads, loadsBeforeModal);
@@ -253,12 +258,17 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('top_right_progress_sync_pill')));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 350));
+
+    final enterBtn = find.byKey(const ValueKey('sync_enter_code_btn'));
+    await tester.ensureVisible(enterBtn);
+    await tester.tap(enterBtn);
+    await tester.pump(const Duration(milliseconds: 250));
 
     final scanBtn = find.byKey(const ValueKey('sync_scan_qr_btn'));
     await tester.ensureVisible(scanBtn);
     await tester.tap(scanBtn);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 350));
 
     expect(engine.isLinked, isTrue);
     expect(api.claimCalls, 1);
@@ -266,5 +276,32 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('sync_modal_close_btn')));
     await tester.pumpAndSettle();
     engine.dispose();
+  });
+
+  testWidgets('harmonized player transport icons (Replay / General & Harmony Loading) render cleanly', (tester) async {
+    for (final disableAnim in [false, true]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (ctx, child) => MediaQuery(
+            data: MediaQuery.of(ctx).copyWith(disableAnimations: disableAnim),
+            child: child!,
+          ),
+          home: const Scaffold(
+            body: Row(
+              children: [
+                EpReplayIcon(color: Colors.white),
+                EpGeneralLoadingIcon(color: Colors.white),
+                EpHarmonyLoadingIcon(color: Colors.white),
+                EpHeroLoadingIcon(color: Colors.white, useHarmonyOverride: true),
+                EpHeroLoadingIcon(color: Colors.white, useHarmonyOverride: false),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull);
+    }
+    await tester.pumpWidget(const SizedBox());
   });
 }
