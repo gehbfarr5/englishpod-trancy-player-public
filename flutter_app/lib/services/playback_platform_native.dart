@@ -6,6 +6,15 @@ import 'package:path_provider/path_provider.dart';
 
 bool get isIOS => Platform.isIOS;
 
+const String _kDefaultSeoulAudioBase = 'https://43.155.232.185:8888/audio';
+
+String get seoulAudioBaseUrl {
+  const configured = String.fromEnvironment('EP_AUDIO_BASE', defaultValue: _kDefaultSeoulAudioBase);
+  return configured.endsWith('/')
+      ? configured.substring(0, configured.length - 1)
+      : configured;
+}
+
 Future<(Uri, Uri)> prepareBrandArtwork() async {
   final dir = await getApplicationSupportDirectory();
   Future<Uri> materialize(String theme) async {
@@ -30,10 +39,22 @@ Future<Duration?> loadLessonAudio(
     '/sdcard/Android/data/com.englishpod.trancy.englishpod_trancy/files/audio/$lessonId/$fileName',
     '/sdcard/Android/media/com.englishpod.trancy.englishpod_trancy/audio/$lessonId/$fileName',
     '/sdcard/Android/media/com.englishpod.trancy/audio/$lessonId/$fileName',
-    if (audioPath.isNotEmpty) audioPath,
+    if (audioPath.isNotEmpty && !audioPath.startsWith('http')) audioPath,
   ];
   for (final path in candidates) {
     if (File(path).existsSync()) return player.setFilePath(path);
   }
-  return player.setAsset('assets/audio/$lessonId/$fileName');
+
+  // Fetch/stream audio from Seoul server
+  final remoteUrl = '$seoulAudioBaseUrl/$lessonId/$fileName';
+  try {
+    return await player.setUrl(remoteUrl);
+  } catch (_) {
+    // Fallback to local asset if offline or remote unreachable
+    try {
+      return await player.setAsset('assets/audio/$lessonId/$fileName');
+    } catch (_) {
+      rethrow;
+    }
+  }
 }
