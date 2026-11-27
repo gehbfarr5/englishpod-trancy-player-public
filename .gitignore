@@ -13,5 +13,12 @@ flutter_app/*.iml
 flutter_app/android/
 native-evidence/
 *preview.png
+harmonyos_app/.hvigor/
+harmonyos_app/oh_modules/
+harmonyos_app/**/oh_modules/
+harmonyos_app/**/build/
+harmonyos_app/entry/src/main/resources/rawfile/audio/
+harmonyos_app/entry/src/main/resources/rawfile/lessons_safe/
+harmonyos_app/entry/src/main/resources/rawfile/flutter_web/
 
 

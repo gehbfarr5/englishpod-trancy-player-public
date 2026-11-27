@@ -13,4 +13,4 @@ Future<Duration?> loadLessonAudio(
   AudioPlayer player, String lessonId, String audioPath,
 ) => player.setUrl(webAudioUri(Uri.base, lessonId, audioPath,
     audioRoot: const String.fromEnvironment('WEB_AUDIO_ROOT',
-        defaultValue: '/audio/')).toString());
+        defaultValue: 'https://43.155.232.185:8888/audio/')).toString());

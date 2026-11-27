@@ -1,0 +1,9 @@
+{
+  "name": "@englishpod/ep_audio",
+  "version": "1.0.2",
+  "description": "EnglishPod Audio Layer: AVPlayer dual-track engine, AVSession media center with live lyric & dynamic dark/light artwork, Spatial Audio HRTF, and BackgroundTasksKit.",
+  "main": "Index.ets",
+  "dependencies": {
+    "@englishpod/ep_domain": "file:../ep_domain"
+  }
+}

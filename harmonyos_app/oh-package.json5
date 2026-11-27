@@ -1,0 +1,8 @@
+{
+  "modelVersion": "6.0.0",
+  "description": "EnglishPod HarmonyOS 7.0 (API 26) Native Application for HUAWEI Pura X View",
+  "dependencies": {},
+  "devDependencies": {
+    "@ohos/hypium": "1.0.19"
+  }
+}

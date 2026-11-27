@@ -1,0 +1,7 @@
+{
+  "name": "@englishpod/ep_design",
+  "version": "1.0.2",
+  "description": "EnglishPod Design System: Dark Cocoon & Claude Paper tokens, Pura X View 16:9.5 layout metrics, UIMaterial glass & haptics.",
+  "main": "Index.ets",
+  "dependencies": {}
+}

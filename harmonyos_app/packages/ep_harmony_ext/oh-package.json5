@@ -1,0 +1,9 @@
+{
+  "name": "@englishpod/ep_harmony_ext",
+  "version": "1.0.2",
+  "description": "HarmonyOS 7.0 (API 26) platform extensions: Live View, Flash Control Window, Reminder Agent, Xiaoyi Agent A2A Skills, and Continuity/Knock Share.",
+  "main": "Index.ets",
+  "dependencies": {
+    "@englishpod/ep_domain": "file:../ep_domain"
+  }
+}

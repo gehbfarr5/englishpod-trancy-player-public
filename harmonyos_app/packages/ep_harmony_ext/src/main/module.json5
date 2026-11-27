@@ -1,0 +1,11 @@
+{
+  "module": {
+    "name": "ep_harmony_ext",
+    "type": "har",
+    "deviceTypes": [
+      "phone",
+      "tablet",
+      "2in1"
+    ]
+  }
+}

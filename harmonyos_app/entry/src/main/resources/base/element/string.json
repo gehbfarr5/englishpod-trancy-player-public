@@ -1,0 +1,28 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "EnglishPod HarmonyOS 7.0 Entry Module"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "EnglishPod Immersive Sentence Player"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "EnglishPod"
+    },
+    {
+      "name": "StudyFormAbility_label",
+      "value": "EnglishPod 精听卡片"
+    },
+    {
+      "name": "StudyFormAbility_desc",
+      "value": "快速续播课程与每日高频表达互动卡片"
+    },
+    {
+      "name": "permission_distributed_reason",
+      "value": "用于跨端接续播放进度与学习状态"
+    }
+  ]
+}

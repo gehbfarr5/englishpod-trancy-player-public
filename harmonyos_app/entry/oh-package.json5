@@ -1,0 +1,11 @@
+{
+  "name": "entry",
+  "version": "1.0.2",
+  "description": "EnglishPod HarmonyOS 7.0 Entry HAP for HUAWEI Pura X View (16:9.5 Wide-Bar).",
+  "dependencies": {
+    "@englishpod/ep_design": "file:../packages/ep_design",
+    "@englishpod/ep_domain": "file:../packages/ep_domain",
+    "@englishpod/ep_audio": "file:../packages/ep_audio",
+    "@englishpod/ep_harmony_ext": "file:../packages/ep_harmony_ext"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "@englishpod/ep_domain",
+  "version": "1.0.2",
+  "description": "EnglishPod Domain Layer: Lesson models, EP-PBC-001 v1.4 playback contract, transcript navigation, vocab matching, and RDB progress persistence.",
+  "main": "Index.ets",
+  "dependencies": {}
+}
