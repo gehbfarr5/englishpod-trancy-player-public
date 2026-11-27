@@ -33,3 +33,7 @@ flutter:
     - assets/audio/0001/
     - assets/audio/0002/
     - assets/audio/0003/
+  fonts:
+    - family: EpCjkFallback
+      fonts:
+        - asset: assets/fonts/EpCjkFallback.ttf

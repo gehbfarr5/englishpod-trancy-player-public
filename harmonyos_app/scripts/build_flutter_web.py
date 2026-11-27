@@ -29,7 +29,7 @@ def stage_clean_flutter(source_root: Path, output: Path) -> None:
     app = source_root / 'flutter_app'
     fallback_app = REPO_ROOT / 'flutter_app'
     output.mkdir(parents=True)
-    for folder in ('lib', 'test', 'web', 'assets/branding', 'assets/lessons_safe'):
+    for folder in ('lib', 'test', 'web', 'assets/branding', 'assets/fonts', 'assets/lessons_safe'):
         src = app / folder
         if not src.exists() and folder == 'assets/lessons_safe':
             src = fallback_app / folder
@@ -327,6 +327,7 @@ def patch_staged_app(stage_dir: Path) -> None:
         "        brightness: Brightness.dark,\n"
         "        scaffoldBackgroundColor: AppPalette.dark.bgWell,\n"
         "        fontFamily: 'Roboto',\n"
+        "        fontFamilyFallback: const ['EpCjkFallback'],\n"
         "      ),\n"
         "      home: ImmersivePlayerScreen(initialPreference: initialPreference),",
         "      darkTheme: ThemeData(\n"
@@ -334,6 +335,7 @@ def patch_staged_app(stage_dir: Path) -> None:
         "        brightness: Brightness.dark,\n"
         "        scaffoldBackgroundColor: AppPalette.dark.bgWell,\n"
         "        fontFamily: 'Roboto',\n"
+        "        fontFamilyFallback: const ['EpCjkFallback'],\n"
         "      ),\n"
         "      builder: (context, child) {\n"
         "        final mq = MediaQuery.of(context);\n"
@@ -590,6 +592,12 @@ def ensure_fonts_and_strip(web_build_dir: Path) -> None:
             ],
         },
     ]
+    cjk_font = web_build_dir / 'assets' / 'assets' / 'fonts' / 'EpCjkFallback.ttf'
+    if cjk_font.is_file():
+        manifest.append({
+            'family': 'EpCjkFallback',
+            'fonts': [{'asset': 'assets/fonts/EpCjkFallback.ttf'}],
+        })
     manifest_path.write_text(json.dumps(manifest), encoding='utf-8')
 
     # Strip unneeded debug symbols, maps, and unused skwasm runtimes (keep canvaskit + chromium + webparagraph)

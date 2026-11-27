@@ -3825,12 +3825,14 @@ class EnglishPodTrancyApp extends StatelessWidget {
         brightness: Brightness.light,
         scaffoldBackgroundColor: AppPalette.paper.bgWell,
         fontFamily: '.SF Pro Display',
+        fontFamilyFallback: const ['EpCjkFallback'],
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
         scaffoldBackgroundColor: AppPalette.dark.bgWell,
         fontFamily: '.SF Pro Display',
+        fontFamilyFallback: const ['EpCjkFallback'],
       ),
       home: ImmersivePlayerScreen(initialPreference: initialPreference),
     );
@@ -4858,6 +4860,16 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (kIsWeb) {
+      // Warm up bundled CJK fallback font immediately so sync modal renders without tofu/stagger.
+      TextPainter(
+        text: const TextSpan(
+          text: '多',
+          style: TextStyle(fontFamily: 'EpCjkFallback'),
+        ),
+        textDirection: TextDirection.ltr,
+      ).layout();
+    }
     _appLifecycleState =
         WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed;
     _systemIsDark =
