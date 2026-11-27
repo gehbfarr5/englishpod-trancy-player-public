@@ -594,7 +594,8 @@ Page<PageData, PageCustom>({
   initNavMetrics(): void {
     try {
       const windowInfo = wx.getWindowInfo();
-      const statusBarHeight = windowInfo.statusBarHeight || 44;
+      const statusBarHeight =
+        Math.max(windowInfo.safeArea?.top || 0, windowInfo.statusBarHeight || 0) || 44;
       let capsule = { top: 48, bottom: 80, left: 281, right: 368, width: 87, height: 32 };
       try {
         const rect = wx.getMenuButtonBoundingClientRect();
@@ -605,7 +606,12 @@ Page<PageData, PageCustom>({
         // fallback to default capsule metrics
       }
 
-      const navBarHeight = (capsule.top - statusBarHeight) * 2 + capsule.height;
+      const navBarHeight = Math.max(
+        40,
+        capsule.top > statusBarHeight
+          ? (capsule.top - statusBarHeight) * 2 + capsule.height
+          : 44,
+      );
       const capsuleRightMargin = Math.max(0, windowInfo.windowWidth - capsule.right);
       const capsuleLeftMargin = Math.max(capsuleRightMargin, 12);
       const capsuleRightPadding = windowInfo.windowWidth - capsule.left + 10;

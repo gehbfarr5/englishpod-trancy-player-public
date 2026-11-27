@@ -243,9 +243,13 @@ Page<PageData, PageCustom>({
   initNavMetrics(): void {
     try {
       const windowInfo = wx.getWindowInfo();
-      const safeTop = windowInfo.safeArea ? windowInfo.safeArea.top : windowInfo.statusBarHeight || 44;
+      const safeTop =
+        Math.max(windowInfo.safeArea?.top || 0, windowInfo.statusBarHeight || 0) || 44;
       const capsule = wx.getMenuButtonBoundingClientRect();
-      const navBarHeight = Math.max(44, (capsule.top - safeTop) * 2 + capsule.height);
+      const navBarHeight = Math.max(
+        44,
+        capsule && capsule.top > safeTop ? (capsule.top - safeTop) * 2 + capsule.height : 44,
+      );
 
       this.setData({
         safeTopPx: safeTop,
