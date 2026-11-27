@@ -7,8 +7,8 @@ import 'package:flutter/services.dart';
 import '../../services/sync/sync_models.dart';
 import 'sync_theme.dart';
 
-/// Animated dual-device beam visual for the progress sync modal,
-/// inspired by Magic UI's Animated Beam pattern and themed with AppPalette tokens.
+/// Continuous two-stage animated beam hero (`本机 → 云端 → 其他设备`)
+/// using Warm Parchment / Dark Cocoon tokens.
 class SyncBeamHero extends StatefulWidget {
   final SyncPaletteTokens tokens;
   final int completedCount;
@@ -19,6 +19,7 @@ class SyncBeamHero extends StatefulWidget {
   final String localDeviceName;
   final String? peerPlatform;
   final String? peerLabel;
+  final bool waitingForPeer;
   final VoidCallback? onTap;
 
   const SyncBeamHero({
@@ -32,6 +33,7 @@ class SyncBeamHero extends StatefulWidget {
     this.localDeviceName = '本机设备',
     this.peerPlatform,
     this.peerLabel,
+    this.waitingForPeer = false,
     this.onTap,
   });
 
@@ -42,7 +44,6 @@ class SyncBeamHero extends StatefulWidget {
 class _SyncBeamHeroState extends State<SyncBeamHero>
     with TickerProviderStateMixin {
   late final AnimationController _beamCtrl;
-  late final AnimationController _checkCtrl;
   bool _initializedAnim = false;
 
   @override
@@ -50,12 +51,7 @@ class _SyncBeamHeroState extends State<SyncBeamHero>
     super.initState();
     _beamCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1150),
-    );
-    _checkCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 360),
-      value: widget.syncStatus == SyncStatus.synced ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 2400),
     );
   }
 
@@ -66,53 +62,47 @@ class _SyncBeamHeroState extends State<SyncBeamHero>
       _initializedAnim = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _applyStatusAnimation(previousStatus: null);
+        _applyStatusAnimation();
       });
+    } else {
+      _applyStatusAnimation();
     }
   }
 
   @override
   void didUpdateWidget(covariant SyncBeamHero oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.syncStatus != widget.syncStatus) {
-      _applyStatusAnimation(previousStatus: oldWidget.syncStatus);
+    if (oldWidget.syncStatus != widget.syncStatus ||
+        oldWidget.waitingForPeer != widget.waitingForPeer) {
+      _applyStatusAnimation();
     }
   }
 
-  void _applyStatusAnimation({SyncStatus? previousStatus}) {
-    final reducedMotion = MediaQuery.disableAnimationsOf(context);
-    if (widget.syncStatus == SyncStatus.synced) {
-      if (reducedMotion) {
-        _checkCtrl.value = 1.0;
-      } else {
-        _checkCtrl.forward(from: previousStatus == SyncStatus.synced ? 1.0 : 0.0);
-      }
-    } else {
-      _checkCtrl.value = 0.0;
-    }
+  bool get _isWarn =>
+      widget.syncStatus == SyncStatus.pendingOffline ||
+      widget.syncStatus == SyncStatus.error ||
+      widget.syncStatus == SyncStatus.revoked;
 
-    if (reducedMotion) {
+  void _applyStatusAnimation() {
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
+    if (reducedMotion || _isWarn) {
       _beamCtrl.stop();
       _beamCtrl.value = 0.0;
       return;
     }
-
-    if (widget.syncStatus == SyncStatus.syncing) {
-      if (!_beamCtrl.isAnimating || _beamCtrl.velocity == 0) {
-        _beamCtrl.repeat();
-      }
-    } else {
-      // Finite single sweep on modal open or transition into synced/linked so
-      // interactive feedback feels alive without starving settle loops.
-      _beamCtrl.forward(from: 0.0);
+    if (!_beamCtrl.isAnimating || _beamCtrl.velocity == 0) {
+      _beamCtrl.repeat();
     }
   }
 
   void _handleTap() {
     HapticFeedback.selectionClick();
-    if (!MediaQuery.disableAnimationsOf(context) &&
-        widget.syncStatus != SyncStatus.syncing) {
-      _beamCtrl.forward(from: 0.0);
+    if (!MediaQuery.disableAnimationsOf(context) && !_isWarn) {
+      _beamCtrl.forward(from: 0.0).whenComplete(() {
+        if (mounted && !_isWarn && !MediaQuery.disableAnimationsOf(context)) {
+          _beamCtrl.repeat();
+        }
+      });
     }
     widget.onTap?.call();
   }
@@ -120,58 +110,44 @@ class _SyncBeamHeroState extends State<SyncBeamHero>
   @override
   void dispose() {
     _beamCtrl.dispose();
-    _checkCtrl.dispose();
     super.dispose();
   }
 
-  IconData _platformIcon(String? platform) {
-    switch (platform) {
-      case 'ios':
-        return Icons.phone_iphone_rounded;
-      case 'ipad':
-        return Icons.tablet_mac_rounded;
-      case 'android':
-        return Icons.phone_android_rounded;
-      case 'wechat':
-        return Icons.chat_bubble_rounded;
-      case 'harmonyos':
-        return Icons.devices_rounded;
-      case 'web':
-      default:
-        return Icons.laptop_mac_rounded;
-    }
-  }
+  static bool _isWebPlatform(String? platform) => platform == 'web';
 
   String _statusChipText() {
+    if (widget.waitingForPeer &&
+        widget.syncStatus != SyncStatus.error &&
+        widget.syncStatus != SyncStatus.pendingOffline) {
+      return '等待其他设备连接 · 配对后自动云端同步';
+    }
     switch (widget.syncStatus) {
       case SyncStatus.syncing:
-        return '正在双向同步学习断点…';
+        return '本机进度上传云端 · 正在分发到其他设备…';
       case SyncStatus.synced:
-        return '已完成 ${widget.completedCount} / ${widget.totalCount} 课 · ${math.max(1, widget.deviceCount)} 台设备已对齐';
+        return '已完成 ${widget.completedCount} / ${widget.totalCount} 课 · ${math.max(1, widget.deviceCount)} 台设备通过云端实时同步';
       case SyncStatus.pendingOffline:
-        return '网络离线 · 待同步变更已本地保留';
+        return '网络离线 · 本机进度已本地保存，联网后自动上传';
       case SyncStatus.error:
         return '同步暂未完成 · 稍后自动重试';
       case SyncStatus.revoked:
-        return '已断开同步组 · 本地进度完整保留';
+        return '已退出同步组 · 本机学习进度完整保留';
       case SyncStatus.unlinked:
-        return '扫码或输入 8 位设备码即可联通多端';
+        return '本机进度上传云端 · 自动分发到其他设备';
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final t = widget.tokens;
-    final hasPeer = widget.peerPlatform != null && widget.peerPlatform!.isNotEmpty;
+    final hasPeer =
+        (widget.peerPlatform != null && widget.peerPlatform!.isNotEmpty) ||
+            widget.deviceCount > 1;
     final isSyncing = widget.syncStatus == SyncStatus.syncing;
     final isSynced = widget.syncStatus == SyncStatus.synced;
-    final isWarn = widget.syncStatus == SyncStatus.pendingOffline ||
-        widget.syncStatus == SyncStatus.error ||
-        widget.syncStatus == SyncStatus.revoked;
-
-    final peerTitle = hasPeer
-        ? (widget.peerLabel ?? '对端设备')
-        : (widget.deviceCount > 1 ? '${widget.deviceCount - 1} 台对端' : '待扫码接入');
+    final isWarn = _isWarn;
+    final isLinkedVisual =
+        !widget.waitingForPeer && !isWarn && (isSynced || isSyncing) && hasPeer;
 
     return GestureDetector(
       key: const ValueKey('sync_beam_hero_tap'),
@@ -189,7 +165,9 @@ class _SyncBeamHeroState extends State<SyncBeamHero>
             colors: [
               isWarn
                   ? t.warning.withValues(alpha: 0.14)
-                  : t.accentSoft.withValues(alpha: isSynced || isSyncing ? 0.95 : 0.60),
+                  : t.accentSoft.withValues(
+                      alpha: isLinkedVisual ? 0.95 : 0.72,
+                    ),
               t.surfaceInset,
             ],
           ),
@@ -201,49 +179,52 @@ class _SyncBeamHeroState extends State<SyncBeamHero>
               height: 86,
               width: double.infinity,
               child: AnimatedBuilder(
-                animation: Listenable.merge([_beamCtrl, _checkCtrl]),
+                animation: _beamCtrl,
                 builder: (context, _) {
                   final pulseActive = _beamCtrl.isAnimating || isSyncing;
                   return Stack(
-                    alignment: Alignment.center,
+                    alignment: Alignment.topCenter,
                     children: [
                       Positioned.fill(
                         child: CustomPaint(
                           painter: _SyncBeamPainter(
                             tokens: t,
                             syncStatus: widget.syncStatus,
-                            hasPeer: hasPeer,
+                            isLinkedVisual: isLinkedVisual,
                             progress: pulseActive ? _beamCtrl.value : 0.0,
                             pulseActive: pulseActive,
                           ),
                         ),
                       ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _DeviceNode(
-                            tokens: t,
-                            icon: _platformIcon(widget.localPlatform),
-                            label: '本机',
-                            active: true,
-                            isDashed: false,
-                          ),
-                          _CenterHub(
-                            tokens: t,
-                            syncStatus: widget.syncStatus,
-                            checkScale: _checkCtrl.value,
-                            beamProgress: _beamCtrl.value,
-                          ),
-                          _DeviceNode(
-                            tokens: t,
-                            icon: hasPeer
-                                ? _platformIcon(widget.peerPlatform)
-                                : Icons.qr_code_scanner_rounded,
-                            label: peerTitle,
-                            active: hasPeer || isSynced || isSyncing,
-                            isDashed: !hasPeer,
-                          ),
-                        ],
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _DeviceNode(
+                              tokens: t,
+                              icon: _isWebPlatform(widget.localPlatform)
+                                  ? Icons.laptop_mac_rounded
+                                  : Icons.smartphone_rounded,
+                              label: '本机',
+                              active: true,
+                              isDashed: false,
+                            ),
+                            _CenterHub(
+                              tokens: t,
+                              isSynced: isLinkedVisual,
+                              isWarn: isWarn,
+                            ),
+                            _DeviceNode(
+                              tokens: t,
+                              icon: Icons.devices_rounded,
+                              label: '其他设备',
+                              active: isLinkedVisual,
+                              isDashed: !isLinkedVisual,
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   );
@@ -302,35 +283,42 @@ class _DeviceNode extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: tokens.cardFill,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: isDashed
-                    ? tokens.textMuted.withValues(alpha: 0.45)
-                    : (active ? tokens.accent.withValues(alpha: 0.72) : tokens.cardBorder),
-                width: active && !isDashed ? 1.4 : 1.0,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: tokens.isDark
-                      ? const Color(0x40000000)
-                      : const Color(0x14141413),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+          SizedBox(
+            height: 48,
+            child: Center(
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: tokens.cardFill,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isDashed
+                        ? tokens.textMuted.withValues(alpha: 0.45)
+                        : (active
+                            ? tokens.accent.withValues(alpha: 0.72)
+                            : tokens.cardBorder),
+                    width: active && !isDashed ? 1.4 : 1.0,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: tokens.isDark
+                          ? const Color(0x40000000)
+                          : const Color(0x14141413),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: Icon(
-              icon,
-              size: 20,
-              color: active ? tokens.textPrimary : tokens.textSecondary,
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: active ? tokens.textPrimary : tokens.textSecondary,
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 3),
           Text(
             label,
             maxLines: 1,
@@ -350,85 +338,64 @@ class _DeviceNode extends StatelessWidget {
 
 class _CenterHub extends StatelessWidget {
   final SyncPaletteTokens tokens;
-  final SyncStatus syncStatus;
-  final double checkScale;
-  final double beamProgress;
+  final bool isSynced;
+  final bool isWarn;
 
   const _CenterHub({
     required this.tokens,
-    required this.syncStatus,
-    required this.checkScale,
-    required this.beamProgress,
+    required this.isSynced,
+    required this.isWarn,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isSynced = syncStatus == SyncStatus.synced;
-    final isSyncing = syncStatus == SyncStatus.syncing;
-    final isWarn = syncStatus == SyncStatus.pendingOffline ||
-        syncStatus == SyncStatus.error ||
-        syncStatus == SyncStatus.revoked;
-
     final fill = isSynced ? tokens.accent : tokens.cardFill;
     final borderColor = isWarn ? tokens.warning : tokens.accent;
 
-    Widget child;
-    if (isSynced) {
-      final s = Curves.easeOutBack.transform(checkScale.clamp(0.0, 1.0));
-      child = Transform.scale(
-        scale: 0.65 + 0.35 * s,
-        child: Icon(
-          Icons.check_rounded,
-          size: 24,
-          color: tokens.accentFg,
-        ),
-      );
-    } else if (isSyncing) {
-      child = Transform.rotate(
-        angle: -beamProgress * math.pi * 2,
-        child: Icon(
-          Icons.sync_rounded,
-          size: 22,
-          color: tokens.accent,
-        ),
-      );
-    } else if (isWarn) {
-      child = Icon(
-        Icons.cloud_off_rounded,
-        size: 20,
-        color: tokens.warning,
-      );
-    } else {
-      child = Text(
-        'EP',
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.3,
-          color: tokens.accent,
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: fill,
-          border: Border.all(color: borderColor, width: 1.8),
-          boxShadow: [
-            BoxShadow(
-              color: (isWarn ? tokens.warning : tokens.accent)
-                  .withValues(alpha: isSynced || isSyncing ? 0.32 : 0.16),
-              blurRadius: 16,
-              spreadRadius: 1,
+    return SizedBox(
+      width: 72,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: fill,
+              border: Border.all(color: borderColor, width: 1.8),
+              boxShadow: [
+                BoxShadow(
+                  color: (isWarn ? tokens.warning : tokens.accent)
+                      .withValues(alpha: isSynced ? 0.36 : 0.24),
+                  blurRadius: 16,
+                  spreadRadius: isSynced ? 2 : 1,
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Center(child: child),
+            child: Center(
+              child: Icon(
+                isWarn ? Icons.cloud_off_rounded : Icons.cloud_rounded,
+                size: isWarn ? 20 : 22,
+                color: isWarn
+                    ? tokens.warning
+                    : (isSynced ? tokens.accentFg : tokens.accent),
+              ),
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            '云端',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: tokens.textPrimary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -437,14 +404,14 @@ class _CenterHub extends StatelessWidget {
 class _SyncBeamPainter extends CustomPainter {
   final SyncPaletteTokens tokens;
   final SyncStatus syncStatus;
-  final bool hasPeer;
+  final bool isLinkedVisual;
   final double progress;
   final bool pulseActive;
 
   const _SyncBeamPainter({
     required this.tokens,
     required this.syncStatus,
-    required this.hasPeer,
+    required this.isLinkedVisual,
     required this.progress,
     required this.pulseActive,
   });
@@ -480,82 +447,64 @@ class _SyncBeamPainter extends CustomPainter {
         rightAnchor.dy,
       );
 
-    final isSynced = syncStatus == SyncStatus.synced;
-    final isSyncing = syncStatus == SyncStatus.syncing;
     final isWarn = syncStatus == SyncStatus.pendingOffline ||
         syncStatus == SyncStatus.error ||
         syncStatus == SyncStatus.revoked;
 
     final trackPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = isSynced ? 2.2 : 1.7
+      ..strokeWidth = isLinkedVisual ? 2.0 : 1.6
       ..strokeCap = StrokeCap.round
-      ..color = isSynced
-          ? tokens.accent.withValues(alpha: 0.85)
+      ..color = isLinkedVisual
+          ? tokens.accent.withValues(alpha: 0.45)
           : isWarn
               ? tokens.warning.withValues(alpha: 0.35)
               : tokens.border;
 
-    if (isSynced || isSyncing) {
+    if (isLinkedVisual) {
       canvas.drawPath(leftPath, trackPaint);
-      canvas.drawPath(
-        rightPath,
-        hasPeer || isSynced
-            ? trackPaint
-            : (Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.5
-              ..color = tokens.border),
-      );
+      canvas.drawPath(rightPath, trackPaint);
     } else {
       _drawDashedPath(canvas, leftPath, trackPaint);
-      _drawDashedPath(
-        canvas,
-        rightPath,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5
-          ..color = tokens.border,
-      );
+      _drawDashedPath(canvas, rightPath, trackPaint);
     }
 
     if (pulseActive && !isWarn) {
-      // Expand soft sonar ping around center hub.
-      final ringAlpha = ((1.0 - progress) * 0.45).clamp(0.0, 1.0);
-      if (ringAlpha > 0.01) {
-        canvas.drawCircle(
-          hubCenter,
-          24 + 13 * progress,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
-            ..color = tokens.accent.withValues(alpha: ringAlpha),
+      // Stage 1 (0.00 -> 0.48): 本机 -> 云端
+      if (progress < 0.54) {
+        final t1 = progress / 0.48;
+        _drawBeamSegment(
+          canvas,
+          leftPath,
+          startFraction: t1 * 1.25 - 0.34,
+          endFraction: t1 * 1.25,
         );
       }
 
-      // Draw animated comet segment along left curve (left -> hub).
-      _drawBeamSegment(
-        canvas,
-        leftPath,
-        startFraction: progress * 1.25 - 0.32,
-        endFraction: progress * 1.25,
-      );
+      // Center Cloud Relay Sonar Ping (0.38 -> 0.88)
+      if (progress >= 0.38 && progress <= 0.88) {
+        final rp = (progress - 0.38) / 0.50;
+        final ringAlpha = ((1.0 - rp) * 0.48).clamp(0.0, 1.0);
+        if (ringAlpha > 0.01) {
+          canvas.drawCircle(
+            hubCenter,
+            24 + 13 * rp,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.6
+              ..color = tokens.accent.withValues(alpha: ringAlpha),
+          );
+        }
+      }
 
-      // Draw animated comet segment along right curve (peer -> hub when linked, or hub -> slot).
-      if (hasPeer || isSynced) {
+      // Stage 2 (0.44 -> 0.96): 云端 -> 其他设备
+      if (progress >= 0.44) {
+        final t2 = (progress - 0.44) / 0.48;
         _drawBeamSegment(
           canvas,
           rightPath,
-          startFraction: 1.0 - progress * 1.25,
-          endFraction: 1.0 - (progress * 1.25 - 0.32),
-          reverseHead: true,
-        );
-      } else {
-        _drawBeamSegment(
-          canvas,
-          rightPath,
-          startFraction: progress * 1.25 - 0.32,
-          endFraction: progress * 1.25,
+          startFraction: t2 * 1.25 - 0.34,
+          endFraction: t2 * 1.25,
         );
       }
     }
@@ -579,7 +528,6 @@ class _SyncBeamPainter extends CustomPainter {
     Path path, {
     required double startFraction,
     required double endFraction,
-    bool reverseHead = false,
   }) {
     final s = startFraction.clamp(0.0, 1.0);
     final e = endFraction.clamp(0.0, 1.0);
@@ -596,8 +544,7 @@ class _SyncBeamPainter extends CustomPainter {
           ..color = tokens.accent,
       );
 
-      final headFraction = reverseHead ? s : e;
-      final headTangent = metric.getTangentForOffset(metric.length * headFraction);
+      final headTangent = metric.getTangentForOffset(metric.length * e);
       if (headTangent != null) {
         canvas.drawCircle(
           headTangent.position,
@@ -613,7 +560,7 @@ class _SyncBeamPainter extends CustomPainter {
     return oldDelegate.progress != progress ||
         oldDelegate.pulseActive != pulseActive ||
         oldDelegate.syncStatus != syncStatus ||
-        oldDelegate.hasPeer != hasPeer ||
+        oldDelegate.isLinkedVisual != isLinkedVisual ||
         oldDelegate.tokens.accent != tokens.accent ||
         oldDelegate.tokens.isDark != tokens.isDark;
   }

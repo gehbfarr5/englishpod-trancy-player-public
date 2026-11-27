@@ -2,10 +2,9 @@
  * ============================================================================
  *  多端设备同步弹窗组件（components/sync-modal/index.ts）
  * ============================================================================
- *  - 双端光束流主视觉（Animated Beam 风格，纯 GPU CSS 动画，零逐帧 setData）；
- *  - 双主题设计令牌完全对齐 Warm Parchment / Dark Cocoon；
- *  - 支持 wx.scanCode 扫码直连、Canvas 2D 二维码生成与 8 位码展示、手动输入配对码、
- *    设备列表管理（重命名/移除/手动同步/退出同步组）。
+ *  - 统一「移动设备」与「网页端」两大形态，不在「本机」下方区分系统子文案；
+ *  - 保留双端光束流视觉，三节点升级为「本机 → 云端 → 其他设备」两段连续循环；
+ *  - 支持 wx.scanCode 扫码直连（含拒绝相机权限降级提示）、8 位配对码（XXXX-XXXX）与设备管理。
  * ============================================================================
  */
 
@@ -22,7 +21,7 @@ interface DeviceViewModel {
   readonly deviceId: string;
   readonly deviceName: string;
   readonly platformLabel: string;
-  readonly platformShort: string;
+  readonly isWeb: boolean;
   readonly lastSeenLabel: string;
   readonly isCurrent: boolean;
 }
@@ -32,7 +31,6 @@ type ModalSubView = 'menu' | 'qr' | 'code';
 interface ModalRuntime {
   unsubscribeSync?: () => void;
   countdownTimer?: ReturnType<typeof setInterval>;
-  beamPulseTimer?: ReturnType<typeof setTimeout>;
   qrRetryTimer?: ReturnType<typeof setTimeout>;
   lastDrawnQrPayload: string;
 }
@@ -48,26 +46,16 @@ function getModalRuntime(instance: object): ModalRuntime {
   return rt;
 }
 
-const PLATFORM_LABELS: Record<string, { label: string; short: string }> = {
-  ios: { label: 'iPhone', short: 'iOS' },
-  ipad: { label: 'iPad', short: 'iPad' },
-  android: { label: 'Android', short: 'AND' },
-  web: { label: 'Web / 车机', short: 'WEB' },
-  wechat: { label: '微信小程序', short: '微信' },
-  harmonyos: { label: 'HarmonyOS', short: 'HM' },
-};
-
 function formatRelativeTime(ms: number): string {
   if (!ms || ms <= 0) return '尚未同步';
   const diffSec = Math.max(0, Math.floor((Date.now() - ms) / 1000));
-  if (diffSec < 15) return '刚刚';
-  if (diffSec < 60) return `${diffSec} 秒前`;
+  if (diffSec < 60) return '刚刚已同步';
   const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin} 分钟前`;
+  if (diffMin < 60) return `${diffMin} 分钟前同步`;
   const diffHour = Math.floor(diffMin / 60);
-  if (diffHour < 24) return `${diffHour} 小时前`;
+  if (diffHour < 24) return `${diffHour} 小时前同步`;
   const diffDay = Math.floor(diffHour / 24);
-  return `${diffDay} 天前`;
+  return `${diffDay} 天前同步`;
 }
 
 function formatCountdown(expiresAtMs: number): string {
@@ -77,30 +65,15 @@ function formatCountdown(expiresAtMs: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-function mapStatusText(snap: SyncEngineSnapshot): string {
-  if (!snap.linked) return '本机独立记录';
-  switch (snap.status) {
-    case 'syncing':
-      return '正在同步…';
-    case 'offline':
-      return snap.pendingCount > 0 ? `离线 · 待同步 ${snap.pendingCount} 项` : '网络离线';
-    case 'error':
-      return '同步异常';
-    case 'synced':
-    default:
-      return '多端已连通';
-  }
-}
-
 function toDeviceViewModels(devices: readonly SyncDeviceSummary[]): DeviceViewModel[] {
   return devices.map((d) => {
-    const meta = PLATFORM_LABELS[d.platform] ?? { label: d.platform || '设备', short: 'DEV' };
+    const isWeb = d.platform === 'web';
     return {
       deviceId: d.deviceId,
       deviceName: d.deviceName,
-      platformLabel: meta.label,
-      platformShort: meta.short,
-      lastSeenLabel: d.isCurrent ? '当前设备' : `最近活跃 ${formatRelativeTime(d.lastSeenAtMs)}`,
+      platformLabel: isWeb ? '网页端' : '移动设备',
+      isWeb,
+      lastSeenLabel: formatRelativeTime(d.lastSeenAtMs),
       isCurrent: d.isCurrent,
     };
   });
@@ -130,26 +103,22 @@ Component({
   },
 
   data: {
-    beamPulsing: false,
     hasPeer: false,
-    peerShort: '扫码',
-    peerLabel: '待扫码接入',
+    linkedVisual: false,
     linked: false,
     status: 'unlinked',
-    statusLabel: '本机独立记录',
-    lastSyncLabel: '未连接其他设备',
-    pendingCount: 0,
-    deviceName: '微信小程序',
+    beamChipText: '本机进度上传云端 · 自动分发到其他设备',
+    deviceName: '当前设备',
     deviceCount: 0,
     devices: [] as DeviceViewModel[],
     subView: 'menu' as ModalSubView,
     displayCode: '',
     qrPayload: '',
-    qrSizePx: 156,
+    qrSizePx: 148,
     countdownText: '05:00',
     ticketStatus: '',
-    claimedDeviceName: '',
     codeInput: '',
+    codeReady: false,
     busy: false,
     errorMessage: '',
     revokedNotice: false,
@@ -175,9 +144,10 @@ Component({
       this.setData({
         subView: 'menu',
         codeInput: '',
+        codeReady: false,
         busy: false,
         renaming: false,
-        beamPulsing: false,
+        errorMessage: '',
       });
 
       const snap = syncService.getSnapshot();
@@ -185,48 +155,76 @@ Component({
       if (snap.linked) {
         void syncService.refreshDevices();
       }
-
-      this.triggerBeamPulse();
     },
 
     handleCloseCleanup(): void {
       const rt = getModalRuntime(this);
-      this.clearBeamPulseTimer();
       this.clearCountdownTimer();
       this.clearQrRetryTimer();
       rt.unsubscribeSync?.();
       rt.unsubscribeSync = undefined;
       syncService.cancelPairingPoll();
       rt.lastDrawnQrPayload = '';
-      if (this.data.beamPulsing) {
-        this.setData({ beamPulsing: false });
+    },
+
+    computeBeamChipText(
+      snap: SyncEngineSnapshot,
+      subView: ModalSubView,
+      deviceCount: number,
+    ): string {
+      if (subView === 'qr' && snap.status !== 'offline' && snap.status !== 'error') {
+        return '等待其他设备连接 · 配对后自动云端同步';
       }
+      if (snap.status === 'offline') {
+        return '网络离线 · 本机进度已本地保存，联网后自动上传';
+      }
+      if (snap.status === 'error') {
+        return '同步暂未完成 · 稍后自动重试';
+      }
+      if (snap.status === 'syncing') {
+        return '本机进度上传云端 · 正在分发到其他设备…';
+      }
+      if (snap.linked && deviceCount > 1) {
+        return `已完成 ${this.data.completedCount} / ${this.data.totalCount} 课 · ${deviceCount} 台设备通过云端实时同步`;
+      }
+      return '本机进度上传云端 · 自动分发到其他设备';
     },
 
     applySnapshot(snap: SyncEngineSnapshot): void {
       const devices = toDeviceViewModels(snap.devices);
-      const peer = devices.find((d) => !d.isCurrent);
-      const prevStatus = this.data.status;
+      const hasPeer = devices.some((d) => !d.isCurrent) || devices.length > 1;
+      let nextSubView: ModalSubView = this.data.subView;
+
+      if (snap.ticketStatus === 'consumed' && nextSubView === 'qr') {
+        nextSubView = 'menu';
+        wx.showToast({
+          title: snap.lastClaimedDevice?.deviceName
+            ? `已连接 ${snap.lastClaimedDevice.deviceName}`
+            : '新设备已加入，进度已同步',
+          icon: 'success',
+        });
+      }
+
+      const linkedVisual =
+        snap.linked &&
+        hasPeer &&
+        nextSubView !== 'qr' &&
+        snap.status !== 'offline' &&
+        snap.status !== 'error';
+
       const patch: Record<string, unknown> = {
+        subView: nextSubView,
         linked: snap.linked,
-        hasPeer: Boolean(peer),
-        peerShort: peer ? peer.platformShort : '扫码',
-        peerLabel: peer ? peer.deviceName : devices.length > 1 ? `${devices.length - 1} 台对端` : '待扫码接入',
+        hasPeer,
+        linkedVisual,
         status: snap.status,
-        statusLabel: mapStatusText(snap),
-        lastSyncLabel: snap.linked
-          ? snap.lastSyncedAtMs > 0
-            ? `上次同步 ${formatRelativeTime(snap.lastSyncedAtMs)}`
-            : '等待首次同步'
-          : '扫码或输码即可联通多端',
-        pendingCount: snap.pendingCount,
-        deviceName: snap.deviceName,
+        beamChipText: this.computeBeamChipText(snap, nextSubView, devices.length),
+        deviceName: snap.deviceName || '当前设备',
         deviceCount: devices.length,
         devices,
         errorMessage: snap.errorMessage,
         revokedNotice: snap.revokedNotice,
         ticketStatus: snap.ticketStatus ?? '',
-        claimedDeviceName: snap.lastClaimedDevice?.deviceName ?? '',
       };
 
       if (snap.activeTicket) {
@@ -240,23 +238,9 @@ Component({
         this.clearCountdownTimer();
       }
 
-      if (snap.ticketStatus === 'consumed' && this.data.subView === 'qr') {
-        patch.subView = 'menu';
-        wx.showToast({
-          title: snap.lastClaimedDevice?.deviceName
-            ? `已连接 ${snap.lastClaimedDevice.deviceName}`
-            : '新设备已加入同步组',
-          icon: 'success',
-        });
-      }
-
       this.setData(patch);
 
-      if (prevStatus !== snap.status && snap.status === 'synced') {
-        this.triggerBeamPulse();
-      }
-
-      if (this.data.visible && this.data.subView === 'qr' && snap.activeTicket?.qrPayload) {
+      if (this.data.visible && nextSubView === 'qr' && snap.activeTicket?.qrPayload) {
         this.scheduleDrawQr(snap.activeTicket.qrPayload);
       }
     },
@@ -268,26 +252,6 @@ Component({
 
     noop(): void {
       // 阻止事件穿透到底层列表
-    },
-
-    onPulseBeam(): void {
-      this.triggerBeamPulse();
-    },
-
-    triggerBeamPulse(): void {
-      const rt = getModalRuntime(this);
-      this.clearBeamPulseTimer();
-      this.setData({ beamPulsing: false });
-      wx.nextTick(() => {
-        if (!this.data.visible) return;
-        this.setData({ beamPulsing: true });
-        rt.beamPulseTimer = setTimeout(() => {
-          rt.beamPulseTimer = undefined;
-          if (this.data.beamPulsing) {
-            this.setData({ beamPulsing: false });
-          }
-        }, 1200);
-      });
     },
 
     onDismissNotice(): void {
@@ -313,17 +277,29 @@ Component({
         fail: (err) => {
           const msg = typeof err?.errMsg === 'string' ? err.errMsg : '';
           if (msg.includes('cancel')) return;
-          this.setData({ errorMessage: '未能调起扫码，可改用「输入 8 位设备码」' });
+          if (msg.includes('auth deny') || msg.includes('authorize')) {
+            wx.showModal({
+              title: '未获得相机权限',
+              content: '您可在系统设置或右上角权限设置中开启相机权限，或直接在此手动输入 8 位配对码。',
+              showCancel: false,
+              confirmText: '去手动输入',
+            });
+            return;
+          }
+          this.setData({ errorMessage: '未能打开相机扫码，请在下方手动输入 8 位配对码' });
         },
       });
     },
 
     onGenerateCode(): void {
       if (this.data.busy) return;
+      const snap = syncService.getSnapshot();
       this.setData({
         subView: 'qr',
         busy: true,
         errorMessage: '',
+        linkedVisual: false,
+        beamChipText: this.computeBeamChipText(snap, 'qr', this.data.deviceCount),
       });
       void syncService
         .createPairingCode()
@@ -342,7 +318,20 @@ Component({
       syncService.clearActiveTicket();
       syncService.clearError();
       getModalRuntime(this).lastDrawnQrPayload = '';
-      this.setData({ subView: 'menu', codeInput: '' });
+      const snap = syncService.getSnapshot();
+      const linkedVisual =
+        snap.linked &&
+        this.data.hasPeer &&
+        snap.status !== 'offline' &&
+        snap.status !== 'error';
+      this.setData({
+        subView: 'menu',
+        codeInput: '',
+        codeReady: false,
+        errorMessage: '',
+        linkedVisual,
+        beamChipText: this.computeBeamChipText(snap, 'menu', this.data.deviceCount),
+      });
     },
 
     onCopyCode(): void {
@@ -358,19 +347,31 @@ Component({
     onShowCodeInput(): void {
       syncService.clearActiveTicket();
       syncService.clearError();
-      this.setData({ subView: 'code', codeInput: '' });
+      const snap = syncService.getSnapshot();
+      this.setData({
+        subView: 'code',
+        codeInput: '',
+        codeReady: false,
+        errorMessage: '',
+        linkedVisual: false,
+        beamChipText: this.computeBeamChipText(snap, 'code', this.data.deviceCount),
+      });
     },
 
     onCodeInput(event: WechatMiniprogram.Input): void {
       const formatted = formatCodeInput(event.detail.value || '');
-      this.setData({ codeInput: formatted });
+      const cleanLen = formatted.replace(/[^A-Z0-9]/g, '').length;
+      this.setData({
+        codeInput: formatted,
+        codeReady: cleanLen === 8,
+      });
     },
 
     onSubmitCode(): void {
       if (this.data.busy) return;
       const code = normalizePairingCode(this.data.codeInput);
       if (!code) {
-        this.setData({ errorMessage: '请输入完整的 8 位设备配对码' });
+        this.setData({ errorMessage: '请输入完整的 8 位配对码（如 K7M9-P2XR）' });
         return;
       }
       void this.performClaimWithOptionalSwitchPrompt(code);
@@ -384,8 +385,8 @@ Component({
             ? await syncService.switchGroupWithCode(normalizedCode)
             : await syncService.claimPairingCode(normalizedCode);
           if (ok) {
-            this.setData({ subView: 'menu', codeInput: '' });
-            wx.showToast({ title: '设备已联通并完成同步', icon: 'success' });
+            this.setData({ subView: 'menu', codeInput: '', codeReady: false });
+            wx.showToast({ title: '已加入同步组，进度已合并', icon: 'success' });
           }
         } finally {
           this.setData({ busy: false });
@@ -418,7 +419,7 @@ Component({
         .syncNow()
         .then((ok) => {
           if (ok) {
-            wx.showToast({ title: '已同步最新进度', icon: 'success' });
+            wx.showToast({ title: '已完成双向同步', icon: 'success' });
           }
         })
         .finally(() => {
@@ -487,8 +488,8 @@ Component({
     onLeaveGroup(): void {
       if (this.data.busy || !this.data.linked) return;
       wx.showModal({
-        title: '退出当前同步组',
-        content: '退出后本机将停止与其他设备同步进度，但已学习的全部课程进度与完成记录会 100% 保留在本机。',
+        title: '退出同步组',
+        content: '仅解除多端同步关系，本机已学进度不会丢失。确认退出？',
         confirmText: '确认退出',
         confirmColor: '#D9534F',
         success: (res) => {
@@ -598,14 +599,6 @@ Component({
       if (rt.countdownTimer) {
         clearInterval(rt.countdownTimer);
         rt.countdownTimer = undefined;
-      }
-    },
-
-    clearBeamPulseTimer(): void {
-      const rt = getModalRuntime(this);
-      if (rt.beamPulseTimer) {
-        clearTimeout(rt.beamPulseTimer);
-        rt.beamPulseTimer = undefined;
       }
     },
 
