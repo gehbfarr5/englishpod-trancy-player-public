@@ -1,11 +1,15 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'sync_platform_types.dart';
 
 const MethodChannel _qrScannerChannel =
     MethodChannel('com.englishpod.trancy/qr_scanner');
+
+final ValueListenable<HostSafeInsets> hostSafeAreaInsets =
+    ValueNotifier<HostSafeInsets>((top: 0.0, bottom: 0.0));
 
 bool get isHarmonyHost => false;
 

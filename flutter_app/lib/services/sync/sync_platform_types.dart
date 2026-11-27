@@ -18,4 +18,6 @@ class QrScanResult {
   });
 }
 
+typedef HostSafeInsets = ({double top, double bottom});
+
 const String kDefaultSyncApiBase = 'https://43.155.232.185:8888/api/sync/v1';

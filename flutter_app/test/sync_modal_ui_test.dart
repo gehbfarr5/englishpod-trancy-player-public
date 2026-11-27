@@ -304,4 +304,45 @@ void main() {
     }
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('mobile safe-area top & bottom insets clear header and WebPlayer bars cleanly', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(430, 880);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final player = make();
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (ctx, child) => MediaQuery(
+          data: MediaQuery.of(ctx).copyWith(
+            padding: const EdgeInsets.only(top: 44, bottom: 24),
+            viewPadding: const EdgeInsets.only(top: 44, bottom: 24),
+          ),
+          child: child!,
+        ),
+        home: ImmersivePlayerScreen(
+          webPlayer: player,
+          initialPreference: AppThemePreference.dark,
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    // Library title must sit strictly below top status bar inset (y >= 44).
+    final titleRect = tester.getRect(find.text('EnglishPod').first);
+    expect(titleRect.top, greaterThanOrEqualTo(44.0));
+    expect(tester.takeException(), isNull);
+
+    // Enter player -> _buildWebPlayer top bar & reading area must respect top & bottom insets without overflow.
+    await tester.tap(find.text('START LISTENING').first);
+    await tester.pumpAndSettle();
+
+    final readRect = tester.getRect(find.byKey(const ValueKey('web_reading_area')));
+    expect(readRect.top, greaterThanOrEqualTo(104.0)); // 60 + 44
+    expect(readRect.bottom, lessThanOrEqualTo(880.0 - 90.0)); // 66 + 24
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
 }

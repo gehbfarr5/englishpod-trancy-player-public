@@ -142,6 +142,17 @@ export class PlayerStore {
     this.topSafeInsetVp = Math.max(24, Math.round(topVp));
     this.bottomSafeInsetVp = Math.max(12, Math.round(bottomVp));
     this.insetsReady = true;
+    this.pushSafeInsetsToWeb();
+  }
+
+  pushSafeInsetsToWeb(): void {
+    try {
+      this.webController.runJavaScript(
+        `window.__epUpdateSafeInsets && window.__epUpdateSafeInsets(${this.topSafeInsetVp}, ${this.bottomSafeInsetVp});`
+      );
+    } catch {
+      // Ignore before WebView controller attaches
+    }
   }
 
   buildInitialWebUrl(): string {
@@ -187,6 +198,7 @@ export class PlayerStore {
         }
         if (parsed.ready === true && !this.flutterReady) {
           this.flutterReady = true;
+          this.pushSafeInsetsToWeb();
         }
         if (typeof parsed.themePref === 'string' && parsed.themePref !== this.themePref) {
           if (parsed.themePref === 'dark' || parsed.themePref === 'light' || parsed.themePref === 'system') {

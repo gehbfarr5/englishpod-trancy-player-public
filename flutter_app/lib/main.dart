@@ -3840,6 +3840,32 @@ class EnglishPodTrancyApp extends StatelessWidget {
         fontFamily: '.SF Pro Display',
         fontFamilyFallback: const ['EpCjkFallback'],
       ),
+      builder: (ctx, child) {
+        if (child == null) return const SizedBox.shrink();
+        return ValueListenableBuilder<HostSafeInsets>(
+          valueListenable: hostSafeAreaInsets,
+          builder: (context, insets, content) {
+            if (insets.top <= 0.0 && insets.bottom <= 0.0) {
+              return content!;
+            }
+            final mq = MediaQuery.of(context);
+            return MediaQuery(
+              data: mq.copyWith(
+                padding: mq.padding.copyWith(
+                  top: math.max(mq.padding.top, insets.top),
+                  bottom: math.max(mq.padding.bottom, insets.bottom),
+                ),
+                viewPadding: mq.viewPadding.copyWith(
+                  top: math.max(mq.viewPadding.top, insets.top),
+                  bottom: math.max(mq.viewPadding.bottom, insets.bottom),
+                ),
+              ),
+              child: content!,
+            );
+          },
+          child: child,
+        );
+      },
       home: ImmersivePlayerScreen(initialPreference: initialPreference),
     );
   }
@@ -5518,11 +5544,14 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
             _webTouch();
           });
         }
+        final pad = MediaQuery.paddingOf(context);
+        final topBarH = 60.0 + pad.top;
+        final bottomBarH = 66.0 + pad.bottom;
         final immersive = !wide && (w?.immersive ?? false);
         final hidden = immersive && _webChromeHidden && _webCanHide;
         final right = wide && !hidden ? 276.0 : 0.0;
-        final top = hidden ? 0.0 : 60.0;
-        final bottom = !wide && !hidden ? 66.0 : 0.0;
+        final top = hidden ? pad.top : topBarH;
+        final bottom = !wide && !hidden ? bottomBarH : pad.bottom;
         final readWidth = box.maxWidth - right;
         final readHeight = box.maxHeight - top - bottom;
         _webTextSize = (readWidth / (immersive ? 25 : 30)).clamp(22,38).toDouble();
@@ -5554,13 +5583,13 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
               behavior: HitTestBehavior.opaque, onTap: _webTouch,
               onVerticalDragStart: (_) => _webTouch(),
               child: Listener(onPointerSignal: (_) => _webTouch(), child: const SizedBox.expand())))),
-          if (!hidden) Positioned(top: 0, left: 0, right: right, height: 60,
+          if (!hidden) Positioned(top: 0, left: 0, right: right, height: topBarH,
             child: _buildPlayerTopBar(p)),
           // Wide controls are always in the sidebar; compact immersion keeps only
           // the hero visible. No persisted preference changes on viewport resize.
           if (wide) Positioned(top: 0, right: 0, bottom: 0, width: 276,
             child: Container(key: const ValueKey('web_control_deck'),
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.fromLTRB(16, 16 + pad.top, 16, 16 + pad.bottom),
               decoration: BoxDecoration(color: p.bottomBg,
                 border: Border(left: BorderSide(color: p.deckBorder))),
               child: Column(children: [
@@ -5569,9 +5598,9 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
                 const SizedBox(height: 12), _webScrubber(p), _webTime(p), const SizedBox(height: 16),
                 Expanded(child: SingleChildScrollView(child: _webOptions(p, showImmersive: false))),
               ]))),
-          if (!wide) Positioned(left: 0, right: 0, bottom: 0, height: 66,
+          if (!wide) Positioned(left: 0, right: 0, bottom: 0, height: bottomBarH,
             child: Container(key: const ValueKey('web_control_deck'),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: EdgeInsets.fromLTRB(12, 4, 12, 4 + pad.bottom),
               decoration: hidden ? null : BoxDecoration(color: p.bottomBg),
               // Paint the separator without adding a 1px layout inset to the hero.
               foregroundDecoration: hidden ? null : BoxDecoration(border: Border(top: BorderSide(color: p.deckBorder))),
@@ -5581,10 +5610,10 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
                 if (!hidden) _webTime(p), const SizedBox(width: 8),
                 if (!hidden) _webButton('More', Icons.more_horiz_rounded, p, () => _showWebMore(p)),
               ]))),
-          Positioned(left: 0, right: right, bottom: hidden ? (wide ? 90 : 66) : bottom,
+          Positioned(left: 0, right: right, bottom: hidden ? (wide ? 90.0 + pad.bottom : bottomBarH) : bottom,
             child: Semantics(label: _showReturnBanner ? 'Manual transcript reading. Current sentence' : null, child: _buildFullWidthReturnBanner(p))),
           if (w != null && (w.error != null || w.waitingGesture || !w.saved))
-            Positioned(left: 16, right: right + 16, top: hidden ? 16 : 64, child: _webStatus(p)),
+            Positioned(left: 16, right: right + 16, top: hidden ? (16.0 + pad.top) : (topBarH + 4.0), child: _webStatus(p)),
         ]);
       }));
   }

@@ -94,9 +94,14 @@ export default class EntryAbility extends UIAbility {
     try {
       const uiCtx = win.getUIContext();
       const sysArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
+      const cutoutArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_CUTOUT);
       const navArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
+      const cutoutBottomPx = cutoutArea.topRect.height > 0
+        ? cutoutArea.topRect.top + cutoutArea.topRect.height
+        : 0;
+      const topPx = Math.max(sysArea.topRect.height, cutoutBottomPx);
       PlayerStore.getInstance().updateSafeInsets(
-        uiCtx.px2vp(sysArea.topRect.height),
+        uiCtx.px2vp(topPx),
         uiCtx.px2vp(navArea.bottomRect.height)
       );
     } catch {

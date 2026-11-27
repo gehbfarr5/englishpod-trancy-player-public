@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
 
 import 'sync_platform_types.dart';
 
@@ -17,6 +20,100 @@ String detectSyncPlatform({double shortestSide = 0}) =>
 
 String defaultSyncDeviceName(String platform) =>
     platform == 'harmonyos' ? '移动设备' : '网页端';
+
+ValueNotifier<HostSafeInsets>? _safeInsetsNotifier;
+double _hostTopInset = 0.0;
+double _hostBottomInset = 0.0;
+bool _safeInsetListenersAttached = false;
+
+double _sanitizeInset(double? v) {
+  if (v == null || v.isNaN || !v.isFinite || v <= 0.0) return 0.0;
+  return v.clamp(0.0, 120.0).toDouble();
+}
+
+HostSafeInsets _readCssSafeInsets() {
+  try {
+    final doc = globalContext.getProperty<JSObject?>('document'.toJS);
+    final docEl = doc?.getProperty<JSObject?>('documentElement'.toJS);
+    if (docEl == null) return (top: 0.0, bottom: 0.0);
+    final cs = globalContext.callMethod<JSObject?>(
+      'getComputedStyle'.toJS,
+      docEl,
+    );
+    if (cs == null) return (top: 0.0, bottom: 0.0);
+    double readProp(String prop) {
+      final raw = cs.callMethod<JSString?>('getPropertyValue'.toJS, prop.toJS);
+      final parsed = globalContext.callMethod<JSNumber?>(
+        'parseFloat'.toJS,
+        (raw?.toDart ?? '0').toJS,
+      );
+      return _sanitizeInset(parsed?.toDartDouble);
+    }
+
+    return (top: readProp('--ep-sat'), bottom: readProp('--ep-sab'));
+  } catch (_) {
+    return (top: 0.0, bottom: 0.0);
+  }
+}
+
+HostSafeInsets _computeEffectiveInsets() {
+  final css = _readCssSafeInsets();
+  return (
+    top: math.max(_hostTopInset, css.top),
+    bottom: math.max(_hostBottomInset, css.bottom),
+  );
+}
+
+void _refreshSafeInsets() {
+  final notifier = _safeInsetsNotifier;
+  if (notifier == null) return;
+  final next = _computeEffectiveInsets();
+  if (notifier.value != next) {
+    notifier.value = next;
+  }
+}
+
+ValueListenable<HostSafeInsets> get hostSafeAreaInsets {
+  if (_safeInsetsNotifier != null) return _safeInsetsNotifier!;
+  final qp = Uri.base.queryParameters;
+  final urlTop = _sanitizeInset(double.tryParse(qp['topInset'] ?? ''));
+  final urlBottom = _sanitizeInset(double.tryParse(qp['bottomInset'] ?? ''));
+  _hostTopInset =
+      isHarmonyHost ? (urlTop > 0.0 ? urlTop : 38.0) : urlTop;
+  _hostBottomInset =
+      isHarmonyHost ? (urlBottom > 0.0 ? urlBottom : 18.0) : urlBottom;
+
+  _safeInsetsNotifier = ValueNotifier<HostSafeInsets>(_computeEffectiveInsets());
+
+  if (!_safeInsetListenersAttached) {
+    _safeInsetListenersAttached = true;
+    try {
+      globalContext['__epUpdateSafeInsets'] =
+          ((JSNumber top, JSNumber bottom) {
+        final nextTop = _sanitizeInset(top.toDartDouble);
+        final nextBottom = _sanitizeInset(bottom.toDartDouble);
+        if (nextTop > 0.0 || !isHarmonyHost) {
+          _hostTopInset = nextTop;
+        }
+        if (nextBottom > 0.0 || !isHarmonyHost) {
+          _hostBottomInset = nextBottom;
+        }
+        _refreshSafeInsets();
+      }).toJS;
+
+      globalContext.callMethod<JSAny?>(
+        'addEventListener'.toJS,
+        'resize'.toJS,
+        ((JSAny? _) {
+          _refreshSafeInsets();
+        }).toJS,
+      );
+    } catch (_) {
+      // Ignore in restricted JS contexts.
+    }
+  }
+  return _safeInsetsNotifier!;
+}
 
 String resolveDefaultSyncBaseUrl() {
   const configured = String.fromEnvironment('EP_SYNC_API_BASE', defaultValue: '');

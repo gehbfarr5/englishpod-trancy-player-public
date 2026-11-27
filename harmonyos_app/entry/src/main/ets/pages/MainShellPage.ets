@@ -45,6 +45,9 @@ struct MainShellPage {
           }
           return false;
         })
+        .onPageEnd(() => {
+          this.store.pushSafeInsetsToWeb();
+        })
 
       if (!this.store.splashDismissed) {
         NativeSmileySplash()

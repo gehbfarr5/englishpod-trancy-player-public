@@ -8,6 +8,10 @@
   <meta name="theme-color" content="#13151c">
   <title>EnglishPod</title>
   <style>
+    :root {
+      --ep-sat: env(safe-area-inset-top, 0px);
+      --ep-sab: env(safe-area-inset-bottom, 0px);
+    }
     html, body {
       margin: 0;
       padding: 0;
@@ -29,6 +33,17 @@
 <body>
   <div id="loading" role="status">Loading EnglishPod…</div>
   <a id="build" href="build-info.json" target="_blank" rel="noopener">Build details</a>
+  <script>
+    (function () {
+      try {
+        var params = new URLSearchParams(window.location.search);
+        if (window.location.hostname === 'app.englishpod.local' || params.get('epHost') === 'harmonyos') {
+          var b = document.getElementById('build');
+          if (b) b.style.display = 'none';
+        }
+      } catch (e) {}
+    })();
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
