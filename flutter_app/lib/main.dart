@@ -23,6 +23,14 @@ import 'services/web_contract_player.dart';
 import 'services/web_contract_audio.dart';
 import 'services/playback_platform_web.dart'
     if (dart.library.io) 'services/playback_platform_native.dart' as playback_platform;
+import 'services/sync/sync_api_client.dart';
+import 'services/sync/sync_engine.dart';
+import 'services/sync/sync_models.dart';
+import 'services/sync/sync_platform.dart';
+import 'services/sync/sync_storage_bridge.dart';
+import 'widgets/sync/sync_modal.dart';
+import 'widgets/sync/sync_progress_pill.dart';
+import 'widgets/sync/sync_theme.dart';
 
 enum AppThemePreference {
   system,
@@ -1415,9 +1423,17 @@ class _HoldToReplayHeroButtonState extends State<_HoldToReplayHeroButton>
         ),
         const SizedBox(width: 8),
         SizedBox(
-          width: 50,
+          width: 62,
           child: Text(
-            widget.isEnded ? 'Replay' : widget.isPlaying ? 'Pause' : 'Play',
+            widget.isLoading
+                ? 'Loading'
+                : widget.isEnded
+                    ? 'Replay'
+                    : widget.isPlaying
+                        ? 'Pause'
+                        : 'Play',
+            maxLines: 1,
+            softWrap: false,
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w800,
@@ -4223,11 +4239,15 @@ class _EnglishPodAnimatedSplashOverlay extends StatelessWidget {
 class ImmersivePlayerScreen extends StatefulWidget {
   final ContractPlayer? webPlayer;
   final AppThemePreference initialPreference;
+  final SyncEngine? syncEngine;
+  final QrScannerCallback? qrScanner;
 
   const ImmersivePlayerScreen({
     this.webPlayer,
     super.key,
     this.initialPreference = AppThemePreference.system,
+    this.syncEngine,
+    this.qrScanner,
   });
 
   @override
@@ -4295,6 +4315,9 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
   // Audio loading guard: prevents transient 0.0s emissions during setFilePath/setAsset
   // from ever resetting _currentPositionSec, _activeSegIndex, or saved progress!
   bool _isAudioLoading = false;
+  bool _isAudioBuffering = false;
+  Timer? _nativeLoadingIndicatorTimer;
+  bool _nativeShowAudioLoading = false;
   bool _isDraggingSlider = false;
   int _audioLoadToken = 0;
 
@@ -4305,6 +4328,8 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
   Future<void> _progressWrites = Future<void>.value();
   int _progressRevision = 0;
   bool _progressSaved = true;
+  SyncEngine? _syncEngine;
+  bool _ownsSyncEngine = false;
 
   /// Whether the last progress snapshot actually reached disk. Kept for the
   /// existing status surface; no layout depends on it.
@@ -4801,8 +4826,11 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     _appLifecycleState = state;
     _syncKeepScreenOn(force: state == AppLifecycleState.resumed);
     if (_useWeb && state != AppLifecycleState.resumed) unawaited(_web?.checkpoint());
-    if (state == AppLifecycleState.resumed) {
+    if (state != AppLifecycleState.resumed) {
+      unawaited(_syncEngine?.flushPending().catchError((_) {}));
+    } else {
       unawaited(_syncSystemAppearanceFromPlatform());
+      unawaited(_syncEngine?.pullIfDue().catchError((_) {}));
     }
   }
 
@@ -4935,12 +4963,280 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
   bool _webWide = true;
   bool _webRestoringAnchor = false;
 
+  void _onSyncStateChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  SyncCommitTrigger _mapSyncTrigger(String trigger) {
+    switch (trigger) {
+      case 'pause':
+        return SyncCommitTrigger.pause;
+      case 'seek':
+        return SyncCommitTrigger.userSeek;
+      case 'complete':
+        return SyncCommitTrigger.completion;
+      case 'switch':
+        return SyncCommitTrigger.lessonSwitch;
+      case 'background':
+        return SyncCommitTrigger.appBackground;
+      default:
+        return SyncCommitTrigger.periodic;
+    }
+  }
+
+  SyncProgressBridge _buildNativeSyncBridge() {
+    return NativeProgressSyncBridge(
+      onExportSnapshot: (nowMs) {
+        final out = <String, SyncLessonDelta>{};
+        _progressMap.forEach((lessonId, r) {
+          if (!isValidCanonicalLessonId(lessonId)) return;
+          final pb = (r.pbPosSec > 0 || r.isCompleted || r.pbSegIdx > 0)
+              ? SyncTrackPoint(
+                  positionMs: (r.pbPosSec * 1000).round().clamp(0, 7200000),
+                  segmentIndex: r.pbSegIdx,
+                  durationMs: r.pbDurSec > 0
+                      ? (r.pbDurSec * 1000).round().clamp(0, 7200000)
+                      : null,
+                  updatedAtMs: r.updatedAtMs > 0 ? r.updatedAtMs : nowMs,
+                )
+              : null;
+          final dg = (r.dgPosSec > 0 || r.dgSegIdx > 0)
+              ? SyncTrackPoint(
+                  positionMs: (r.dgPosSec * 1000).round().clamp(0, 7200000),
+                  segmentIndex: r.dgSegIdx,
+                  durationMs: r.dgDurSec > 0
+                      ? (r.dgDurSec * 1000).round().clamp(0, 7200000)
+                      : null,
+                  updatedAtMs: r.updatedAtMs > 0 ? r.updatedAtMs : nowMs,
+                )
+              : null;
+          if (!r.isCompleted && pb == null && dg == null) return;
+          out[lessonId] = SyncLessonDelta(
+            lessonId: lessonId,
+            lessonCompleted: r.isCompleted,
+            completedAtMs: r.isCompleted
+                ? (r.updatedAtMs > 0 ? r.updatedAtMs : nowMs)
+                : 0,
+            pb: pb,
+            dg: dg,
+          );
+        });
+        return out;
+      },
+      onExportLastOpened: () => _lastPlayedLessonId,
+      onCurrentActivePlayback: () {
+        final lesson = _currentLesson;
+        if (lesson == null) return null;
+        if (!_isPlaying && _activeScreen != 'player') return null;
+        return ActivePlaybackGuard(
+          lessonId: lesson.lessonId,
+          track: _currentTrack,
+          isActive: true,
+        );
+      },
+      onApplyRemote: (lessons, lastOpened) async {
+        final guard = (_currentLesson != null &&
+                (_isPlaying || _activeScreen == 'player'))
+            ? ActivePlaybackGuard(
+                lessonId: _currentLesson!.lessonId,
+                track: _currentTrack,
+                isActive: true,
+              )
+            : null;
+        var changed = false;
+        for (final item in lessons) {
+          if (!isValidCanonicalLessonId(item.lessonId)) continue;
+          final prev =
+              _progressMap[item.lessonId] ?? const LessonProgressRecord();
+          final completed = prev.isCompleted || item.lessonCompleted;
+
+          final skipPb = guard != null &&
+              guard.lessonId == item.lessonId &&
+              guard.track == 'pb';
+          final skipDg = guard != null &&
+              guard.lessonId == item.lessonId &&
+              guard.track == 'dg';
+
+          double pbPos = prev.pbPosSec;
+          int pbSeg = prev.pbSegIdx;
+          double pbDur = prev.pbDurSec;
+          if (!skipPb && item.pb != null) {
+            pbPos = item.pb!.positionMs / 1000.0;
+            if (item.pb!.segmentIndex != null) pbSeg = item.pb!.segmentIndex!;
+            if (item.pb!.durationMs != null && item.pb!.durationMs! > 0) {
+              pbDur = item.pb!.durationMs! / 1000.0;
+            }
+          }
+
+          double dgPos = prev.dgPosSec;
+          int dgSeg = prev.dgSegIdx;
+          double dgDur = prev.dgDurSec;
+          if (!skipDg && item.dg != null) {
+            dgPos = item.dg!.positionMs / 1000.0;
+            if (item.dg!.segmentIndex != null) dgSeg = item.dg!.segmentIndex!;
+            if (item.dg!.durationMs != null && item.dg!.durationMs! > 0) {
+              dgDur = item.dg!.durationMs! / 1000.0;
+            }
+          }
+
+          final pct = pbDur > 1.0
+              ? ((pbPos / pbDur) * 100).floor().clamp(0, 100)
+              : (completed ? 100 : prev.progressPct);
+          final started = prev.hasStarted || completed || pbPos > 0.5 || dgPos > 0.5;
+          _progressMap[item.lessonId] = prev.copyWith(
+            isCompleted: completed,
+            hasStarted: started,
+            progressPct: pct,
+            pbPosSec: pbPos,
+            pbSegIdx: pbSeg,
+            pbDurSec: pbDur,
+            dgPosSec: dgPos,
+            dgSegIdx: dgSeg,
+            dgDurSec: dgDur,
+            updatedAtMs: DateTime.now().millisecondsSinceEpoch,
+          );
+          changed = true;
+        }
+
+        String? newAnchor;
+        if (guard == null &&
+            lastOpened != null &&
+            _lessons.any((l) => l.lessonId == lastOpened.lessonId) &&
+            lastOpened.lessonId != _lastPlayedLessonId) {
+          _lastPlayedLessonId = lastOpened.lessonId;
+          newAnchor = lastOpened.lessonId;
+          changed = true;
+        }
+        if (changed) {
+          await _flushProgressToPrefs(_lastPlayedLessonId);
+          if (mounted) setState(() {});
+          if (newAnchor != null &&
+              !_isPlaying &&
+              !_isAudioLoading &&
+              _activeScreen == 'library') {
+            unawaited(_loadLesson(newAnchor, track: 'pb', autoPlay: false));
+          }
+        }
+      },
+    );
+  }
+
+  Future<void> _initSyncEngine({
+    ContractPlayer? webPlayer,
+    SharedPreferences? prefs,
+    bool allowSharedPreferences = true,
+  }) async {
+    if (_syncEngine != null) return;
+    final supplied = widget.syncEngine;
+    if (supplied != null) {
+      _syncEngine = supplied;
+      _ownsSyncEngine = false;
+    } else {
+      final baseUrl = resolveDefaultSyncBaseUrl();
+      final view = WidgetsBinding.instance.platformDispatcher.views.firstOrNull;
+      final shortestSide = (view != null && view.devicePixelRatio > 0)
+          ? (view.physicalSize / view.devicePixelRatio).shortestSide
+          : 0.0;
+      final platform = detectSyncPlatform(shortestSide: shortestSide);
+      final bridge = webPlayer != null
+          ? WebContractSyncBridge(
+              webPlayer,
+              isViewingPlayer: () => _activeScreen == 'player',
+            )
+          : _buildNativeSyncBridge();
+      final SyncKeyValueStore kvStore = prefs != null
+          ? SharedPreferencesSyncKeyValueStore(prefs: prefs)
+          : (allowSharedPreferences
+              ? SharedPreferencesSyncKeyValueStore()
+              : InMemorySyncKeyValueStore());
+      _syncEngine = SyncEngine(
+        apiClient: HttpSyncApiClient(baseUrl: baseUrl),
+        kvStore: kvStore,
+        bridge: bridge,
+        baseUrl: baseUrl,
+        platform: platform,
+        defaultDeviceName: defaultSyncDeviceName(platform),
+      );
+      _ownsSyncEngine = true;
+    }
+
+    final engine = _syncEngine!;
+    engine.addListener(_onSyncStateChanged);
+
+    if (webPlayer != null) {
+      webPlayer.onSyncCommit =
+          (lessonId, track, posSec, durSec, completed, trigger) {
+        engine.recordLocalCommit(
+          lessonId: lessonId,
+          track: track,
+          positionMs: (posSec * 1000).round().clamp(0, 7200000),
+          durationMs: durSec > 0
+              ? (durSec * 1000).round().clamp(0, 7200000)
+              : null,
+          lessonCompleted: completed,
+          trigger: _mapSyncTrigger(trigger),
+        );
+      };
+      webPlayer.onSyncLastOpened = engine.recordLocalLastOpened;
+    }
+
+    if (!engine.isInitialized) {
+      try {
+        await engine.initialize();
+      } catch (_) {}
+    }
+    if (mounted) setState(() {});
+    if (engine.isLinked && engine.isConfigured) {
+      unawaited(engine.pullIfDue().catchError((_) {}));
+    }
+  }
+
+  SyncPaletteTokens _syncTokensFor(AppPalette p) => SyncPaletteTokens.fromColors(
+        isDark: p.isDark,
+        bgWell: p.bgWell,
+        deckBg: p.deckBg,
+        deckBorder: p.deckBorder,
+        surface1: p.surface1,
+        surface2: p.surface2,
+        surface3: p.surface3,
+        surfaceInset: p.surfaceInset,
+        border: p.border,
+        metroOutline: p.metroOutline,
+        textPrimary: p.textPrimary,
+        textPassed: p.textPassed,
+        textUpcoming: p.textUpcoming,
+        accent: p.accent,
+        accentFg: p.accentFg,
+        accentSoft: p.accentSoft,
+      );
+
+  Future<void> _openSyncModal(AppPalette p) async {
+    if (_syncEngine == null) {
+      await _initSyncEngine(webPlayer: _web);
+    }
+    if (!mounted || _syncEngine == null) return;
+    final completedCount = _progressMap.values
+        .where((r) => r.isCompleted || (!_useWeb && r.progressPct >= 95))
+        .length;
+    final totalCount = _lessons.length;
+    await showProgressSyncModal(
+      context: context,
+      engine: _syncEngine!,
+      tokens: _syncTokensFor(p),
+      completedCount: completedCount,
+      totalCount: totalCount,
+      onScanQr: syncIsWeb ? null : widget.qrScanner,
+    );
+  }
+
   Future<void> _initWebPlayer() async {
     final supplied = widget.webPlayer;
+    SharedPreferences? storage;
     if (supplied != null) {
       _web = supplied;
     } else {
-      SharedPreferences? storage;
       try { storage = await SharedPreferences.getInstance(); } catch (_) {}
       final prefs = storage;
       final raw = await rootBundle.loadString('assets/lessons_safe/index.json');
@@ -4960,6 +5256,11 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     w.addListener(_syncWebPlayer);
     _lessons = w.lessons;
     _syncWebPlayer();
+    unawaited(_initSyncEngine(
+      webPlayer: w,
+      prefs: storage,
+      allowSharedPreferences: supplied == null,
+    ));
     // Cold start shows the original library, never requests audio playback.
     // Loading a resume target supplies its PB card without deleting legacy data.
     final id = w.lessons.any((l) => l.lessonId == w.lastOpened) ? w.lastOpened : w.lessons.firstOrNull?.lessonId;
@@ -5291,6 +5592,11 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     _stateSub = _globalPlayer.playerStateStream.listen((st) {
       final bool nowPlaying =
           st.playing && st.processingState != ProcessingState.completed;
+      final bool nowBuffering =
+          st.processingState == ProcessingState.loading ||
+          st.processingState == ProcessingState.buffering;
+      _isAudioBuffering = nowBuffering;
+      _syncNativeAudioLoadingIndicator();
       if (mounted) {
         setState(() {
           _isPlaying = nowPlaying;
@@ -5303,6 +5609,35 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
         _onTrackPlaybackCompleted();
       }
     });
+  }
+
+  void _setNativeAudioLoading(bool loading) {
+    _isAudioLoading = loading;
+    _syncNativeAudioLoadingIndicator();
+  }
+
+  void _syncNativeAudioLoadingIndicator() {
+    final active = _isAudioLoading || _isAudioBuffering;
+    if (active) {
+      if (!_nativeShowAudioLoading && _nativeLoadingIndicatorTimer == null) {
+        _nativeLoadingIndicatorTimer = Timer(_webLoadingIndicatorDelay, () {
+          _nativeLoadingIndicatorTimer = null;
+          if (mounted && (_isAudioLoading || _isAudioBuffering)) {
+            setState(() => _nativeShowAudioLoading = true);
+          }
+        });
+      }
+    } else {
+      _nativeLoadingIndicatorTimer?.cancel();
+      _nativeLoadingIndicatorTimer = null;
+      if (_nativeShowAudioLoading) {
+        if (mounted) {
+          setState(() => _nativeShowAudioLoading = false);
+        } else {
+          _nativeShowAudioLoading = false;
+        }
+      }
+    }
   }
 
   /// Finds the active transcript segment index for `sec` using the Dynamic 0.5s Pre-Scroll Rule:
@@ -5413,6 +5748,8 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       );
       _filterScrollOffsets[_libraryFilter] = initialOffset;
     });
+
+    unawaited(_initSyncEngine(prefs: prefs));
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _centerActiveLessonInLibrary(animate: false);
@@ -5569,6 +5906,23 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
 
     if (!forceDiskFlush && nowMs - _lastDiskFlushMs < 2500) return;
     await _flushProgressToPrefs(lid);
+    if (_currentPositionSec > 1.0 || markPbComplete) {
+      _syncEngine?.recordLocalCommit(
+        lessonId: lid,
+        track: _currentTrack,
+        positionMs: (_currentPositionSec * 1000).round().clamp(0, 7200000),
+        segmentIndex: _activeSegIndex,
+        durationMs: _durationSec > 1.0
+            ? (_durationSec * 1000).round().clamp(0, 7200000)
+            : null,
+        lessonCompleted: nextRec.isCompleted,
+        trigger: markPbComplete
+            ? SyncCommitTrigger.completion
+            : (forceDiskFlush
+                ? SyncCommitTrigger.pause
+                : SyncCommitTrigger.periodic),
+      );
+    }
   }
 
   /// Restarts the active (or specified) audio track of the current lesson from `00:00`,
@@ -5626,7 +5980,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       _resetTranscriptScrollController();
 
       // Lock immediately before switching track state so no stale tick can fire
-      _isAudioLoading = true;
+      _setNativeAudioLoading(true);
       ++_audioLoadToken;
       final int oldIdx = _tabIndexFor(_playerTab);
       final int newIdx = _tabIndexFor(targetTrack);
@@ -5654,7 +6008,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     // Lock _isAudioLoading during seek(Duration.zero) so stale pre-seek position ticks
     // from just_audio can NEVER overwrite _currentPositionSec or progressPct!
     final int myToken = ++_audioLoadToken;
-    _isAudioLoading = true;
+    _setNativeAudioLoading(true);
 
     final segs = lesson.segmentsForTrack(targetTrack);
     final int firstSpokenIdx = _findSegmentIndexForSec(segs, 0.0, fallbackIdx: 0);
@@ -5708,7 +6062,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
           _activeSegIndex = firstSpokenIdx;
         });
       }
-      _isAudioLoading = false;
+      _setNativeAudioLoading(false);
       await _saveProgressSnapshot(forceDiskFlush: true);
       final bool canAutoPlayNow = autoPlay &&
           (allowBackgroundAutoPlay ||
@@ -5719,7 +6073,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       }
     } catch (_) {
       if (myToken == _audioLoadToken) {
-        _isAudioLoading = false;
+        _setNativeAudioLoading(false);
       }
     }
   }
@@ -5773,6 +6127,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
         updatedAtMs: DateTime.now().millisecondsSinceEpoch,
       );
       unawaited(_flushProgressToPrefs(lessonId));
+      _syncEngine?.recordLocalLastOpened(lessonId);
 
       // Zero-Reload Direct Entry: preserve _currentTrack, _currentPositionSec, and _activeSegIndex!
       setState(() {
@@ -5797,7 +6152,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
 
     // 2. Immediately lock _isAudioLoading and pause the outgoing player BEFORE loading new JSON
     //    so stale position ticks from the old lesson can NEVER pollute the new lesson!
-    _isAudioLoading = true;
+    _setNativeAudioLoading(true);
     ++_audioLoadToken;
     unawaited(_globalPlayer.pause());
 
@@ -5827,6 +6182,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       );
     }
     unawaited(_flushProgressToPrefs(lessonId));
+    _syncEngine?.recordLocalLastOpened(lessonId);
 
     _resetTranscriptScrollController();
     setState(() {
@@ -5894,7 +6250,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     }
 
     _hideReturnBanner();
-    _isAudioLoading = true;
+    _setNativeAudioLoading(true);
     ++_audioLoadToken;
     unawaited(_globalPlayer.pause());
 
@@ -5918,6 +6274,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       );
     }
     unawaited(_flushProgressToPrefs(targetLessonId));
+    _syncEngine?.recordLocalLastOpened(targetLessonId);
 
     // Switching episode defaults to Podcast ('pb') main course
     const nextTrack = 'pb';
@@ -5956,7 +6313,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     bool resumeSavedPosition = true,
     bool allowBackgroundAutoPlay = false,
   }) async {
-    _isAudioLoading = true;
+    _setNativeAudioLoading(true);
     final rawJson =
         await rootBundle.loadString('assets/lessons_safe/lesson_$lessonId.json');
     final detail =
@@ -6032,7 +6389,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     if (lesson == null) return;
 
     final int myToken = ++_audioLoadToken;
-    _isAudioLoading = true;
+    _setNativeAudioLoading(true);
 
     final segs = lesson.segmentsForTrack(track);
     final resolvedInitialIdx = _findSegmentIndexForSec(
@@ -6123,7 +6480,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       await Future.delayed(const Duration(milliseconds: 60));
       if (myToken != _audioLoadToken) return;
 
-      _isAudioLoading = false;
+      _setNativeAudioLoading(false);
       await _saveProgressSnapshot(forceDiskFlush: true);
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -6138,7 +6495,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       }
     } catch (e) {
       if (myToken == _audioLoadToken) {
-        _isAudioLoading = false;
+        _setNativeAudioLoading(false);
       }
       debugPrint('Audio load warning: $e');
     }
@@ -6623,8 +6980,15 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
   void dispose() {
     _webIdleTimer?.cancel();
     _webLoadingIndicatorTimer?.cancel();
+    _nativeLoadingIndicatorTimer?.cancel();
+    _web?.onSyncCommit = null;
+    _web?.onSyncLastOpened = null;
     _web?.removeListener(_syncWebPlayer);
     _web?.dispose();
+    _syncEngine?.removeListener(_onSyncStateChanged);
+    if (_ownsSyncEngine) {
+      _syncEngine?.dispose();
+    }
     WidgetsBinding.instance.removeObserver(this);
     unawaited(
       _wakelockChannel.invokeMethod<void>(
@@ -6951,6 +7315,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
         duration: const Duration(milliseconds: 210),
         curve: _M3Motion.easeSmoothOut,
       );
+      unawaited(_syncEngine?.syncNow().catchError((_) {}));
     } else {
       _screenTransitionController
           .animateTo(
@@ -7005,6 +7370,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
       duration: const Duration(milliseconds: 250),
       curve: _M3Motion.easeSmoothOut,
     );
+    unawaited(_syncEngine?.syncNow().catchError((_) {}));
   }
 
   /// Positions the Course Library scroll view so the currently playing episode
@@ -7104,52 +7470,47 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'EnglishPod',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.6,
-                          color: p.textPrimary,
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'EnglishPod',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.6,
+                            color: p.textPrimary,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Elementary · ${_lessons.length} Lessons',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
-                          color: p.textPassed,
+                        const SizedBox(height: 2),
+                        Text(
+                          'Elementary · ${_lessons.length} Lessons',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
+                            color: p.textPassed,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _buildThemeToggleButton(p),
                       const SizedBox(width: 8),
-                      Container(
-                        height: 28,
-                        padding: const EdgeInsets.symmetric(horizontal: 11),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: p.surfaceInset,
-                          borderRadius: BorderRadius.circular(9999),
-                          border: Border.all(color: p.border),
-                        ),
-                        child: Text(
-                          '$completedCount / ${_lessons.length} Done',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: p.accent,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
-                        ),
+                      SyncProgressPill(
+                        completedCount: completedCount,
+                        totalCount: _lessons.length,
+                        syncStatus: _syncEngine?.status ?? SyncStatus.unlinked,
+                        tokens: _syncTokensFor(p),
+                        onTap: () => unawaited(_openSyncModal(p)),
                       ),
                     ],
                   ),
@@ -8955,6 +9316,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
               Expanded(
                 child: _HoldToReplayHeroButton(
                   isPlaying: _isPlaying,
+                  isLoading: _nativeShowAudioLoading,
                   palette: p,
                   onTap: () {
                     if (_isPlaying) {
