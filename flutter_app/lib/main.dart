@@ -4990,7 +4990,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     _loadInitialData();
   }
 
-  bool get _useWeb => kIsWeb || widget.webPlayer != null;
+  bool get _useWeb => (kIsWeb && !isHarmonyHost) || widget.webPlayer != null;
 
   void _resetTranscriptScrollController() {
     _itemPositionsListener.itemPositions

@@ -89,6 +89,10 @@ CLEAN_INDEX_HTML = """<!DOCTYPE html>
   </script>
   <title>EnglishPod</title>
   <style>
+    :root {
+      --ep-sat: env(safe-area-inset-top, 0px);
+      --ep-sab: env(safe-area-inset-bottom, 0px);
+    }
     html, body {
       margin: 0;
       padding: 0;
@@ -305,7 +309,7 @@ def patch_staged_app(stage_dir: Path) -> None:
     # 2a. Force 100% genuine mobile UI & mobile playback pipeline (_useWeb => false)
     src = replace_once(
         src,
-        'bool get _useWeb => kIsWeb || widget.webPlayer != null;',
+        'bool get _useWeb => (kIsWeb && !isHarmonyHost) || widget.webPlayer != null;',
         'bool get _useWeb => widget.webPlayer != null;',
         'force_mobile_ui',
     )
@@ -317,49 +321,6 @@ def patch_staged_app(stage_dir: Path) -> None:
         "fontFamily: 'Roboto',",
         2,
         'font_family_roboto',
-    )
-
-    # 2c. Inject HarmonyOS viewport safe-area padding into MaterialApp.builder
-    src = replace_once(
-        src,
-        "      darkTheme: ThemeData(\n"
-        "        useMaterial3: true,\n"
-        "        brightness: Brightness.dark,\n"
-        "        scaffoldBackgroundColor: AppPalette.dark.bgWell,\n"
-        "        fontFamily: 'Roboto',\n"
-        "        fontFamilyFallback: const ['EpCjkFallback'],\n"
-        "      ),\n"
-        "      home: ImmersivePlayerScreen(initialPreference: initialPreference),",
-        "      darkTheme: ThemeData(\n"
-        "        useMaterial3: true,\n"
-        "        brightness: Brightness.dark,\n"
-        "        scaffoldBackgroundColor: AppPalette.dark.bgWell,\n"
-        "        fontFamily: 'Roboto',\n"
-        "        fontFamilyFallback: const ['EpCjkFallback'],\n"
-        "      ),\n"
-        "      builder: (context, child) {\n"
-        "        final mq = MediaQuery.of(context);\n"
-        "        final isPortrait = mq.size.height >= mq.size.width;\n"
-        "        final topParam = double.tryParse(Uri.base.queryParameters['topInset'] ?? '');\n"
-        "        final bottomParam = double.tryParse(Uri.base.queryParameters['bottomInset'] ?? '');\n"
-        "        final topInset = isPortrait ? (topParam ?? 38.0) : 10.0;\n"
-        "        final bottomInset = isPortrait ? (bottomParam ?? 18.0) : 8.0;\n"
-        "        return MediaQuery(\n"
-        "          data: mq.copyWith(\n"
-        "            padding: EdgeInsets.only(\n"
-        "              top: math.max(mq.padding.top, topInset),\n"
-        "              bottom: math.max(mq.padding.bottom, bottomInset),\n"
-        "            ),\n"
-        "            viewPadding: EdgeInsets.only(\n"
-        "              top: math.max(mq.viewPadding.top, topInset),\n"
-        "              bottom: math.max(mq.viewPadding.bottom, bottomInset),\n"
-        "            ),\n"
-        "          ),\n"
-        "          child: child!,\n"
-        "        );\n"
-        "      },\n"
-        "      home: ImmersivePlayerScreen(initialPreference: initialPreference),",
-        'material_app_safe_area_builder',
     )
 
     # 2d. Guard _wakelockChannel calls for theme override against MissingPluginException
@@ -540,23 +501,6 @@ def patch_staged_app(stage_dir: Path) -> None:
 
     main_dart.write_text(src, encoding='utf-8')
     (stage_dir / 'web' / 'index.html').write_text(CLEAN_INDEX_HTML, encoding='utf-8')
-
-    sync_web = stage_dir / 'lib' / 'services' / 'sync' / 'sync_platform_web.dart'
-    if sync_web.is_file():
-        sync_src = sync_web.read_text(encoding='utf-8')
-        sync_src = replace_once(
-            sync_src,
-            "String detectSyncPlatform({double shortestSide = 0}) => 'web';",
-            "String detectSyncPlatform({double shortestSide = 0}) => 'harmonyos';",
-            'sync_platform_harmonyos',
-        )
-        sync_src = replace_once(
-            sync_src,
-            "String defaultSyncDeviceName(String platform) => 'Web Browser';",
-            "String defaultSyncDeviceName(String platform) => 'HarmonyOS';",
-            'sync_device_name_harmonyos',
-        )
-        sync_web.write_text(sync_src, encoding='utf-8')
 
 
 def ensure_fonts_and_strip(web_build_dir: Path) -> None:
