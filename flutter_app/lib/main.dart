@@ -2441,14 +2441,19 @@ class _HoldToReplayCourseCardState extends State<_HoldToReplayCourseCard>
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  '${widget.item.level} · ${widget.item.code}',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                    color: p.textPassed,
+                                Flexible(
+                                  child: Text(
+                                    '${widget.item.level} · ${widget.item.code}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: p.textPassed,
+                                    ),
                                   ),
                                 ),
+                                const SizedBox(width: 8),
                                 _buildRightStatusPill(context, p),
                               ],
                             ),
@@ -4301,6 +4306,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
   final ScrollController _libraryScrollController =
       ScrollController(keepScrollOffset: false);
   double _lastLibraryViewportHeight = 520.0;
+  int _lastLibraryColumns = 1;
   final Map<String, double> _filterScrollOffsets = {
     'all': 0.0,
     'in_progress': 0.0,
@@ -7328,11 +7334,13 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     const double topPad = 14.0;
     const double headerH = 24.0;
     const double cardStride = 88.0;
+    final int cols = math.max(1, _lastLibraryColumns);
+    final int rowCount = (filtered.length + cols - 1) ~/ cols;
     final double bottomInset =
         mounted ? MediaQuery.paddingOf(context).bottom : 0.0;
     final double bottomPad = 28.0 + bottomInset;
     final double totalContentHeight =
-        topPad + headerH + (filtered.length * cardStride) + bottomPad;
+        topPad + headerH + (rowCount * cardStride) + bottomPad;
     return (totalContentHeight - viewportHeight).clamp(0.0, double.infinity);
   }
 
@@ -7350,17 +7358,20 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
     const double headerH = 24.0;
     const double cardStride = 88.0;
     const double cardBodyH = 79.0;
+    final int cols = math.max(1, _lastLibraryColumns);
+    final int rowCount = (filtered.length + cols - 1) ~/ cols;
+    final int rowIdx = idx ~/ cols;
     final double bottomInset =
         mounted ? MediaQuery.paddingOf(context).bottom : 0.0;
     final double bottomPad = 28.0 + bottomInset;
 
     final double totalContentHeight =
-        topPad + headerH + (filtered.length * cardStride) + bottomPad;
+        topPad + headerH + (rowCount * cardStride) + bottomPad;
     final double maxExtent =
         (totalContentHeight - viewportHeight).clamp(0.0, double.infinity);
     final double rawCenteredOffset = topPad +
         headerH +
-        (idx * cardStride) -
+        (rowIdx * cardStride) -
         ((viewportHeight - cardBodyH) / 2.0);
     return rawCenteredOffset.clamp(0.0, maxExtent);
   }
@@ -7531,6 +7542,8 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
 
   Widget _buildCourseLibraryScreen(AppPalette p) {
     final topInset = MediaQuery.of(context).padding.top;
+    final double deckSidePad =
+        (_useWeb && MediaQuery.sizeOf(context).width >= 1000.0) ? 20.0 : 18.0;
     final completedCount = _progressMap.values
         .where((r) => r.isCompleted || (!_useWeb && r.progressPct >= 95))
         .length;
@@ -7544,7 +7557,7 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
         children: [
         // 1. Edge-to-Edge Pinned Top Deck (Starts at y=0 behind Status Bar!)
         Container(
-          padding: EdgeInsets.fromLTRB(18, topInset + 10, 18, 14),
+          padding: EdgeInsets.fromLTRB(deckSidePad, topInset + 10, deckSidePad, 14),
           decoration: BoxDecoration(
             color: p.deckBg,
             gradient: RadialGradient(
@@ -7638,6 +7651,13 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
               if (constraints.maxHeight > 100) {
                 _lastLibraryViewportHeight = constraints.maxHeight;
               }
+              final int cols =
+                  (_useWeb && constraints.maxWidth >= 700.0) ? 2 : 1;
+              _lastLibraryColumns = cols;
+              final double listSidePad =
+                  (_useWeb && constraints.maxWidth >= 1000.0) ? 20.0 : 16.0;
+              final int rowCount =
+                  (filteredLessons.length + cols - 1) ~/ cols;
               return AnimatedBuilder(
                 animation: _filterSwitchController,
                 builder: (context, child) {
@@ -7683,12 +7703,12 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
                             key: const ValueKey<String>('course_list_view'),
                             controller: _libraryScrollController,
                             padding: EdgeInsets.fromLTRB(
-                              16,
+                              listSidePad,
                               14,
-                              16,
+                              listSidePad,
                               28 + MediaQuery.paddingOf(context).bottom,
                             ),
-                            itemCount: filteredLessons.length + 1,
+                            itemCount: rowCount + 1,
                             itemBuilder: (context, index) {
                               if (index == 0) {
                                 return SizedBox(
@@ -7723,9 +7743,33 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
                                   ),
                                 );
                               }
-                              return _buildCourseCard(
-                                filteredLessons[index - 1],
-                                p,
+                              if (cols == 1) {
+                                return _buildCourseCard(
+                                  filteredLessons[index - 1],
+                                  p,
+                                );
+                              }
+                              final int firstIdx = (index - 1) * 2;
+                              final int secondIdx = firstIdx + 1;
+                              return Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: _buildCourseCard(
+                                      filteredLessons[firstIdx],
+                                      p,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: secondIdx < filteredLessons.length
+                                        ? _buildCourseCard(
+                                            filteredLessons[secondIdx],
+                                            p,
+                                          )
+                                        : const SizedBox.shrink(),
+                                  ),
+                                ],
                               );
                             },
                           ),
