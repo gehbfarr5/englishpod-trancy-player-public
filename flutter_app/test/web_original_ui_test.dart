@@ -338,6 +338,58 @@ void main() {
       });
     }
   }
+  testWidgets('Web home Plan A: full-width top card and 2-column list on >=700px, 1-column on mobile', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    for (final size in [const Size(1256, 706), const Size(773, 601)]) {
+      tester.view.physicalSize = size;
+      final p = make();
+      await tester.pumpWidget(MaterialApp(
+        home: ImmersivePlayerScreen(
+          webPlayer: p,
+          initialPreference: AppThemePreference.dark,
+        ),
+      ));
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+
+      final liveRect = tester.getRect(find.byKey(const ValueKey('top_live_card_0001')));
+      expect(liveRect.width, greaterThanOrEqualTo(size.width - 44));
+
+      final r1 = tester.getRect(find.byKey(const ValueKey('course_card_0001')));
+      final r2 = tester.getRect(find.byKey(const ValueKey('course_card_0002')));
+      final r3 = tester.getRect(find.byKey(const ValueKey('course_card_0003')));
+      expect((r1.top - r2.top).abs(), lessThan(1.0));
+      expect(r2.left, greaterThan(r1.right));
+      expect(r3.top, greaterThan(r1.bottom - 1.0));
+      expect(tester.takeException(), isNull);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    }
+
+    tester.view.physicalSize = const Size(390, 844);
+    final mobilePlayer = make();
+    await tester.pumpWidget(MaterialApp(
+      home: ImmersivePlayerScreen(
+        webPlayer: mobilePlayer,
+        initialPreference: AppThemePreference.dark,
+      ),
+    ));
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    final m1 = tester.getRect(find.byKey(const ValueKey('course_card_0001')));
+    final m2 = tester.getRect(find.byKey(const ValueKey('course_card_0002')));
+    expect(m2.top, greaterThanOrEqualTo(m1.bottom - 1.0));
+    expect((m1.left - m2.left).abs(), lessThan(1.0));
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
   test('Original palette remains byte-for-byte brand colors', () {
     expect(AppPalette.dark.bgWell, const Color(0xff070709));
     expect(AppPalette.dark.accent, const Color(0xff1ed760));
