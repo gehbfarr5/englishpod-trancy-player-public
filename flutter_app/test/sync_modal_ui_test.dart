@@ -1,9 +1,9 @@
 import 'package:englishpod_trancy/main.dart';
 import 'package:englishpod_trancy/services/sync/sync_engine.dart';
+import 'package:englishpod_trancy/services/sync/sync_models.dart';
 import 'package:englishpod_trancy/services/sync/sync_storage_bridge.dart';
 import 'package:englishpod_trancy/services/web_contract_player.dart';
 import 'package:englishpod_trancy/widgets/player_transport_icons.dart';
-import 'package:englishpod_trancy/widgets/sync/sync_beam_hero.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -12,7 +12,7 @@ import 'tesla_contract_test.dart' show FakeAudio, make;
 
 void main() {
   for (final pref in [AppThemePreference.dark, AppThemePreference.light]) {
-    testWidgets('top-right Done pill opens animated beam sync modal (${pref.name})', (tester) async {
+    testWidgets('top-right Done pill opens compact sync modal & solo QR does not lock out pairing (${pref.name})', (tester) async {
       tester.view.devicePixelRatio = 1.0;
       tester.view.physicalSize = const Size(430, 880);
       addTearDown(tester.view.resetPhysicalSize);
@@ -45,27 +45,17 @@ void main() {
       final pill = find.byKey(const ValueKey('top_right_progress_sync_pill'));
       expect(pill, findsOneWidget);
       await tester.tap(pill);
-      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
 
-      expect(find.text('多端学习进度同步'), findsOneWidget);
-      expect(find.byType(SyncBeamHero), findsOneWidget);
-      expect(find.text('本机'), findsOneWidget);
-      expect(find.text('云端'), findsOneWidget);
-      expect(find.text('其他设备'), findsOneWidget);
-      expect(find.text('本机进度上传云端 · 自动分发到其他设备'), findsOneWidget);
-
-      // Tap beam hero to replay sweep cleanly.
-      await tester.tap(find.byKey(const ValueKey('sync_beam_hero_tap')));
-      await tester.pump(const Duration(milliseconds: 350));
+      expect(find.text('多端进度同步'), findsOneWidget);
+      expect(find.text('展示二维码'), findsOneWidget);
+      expect(find.text('输入配对码'), findsOneWidget);
 
       // Generate pairing code -> verifies QR widget has light quiet zone (#FAF8F5) and XXXX-XXXX code.
-      final genBtn = find.byKey(const ValueKey('sync_generate_code_btn'));
-      await tester.ensureVisible(genBtn);
-      await tester.tap(genBtn);
+      await tester.tap(find.byKey(const ValueKey('sync_generate_code_btn')));
       await tester.pump(const Duration(milliseconds: 250));
       expect(find.byKey(const ValueKey('sync_pairing_qr_widget')), findsOneWidget);
       expect(find.byKey(const ValueKey('sync_display_pairing_code')), findsOneWidget);
-      expect(find.text('等待其他设备连接 · 配对后自动云端同步'), findsOneWidget);
 
       final qrContainer = tester.widget<Container>(
         find.descendant(
@@ -76,15 +66,23 @@ void main() {
       final deco = qrContainer.decoration as BoxDecoration;
       expect(deco.color, const Color(0xFFFAF8F5));
 
+      // Returning from solo QR (1 device, no peer scanned) must STILL show the 2-direction unlinked view.
+      await tester.tap(find.byKey(const ValueKey('sync_modal_back_btn')));
+      await tester.pumpAndSettle();
+      expect(engine.hasLinkedPeers, isFalse);
+      expect(find.byKey(const ValueKey('sync_enter_code_btn')), findsOneWidget);
+      expect(find.byKey(const ValueKey('sync_generate_code_btn')), findsOneWidget);
+
+      // Web modal keeps top-right close button.
       await tester.tap(find.byKey(const ValueKey('sync_modal_close_btn')));
       await tester.pumpAndSettle();
-      expect(find.text('多端学习进度同步'), findsNothing);
+      expect(find.text('多端进度同步'), findsNothing);
 
       engine.dispose();
     });
   }
 
-  testWidgets('8-char claim flow, device rename/revoke, leave group, and reduced motion', (tester) async {
+  testWidgets('8-char claim flow, Plan A linked merge entry, device revoke, leave group, and reduced motion', (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(430, 880);
     addTearDown(tester.view.resetPhysicalSize);
@@ -121,9 +119,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('top_right_progress_sync_pill')));
     await tester.pumpAndSettle();
 
-    final enterCodeBtn = find.byKey(const ValueKey('sync_enter_code_btn'));
-    await tester.ensureVisible(enterCodeBtn);
-    await tester.tap(enterCodeBtn);
+    await tester.tap(find.byKey(const ValueKey('sync_enter_code_btn')));
     await tester.pumpAndSettle();
 
     await tester.enterText(
@@ -139,28 +135,48 @@ void main() {
       'K7M9-P2XR',
     );
 
-    final submitBtn = find.byKey(const ValueKey('sync_submit_claim_btn'));
-    await tester.ensureVisible(submitBtn);
-    await tester.tap(submitBtn);
+    await tester.tap(find.byKey(const ValueKey('sync_submit_claim_btn')));
     await tester.pumpAndSettle();
 
-    expect(engine.isLinked, isTrue);
-    expect(find.text('已连接设备 (2)'), findsOneWidget);
+    expect(engine.hasLinkedPeers, isTrue);
+    expect(find.text('我的设备 (2)'), findsOneWidget);
     expect(find.text('iPhone 17'), findsOneWidget);
-    expect(find.textContaining('移动设备'), findsOneWidget);
-    expect(find.textContaining('网页端'), findsOneWidget);
+    expect(find.text('查看二维码'), findsOneWidget);
+    // Already-linked Web view STILL provides manual code association CTA.
+    expect(find.byKey(const ValueKey('sync_linked_enter_code_btn')), findsOneWidget);
 
-    // Revoke other device (dev-a).
-    final revokeBtn = find.byKey(const ValueKey('sync_revoke_dev-a'));
-    await tester.ensureVisible(revokeBtn);
-    await tester.tap(revokeBtn);
+    // Revoke other device (dev-a) via menu confirmation.
+    await tester.tap(find.byKey(const ValueKey('sync_revoke_dev-a')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('sync_confirm_revoke_btn')));
     await tester.pumpAndSettle();
     expect(api.revokeCalls, 1);
 
-    // Leave group with confirmation dialog.
-    final leaveBtn = find.byKey(const ValueKey('sync_leave_group_btn'));
-    await tester.ensureVisible(leaveBtn);
-    await tester.tap(leaveBtn);
+    // Re-add peer to test self-menu leave group flow.
+    api.serverDevices = [
+      SyncDeviceSummary(
+        deviceId: 'dev-a',
+        deviceName: 'iPhone 17',
+        platform: 'ios',
+        createdAtMs: api.serverTimeMs - 5000,
+        lastSeenAtMs: api.serverTimeMs - 1000,
+        isCurrent: false,
+      ),
+      SyncDeviceSummary(
+        deviceId: 'dev-b',
+        deviceName: 'Tesla Web',
+        platform: 'web',
+        createdAtMs: api.serverTimeMs,
+        lastSeenAtMs: api.serverTimeMs,
+        isCurrent: true,
+      ),
+    ];
+    await engine.refreshDevices();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('sync_self_more_btn')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('sync_leave_group_btn')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('确认退出'));
     await tester.pumpAndSettle();
@@ -210,7 +226,7 @@ void main() {
 
     // Open sync modal from top-right pill at 1256x706, resize to 773x601, then close.
     await tester.tap(find.byKey(const ValueKey('top_right_progress_sync_pill')));
-    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
 
     tester.view.physicalSize = const Size(773, 601);
     await tester.pump(const Duration(milliseconds: 250));
@@ -226,7 +242,7 @@ void main() {
     engine.dispose();
   });
 
-  testWidgets('qrScanner callback branch scans QR URI and links group', (tester) async {
+  testWidgets('mobile bottom sheet omits close button, supports direct scan & Plan A linked scan merge', (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(430, 880);
     addTearDown(tester.view.resetPhysicalSize);
@@ -258,23 +274,61 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('top_right_progress_sync_pill')));
-    await tester.pump(const Duration(milliseconds: 350));
-
-    final enterBtn = find.byKey(const ValueKey('sync_enter_code_btn'));
-    await tester.ensureVisible(enterBtn);
-    await tester.tap(enterBtn);
-    await tester.pump(const Duration(milliseconds: 250));
-
-    final scanBtn = find.byKey(const ValueKey('sync_scan_qr_btn'));
-    await tester.ensureVisible(scanBtn);
-    await tester.tap(scanBtn);
-    await tester.pump(const Duration(milliseconds: 350));
-
-    expect(engine.isLinked, isTrue);
-    expect(api.claimCalls, 1);
-
-    await tester.tap(find.byKey(const ValueKey('sync_modal_close_btn')));
     await tester.pumpAndSettle();
+
+    // Mobile sheet has NO top-right close button (dismiss via backdrop tap or drag-down).
+    expect(find.byKey(const ValueKey('sync_modal_close_btn')), findsNothing);
+    expect(find.text('扫码连接'), findsOneWidget);
+    expect(find.text('展示二维码'), findsOneWidget);
+
+    // 1-tap direct QR scan from unlinked home.
+    await tester.tap(find.byKey(const ValueKey('sync_scan_qr_btn')));
+    await tester.pumpAndSettle();
+
+    expect(engine.hasLinkedPeers, isTrue);
+    expect(api.claimCalls, 1);
+    expect(find.byKey(const ValueKey('sync_linked_scan_btn')), findsOneWidget);
+    expect(find.byKey(const ValueKey('sync_add_device_btn')), findsOneWidget);
+    expect(find.byKey(const ValueKey('sync_modal_close_btn')), findsNothing);
+
+    // Already-linked mobile device can still tap bottom CTA to scan & smart-merge (Plan A).
+    api.serverDevices = [
+      SyncDeviceSummary(
+        deviceId: 'dev-a',
+        deviceName: 'iPhone 17',
+        platform: 'ios',
+        createdAtMs: api.serverTimeMs - 10000,
+        lastSeenAtMs: api.serverTimeMs - 5000,
+        isCurrent: false,
+      ),
+      SyncDeviceSummary(
+        deviceId: 'dev-b',
+        deviceName: 'iPhone',
+        platform: 'ios',
+        createdAtMs: api.serverTimeMs,
+        lastSeenAtMs: api.serverTimeMs,
+        isCurrent: true,
+      ),
+      SyncDeviceSummary(
+        deviceId: 'dev-c',
+        deviceName: 'iPad 10',
+        platform: 'ipad',
+        createdAtMs: api.serverTimeMs + 1000,
+        lastSeenAtMs: api.serverTimeMs + 1000,
+        isCurrent: false,
+      ),
+    ];
+    await tester.tap(find.byKey(const ValueKey('sync_linked_scan_btn')));
+    await tester.pumpAndSettle();
+    expect(api.claimCalls, 2);
+    expect(api.lastClaimBearerToken, 'tok-b');
+    expect(find.text('我的设备 (3)'), findsOneWidget);
+
+    // Dismiss mobile sheet by tapping blank backdrop above it.
+    await tester.tapAt(const Offset(200, 120));
+    await tester.pumpAndSettle();
+    expect(find.text('多端进度同步'), findsNothing);
+
     engine.dispose();
   });
 

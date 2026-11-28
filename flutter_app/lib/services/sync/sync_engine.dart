@@ -51,6 +51,7 @@ class SyncEngine extends ChangeNotifier {
   bool get isInitialized => _initialized;
   bool get isConfigured => baseUrl.isNotEmpty;
   bool get isLinked => _state.isLinked;
+  bool get hasLinkedPeers => _state.isLinked && _state.devices.length >= 2;
   SyncStatus get status => _status;
   SyncPairingTicket? get activeTicket => _activeTicket;
   SyncPairingStatus? get lastPairingStatus => _lastPairingStatus;
@@ -208,36 +209,54 @@ class SyncEngine extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// Joins an existing sync group using a scanned QR payload or 8-char code.
-  Future<void> claimPairingCode(String rawInput) async {
-    if (_state.isLinked) {
-      throw StateError('ALREADY_LINKED');
-    }
+  /// Joins or smart-merges (Plan A) into a sync group using a scanned QR payload or 8-char code.
+  /// When already linked, passes the current device bearer token so the server atomically merges
+  /// both groups without disconnecting existing peers.
+  Future<SyncClaimResult> claimPairingCode(String rawInput) async {
     final code = normalizePairingCode(rawInput);
     if (code == null) {
       throw const SyncApiException(
         statusCode: 400,
         code: 'INVALID_CODE',
-        message: '请输入有效的 8 位设备码',
+        message: '请输入有效的 8 位配对码',
       );
     }
 
+    final wasLinked = _state.isLinked;
+    final prevStatus = _status;
+    final prevToken = _state.deviceToken;
+    final prevDeviceCount = _state.devices.length;
+
     _errorMessage = null;
+    stopPairingPoll();
     _status = SyncStatus.syncing;
     _safeNotify();
 
     try {
       final res = await apiClient.claimPairingTicket(
+        bearerToken: wasLinked ? prevToken : null,
         code: code,
         deviceName: deviceName,
         platform: platform,
       );
       _updateClockOffset(res.serverTimeMs);
 
+      final effectiveToken =
+          res.deviceToken.isNotEmpty ? res.deviceToken : prevToken;
+      if (effectiveToken.isEmpty) {
+        throw const SyncApiException(
+          statusCode: 500,
+          code: 'MISSING_TOKEN',
+          message: '配对响应缺少设备凭证，请重试',
+        );
+      }
+
+      _activeTicket = null;
+      _lastPairingStatus = null;
       _state = SyncStateSnapshot(
         groupId: res.groupId,
         deviceId: res.deviceId,
-        deviceToken: res.deviceToken,
+        deviceToken: effectiveToken,
         deviceName: deviceName,
         platform: platform,
         lastServerSeq: 0, // Bootstrap pulls from 0 for complete merge.
@@ -248,12 +267,19 @@ class SyncEngine extends ChangeNotifier {
       await _persistState();
 
       await syncNow(forcePull: true);
-      _statusMessage = '已加入同步组，多端进度已合并';
-      _safeNotify();
-    } catch (e) {
-      if (!_state.isLinked) {
-        _status = SyncStatus.unlinked;
+      if (res.alreadyInGroup) {
+        _statusMessage = '当前设备已在该同步组中';
+      } else if (res.merged && prevDeviceCount >= 2) {
+        _statusMessage = '已智能合并同步组，共 ${res.devices.length} 台设备互通进度';
+      } else {
+        _statusMessage = '已加入同步组，多端进度已合并';
       }
+      _safeNotify();
+      return res;
+    } catch (e) {
+      _status = wasLinked
+          ? (prevStatus == SyncStatus.syncing ? SyncStatus.synced : prevStatus)
+          : SyncStatus.unlinked;
       _errorMessage = _friendlyError(e);
       _safeNotify();
       rethrow;

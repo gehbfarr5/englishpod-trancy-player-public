@@ -3,8 +3,9 @@ import 'package:qr/qr.dart';
 
 import 'sync_theme.dart';
 
-/// Pure-Dart QR code widget with an enforced light quiet zone for Dark & Paper themes.
-class SyncQrCodeWidget extends StatelessWidget {
+/// Pure-Dart cached QR code widget with an enforced high-contrast light quiet zone
+/// and single-Path painting inside a RepaintBoundary for 120fps HarmonyOS/Web rendering.
+class SyncQrCodeWidget extends StatefulWidget {
   final String payload;
   final SyncPaletteTokens tokens;
   final double size;
@@ -13,43 +14,65 @@ class SyncQrCodeWidget extends StatelessWidget {
     super.key,
     required this.payload,
     required this.tokens,
-    this.size = 156,
+    this.size = 152,
   });
 
   @override
-  Widget build(BuildContext context) {
+  State<SyncQrCodeWidget> createState() => _SyncQrCodeWidgetState();
+}
+
+class _SyncQrCodeWidgetState extends State<SyncQrCodeWidget> {
+  late String _cachedPayload;
+  late QrImage _cachedQrImage;
+
+  @override
+  void initState() {
+    super.initState();
+    _rebuildQr(widget.payload);
+  }
+
+  @override
+  void didUpdateWidget(covariant SyncQrCodeWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.payload != widget.payload) {
+      _rebuildQr(widget.payload);
+    }
+  }
+
+  void _rebuildQr(String payload) {
+    _cachedPayload = payload;
     final qrCode = QrCode.fromData(
       data: payload,
       errorCorrectLevel: QrErrorCorrectLevel.M,
     );
-    final qrImage = QrImage(qrCode);
+    _cachedQrImage = QrImage(qrCode);
+  }
 
-    return Container(
-      width: size,
-      height: size,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: tokens.qrBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: tokens.isDark
-              ? const Color(0x33FFFFFF)
-              : const Color(0x1F141413),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: tokens.isDark
-                ? const Color(0x40000000)
-                : const Color(0x12141413),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.tokens;
+    return RepaintBoundary(
+      child: Container(
+        width: widget.size,
+        height: widget.size,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: t.qrBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: t.isDark
+                ? const Color(0x33FFFFFF)
+                : const Color(0x1F141413),
           ),
-        ],
-      ),
-      child: CustomPaint(
-        painter: _QrMatrixPainter(
-          qrImage: qrImage,
-          foreground: tokens.qrFg,
+        ),
+        child: CustomPaint(
+          isComplex: true,
+          willChange: false,
+          painter: _QrMatrixPainter(
+            payload: _cachedPayload,
+            qrImage: _cachedQrImage,
+            foreground: t.qrFg,
+          ),
         ),
       ),
     );
@@ -57,10 +80,12 @@ class SyncQrCodeWidget extends StatelessWidget {
 }
 
 class _QrMatrixPainter extends CustomPainter {
+  final String payload;
   final QrImage qrImage;
   final Color foreground;
 
   const _QrMatrixPainter({
+    required this.payload,
     required this.qrImage,
     required this.foreground,
   });
@@ -71,28 +96,32 @@ class _QrMatrixPainter extends CustomPainter {
     if (count <= 0) return;
 
     final moduleSize = size.width / count;
-    final paint = Paint()
-      ..color = foreground
-      ..style = PaintingStyle.fill;
-
+    final path = Path();
     for (var row = 0; row < count; row++) {
+      final top = row * moduleSize;
       for (var col = 0; col < count; col++) {
         if (!qrImage.isDark(row, col)) continue;
-        final rect = Rect.fromLTWH(
-          col * moduleSize,
-          row * moduleSize,
-          moduleSize + 0.35,
-          moduleSize + 0.35,
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(rect, Radius.circular(moduleSize * 0.18)),
-          paint,
+        path.addRect(
+          Rect.fromLTWH(
+            col * moduleSize,
+            top,
+            moduleSize + 0.3,
+            moduleSize + 0.3,
+          ),
         );
       }
     }
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = foreground
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = false,
+    );
   }
 
   @override
   bool shouldRepaint(covariant _QrMatrixPainter oldDelegate) =>
-      oldDelegate.qrImage != qrImage || oldDelegate.foreground != foreground;
+      oldDelegate.payload != payload || oldDelegate.foreground != foreground;
 }

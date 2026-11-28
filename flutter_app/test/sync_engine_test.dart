@@ -22,6 +22,7 @@ class FakeSyncApiClient implements SyncApiClient {
 
   int createCalls = 0;
   int claimCalls = 0;
+  String? lastClaimBearerToken;
   int pushCalls = 0;
   int pullCalls = 0;
   int revokeCalls = 0;
@@ -67,19 +68,22 @@ class FakeSyncApiClient implements SyncApiClient {
 
   @override
   Future<SyncClaimResult> claimPairingTicket({
+    String? bearerToken,
     required String code,
     required String deviceName,
     required String platform,
   }) async {
     claimCalls++;
+    lastClaimBearerToken = bearerToken;
     if (nextError != null) throw nextError!;
     return nextClaimResult ??
         SyncClaimResult(
           groupId: 'grp-1',
           deviceId: 'dev-b',
-          deviceToken: 'tok-b',
+          deviceToken: bearerToken == null ? 'tok-b' : '',
           serverSeq: serverSeq,
           serverTimeMs: serverTimeMs,
+          merged: bearerToken != null,
           devices: serverDevices.isNotEmpty
               ? serverDevices
               : [
@@ -221,7 +225,7 @@ void main() {
     expect(formatDisplayPairingCode('K7M9P2XR'), 'K7M9-P2XR');
   });
 
-  test('claimPairingCode batches >80 lessons, merges pull, and blocks double-join', () async {
+  test('claimPairingCode batches >80 lessons, merges pull, and supports Plan A smart merge', () async {
     final player = make();
     player.lessons = [
       for (var i = 1; i <= 120; i++)
@@ -296,11 +300,38 @@ void main() {
     expect(player.record('0110').tracks['pb']!.position, 88.0);
     expect(player.lastOpened, '0110');
 
-    // Cross-group guard rejects joining another group while linked.
-    await expectLater(
-      engine.claimPairingCode('ABCD-EFGH'),
-      throwsStateError,
-    );
+    // Plan A smart merge: already-linked device sends its existing bearer token and merges into 3-device group.
+    api.serverDevices = [
+      SyncDeviceSummary(
+        deviceId: 'dev-a',
+        deviceName: 'iPhone 17',
+        platform: 'ios',
+        createdAtMs: api.serverTimeMs - 10000,
+        lastSeenAtMs: api.serverTimeMs - 5000,
+        isCurrent: false,
+      ),
+      SyncDeviceSummary(
+        deviceId: 'dev-b',
+        deviceName: 'Tesla Web',
+        platform: 'web',
+        createdAtMs: api.serverTimeMs,
+        lastSeenAtMs: api.serverTimeMs,
+        isCurrent: true,
+      ),
+      SyncDeviceSummary(
+        deviceId: 'dev-c',
+        deviceName: 'iPad 10',
+        platform: 'ipad',
+        createdAtMs: api.serverTimeMs + 1000,
+        lastSeenAtMs: api.serverTimeMs + 1000,
+        isCurrent: false,
+      ),
+    ];
+    final mergeRes = await engine.claimPairingCode('A2C3-E4G5');
+    expect(mergeRes.merged, isTrue);
+    expect(api.lastClaimBearerToken, 'tok-b');
+    expect(engine.devices.length, 3);
+    expect(engine.hasLinkedPeers, isTrue);
 
     engine.dispose();
     player.dispose();
