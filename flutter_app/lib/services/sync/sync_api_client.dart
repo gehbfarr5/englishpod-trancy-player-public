@@ -37,6 +37,7 @@ abstract class SyncApiClient {
   });
 
   Future<SyncClaimResult> claimPairingTicket({
+    String? bearerToken,
     required String code,
     required String deviceName,
     required String platform,
@@ -204,6 +205,7 @@ class HttpSyncApiClient implements SyncApiClient {
 
   @override
   Future<SyncClaimResult> claimPairingTicket({
+    String? bearerToken,
     required String code,
     required String deviceName,
     required String platform,
@@ -211,6 +213,7 @@ class HttpSyncApiClient implements SyncApiClient {
     final data = await _request(
       'POST',
       _endpoint('/pair/claim'),
+      bearerToken: bearerToken,
       body: {
         'code': code,
         'deviceName': deviceName,

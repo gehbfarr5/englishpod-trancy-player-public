@@ -206,7 +206,20 @@ func (s *Server) handlePairClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := s.store.ClaimPairingTicket(r.Context(), code, req.DeviceName, req.Platform, s.cfg.MaxDevicesPerGroup)
+	// Optional caller authentication for Plan A smart group merge:
+	// If the scanning device already belongs to a sync group, pass it to the store so the
+	// two groups merge atomically without disconnecting existing peer devices.
+	// If the caller's old token is stale/revoked, fall back gracefully to a fresh join.
+	var existingCaller *store.AuthenticatedDevice
+	if rawAuth := strings.TrimSpace(r.Header.Get("Authorization")); rawAuth != "" {
+		if token, ok := parseBearerToken(rawAuth); ok {
+			if dev, authErr := s.store.AuthenticateDevice(r.Context(), token); authErr == nil {
+				existingCaller = dev
+			}
+		}
+	}
+
+	res, err := s.store.ClaimPairingTicket(r.Context(), existingCaller, code, req.DeviceName, req.Platform, s.cfg.MaxDevicesPerGroup)
 	if err != nil {
 		if errors.Is(err, store.ErrCodeNotFound) || errors.Is(err, store.ErrCodeExpired) || errors.Is(err, store.ErrCodeUsed) {
 			s.limiter.RecordClaimFailure(subject)

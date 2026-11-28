@@ -315,3 +315,53 @@ func TestGatewayRateLimitIsolationAndValidationGuards(t *testing.T) {
 		t.Fatalf("oversized payload code = %d, want 413", recHuge.Code)
 	}
 }
+
+func TestPlanASmartGroupMergeHTTP(t *testing.T) {
+	env := newTestEnv(t, "")
+
+	// Group 1: HarmonyOS + iPhone
+	r1 := decodeMap(t, env.do(t, http.MethodPost, "/api/sync/v1/pair/create", "", "203.0.113.30", map[string]any{
+		"deviceName": "HUAWEI Pura X View",
+		"platform":   "harmonyos",
+	}, nil))
+	tokenH := r1["deviceToken"].(string)
+	code1 := r1["code"].(string)
+
+	r2 := decodeMap(t, env.do(t, http.MethodPost, "/api/sync/v1/pair/claim", "", "203.0.113.31", map[string]any{
+		"code":       code1,
+		"deviceName": "iPhone 17",
+		"platform":   "ios",
+	}, nil))
+	tokenI := r2["deviceToken"].(string)
+
+	// Group 2: iPad shows QR
+	r3 := decodeMap(t, env.do(t, http.MethodPost, "/api/sync/v1/pair/create", "", "203.0.113.32", map[string]any{
+		"deviceName": "iPad 10",
+		"platform":   "ipad",
+	}, nil))
+	codePad := r3["code"].(string)
+
+	// HarmonyOS scans iPad's QR with Bearer tokenH -> smart merge into 3-device group.
+	recMerge := env.do(t, http.MethodPost, "/api/sync/v1/pair/claim", tokenH, "203.0.113.30", map[string]any{
+		"code":       codePad,
+		"deviceName": "HUAWEI Pura X View",
+		"platform":   "harmonyos",
+	}, nil)
+	if recMerge.Code != http.StatusOK {
+		t.Fatalf("smart merge HTTP failed: %d %s", recMerge.Code, recMerge.Body.String())
+	}
+	mergeData := decodeMap(t, recMerge)
+	if mergeData["merged"] != true {
+		t.Fatalf("expected merged=true, got %+v", mergeData)
+	}
+	devices := mergeData["devices"].([]any)
+	if len(devices) != 3 {
+		t.Fatalf("expected 3 devices after merge, got %d", len(devices))
+	}
+
+	// iPhone 17 still sees all 3 devices with its original token.
+	recListI := env.do(t, http.MethodGet, "/api/sync/v1/devices", tokenI, "203.0.113.31", nil, nil)
+	if recListI.Code != http.StatusOK || len(decodeMap(t, recListI)["devices"].([]any)) != 3 {
+		t.Fatalf("iPhone 17 devices after merge unexpected: %d %s", recListI.Code, recListI.Body.String())
+	}
+}

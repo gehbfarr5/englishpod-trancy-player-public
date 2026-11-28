@@ -453,7 +453,7 @@ describe('core/syncEngine · pairing, chunking, conflicts & revocation', () => {
     engine.dispose();
   });
 
-  test('switchGroupWithCode revokes old device best-effort and preserves 100% local progress', async () => {
+  test('switchGroupWithCode performs Plan A smart merge with bearer token and preserves 100% local progress', async () => {
     const kv = createMemoryKeyValue();
     const bridge = new FakeProgressBridge();
     const transport = createFakeTransport();
@@ -490,7 +490,7 @@ describe('core/syncEngine · pairing, chunking, conflicts & revocation', () => {
 
     const switched = await engine.switchGroupWithCode('K7M9-P2XR');
     assert.equal(switched, true);
-    assert.deepEqual(transport.revokedTargets, ['me']);
+    assert.deepEqual(transport.revokedTargets, []);
     assert.equal(engine.getSnapshot().groupId, 'grp-joined');
     assert.equal(bridge.readRecord('0002').lessonCompleted, true);
     assert.equal(bridge.readRecord('0002').podcast?.committedPositionMs, 450_000);

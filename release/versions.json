@@ -5,8 +5,8 @@
     "build": 3
   },
   "miniprogram": {
-    "version": "0.3.27",
-    "highest_observed_platform_version": "0.3.26"
+    "version": "0.3.28",
+    "highest_observed_platform_version": "0.3.27"
   },
   "web_preview": {
     "distribution": "prototype",

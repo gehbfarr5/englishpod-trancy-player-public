@@ -7626,7 +7626,11 @@ class _ImmersivePlayerScreenState extends State<ImmersivePlayerScreen>
                       SyncProgressPill(
                         completedCount: completedCount,
                         totalCount: _lessons.length,
-                        syncStatus: _syncEngine?.status ?? SyncStatus.unlinked,
+                        syncStatus: (_syncEngine != null &&
+                                (_syncEngine!.hasLinkedPeers ||
+                                    _syncEngine!.status == SyncStatus.revoked))
+                            ? _syncEngine!.status
+                            : SyncStatus.unlinked,
                         tokens: _syncTokensFor(p),
                         onTap: () => unawaited(_openSyncModal(p)),
                       ),

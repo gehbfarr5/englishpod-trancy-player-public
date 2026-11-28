@@ -1,270 +1,261 @@
-<!-- 多端学习进度同步弹窗（统一移动设备视角） -->
+<!-- 多端学习进度同步弹窗（移动端原生 Bottom Sheet：下拉或点空白遮罩关闭，无右上角关闭按钮） -->
 <view class="sync-mask {{visible ? 'is-visible' : ''}}" bindtap="onClose">
-  <view class="sync-sheet {{visible ? 'is-open' : ''}}" catchtap="noop">
-    <!-- 顶部拖拽把手与标题栏 -->
-    <view class="sync-sheet__grabber-wrap">
+  <view
+    class="sync-sheet {{visible ? 'is-open' : ''}} {{dragging ? 'is-dragging' : ''}}"
+    style="{{dragging ? 'transform: translate3d(0, ' + dragOffsetPx + 'px, 0);' : ''}}"
+    catchtap="noop"
+  >
+    <!-- 顶部拖拽把手（支持下拉关闭） -->
+    <view
+      class="sync-sheet__grabber-wrap"
+      bindtouchstart="onSheetTouchStart"
+      bindtouchmove="onSheetTouchMove"
+      bindtouchend="onSheetTouchEnd"
+    >
       <view class="sync-sheet__grabber"></view>
     </view>
 
-    <view class="sync-sheet__head">
-      <view class="sync-sheet__title-group">
-        <text class="sync-sheet__title">多端学习进度同步</text>
-        <text class="sync-sheet__sub">无需注册账号，设备配对后自动互通已学课程与播放断点。</text>
-      </view>
-      <view class="sync-sheet__close" hover-class="sync-sheet__close--hover" bindtap="onClose">
-        <text class="sync-sheet__close-text">✕</text>
-      </view>
-    </view>
-
-    <!-- 本机 -> 云端 -> 其他设备 连续两段循环光束主视觉 -->
-    <view class="sync-beam-stage is-{{status}} {{linkedVisual ? 'is-linked' : ''}}">
-      <view class="sync-beam__row">
-        <!-- 左节点：本机（移动设备，下方不区分系统子文案） -->
-        <view class="sync-beam__node">
-          <view class="sync-beam__icon sync-beam__icon--active">
-            <view class="sync-ico sync-ico--phone sync-ico--primary"></view>
-          </view>
-          <text class="sync-beam__node-label is-active">本机</text>
-        </view>
-
-        <!-- 左段光束：本机 -> 云端 -->
-        <view class="sync-beam__rail-wrap">
-          <view class="sync-beam__rail {{linkedVisual ? 'is-lit' : 'is-dashed'}}">
-            <view
-              wx:if="{{visible && status !== 'offline' && status !== 'error'}}"
-              class="sync-beam__comet sync-beam__comet--stage1"
-            ></view>
-          </view>
-        </view>
-
-        <!-- 中枢节点：云端 -->
-        <view class="sync-beam__hub-wrap">
-          <view class="sync-beam__hub-slot">
-            <view
-              wx:if="{{visible && status !== 'offline' && status !== 'error'}}"
-              class="sync-beam__ping"
-            ></view>
-            <view class="sync-beam__hub {{linkedVisual ? 'sync-beam__hub--synced' : ''}} sync-beam__hub--{{status}}">
-              <view class="sync-ico sync-ico--cloud {{linkedVisual ? 'sync-ico--accent-fg' : 'sync-ico--accent'}}"></view>
-            </view>
-          </view>
-          <text class="sync-beam__node-label is-active">云端</text>
-        </view>
-
-        <!-- 右段光束：云端 -> 其他设备 -->
-        <view class="sync-beam__rail-wrap">
-          <view class="sync-beam__rail {{linkedVisual ? 'is-lit' : 'is-dashed'}}">
-            <view
-              wx:if="{{visible && status !== 'offline' && status !== 'error'}}"
-              class="sync-beam__comet sync-beam__comet--stage2"
-            ></view>
-          </view>
-        </view>
-
-        <!-- 右节点：其他设备 -->
-        <view class="sync-beam__node">
-          <view class="sync-beam__icon {{linkedVisual ? 'sync-beam__icon--active' : 'sync-beam__icon--dashed'}}">
-            <view class="sync-ico sync-ico--devices {{linkedVisual ? 'sync-ico--primary' : 'sync-ico--muted'}}"></view>
-          </view>
-          <text class="sync-beam__node-label {{linkedVisual ? 'is-active' : ''}}">其他设备</text>
-        </view>
-      </view>
-
-      <view class="sync-beam__status-pill sync-beam__status-pill--{{status}}">
-        <text class="sync-beam__status-text">{{beamChipText}}</text>
-      </view>
-    </view>
-
-    <!-- 退组或异常提醒横幅 -->
-    <view wx:if="{{revokedNotice || errorMessage}}" class="sync-banner {{revokedNotice ? 'is-warn' : 'is-error'}}">
+    <!-- 提示横幅 -->
+    <view wx:if="{{revokedNotice || errorMessage}}" class="sync-banner">
       <text class="sync-banner__text">{{revokedNotice ? '此设备已被移出同步组，本机所有学习记录已完整保留。' : errorMessage}}</text>
       <text class="sync-banner__dismiss" bindtap="onDismissNotice">知道了</text>
     </view>
 
-    <!-- 滚动操作主体 -->
-    <scroll-view class="sync-sheet__body" scroll-y show-scrollbar="{{false}}">
-      <!-- 子视图 1：让其他设备连接我（二维码 + 8 位配对码） -->
-      <view wx:if="{{subView === 'qr'}}" class="sync-panel">
-        <view class="sync-back-row">
-          <view class="sync-back-btn" hover-class="sync-btn--hover" bindtap="onCancelSubView">
-            <text class="sync-back-btn__text">‹ 返回</text>
-          </view>
-          <text class="sync-back-title">让其他设备连接我</text>
+    <!-- 视图 1：展示本机二维码 -->
+    <view wx:if="{{subView === 'qr'}}" class="sync-panel">
+      <view
+        class="sync-subhead"
+        bindtouchstart="onSheetTouchStart"
+        bindtouchmove="onSheetTouchMove"
+        bindtouchend="onSheetTouchEnd"
+      >
+        <view class="sync-back-btn" hover-class="sync-btn--hover" bindtap="onCancelSubView">
+          <text class="sync-back-btn__text">‹ 返回</text>
         </view>
-
-        <view class="sync-qr-box">
-          <view wx:if="{{displayCode}}" class="sync-qr-frame">
-            <canvas
-              id="syncQrCanvas"
-              type="2d"
-              class="sync-qr__canvas"
-              style="width: {{qrSizePx}}px; height: {{qrSizePx}}px;"
-            />
-          </view>
-          <view wx:else class="sync-qr-placeholder">
-            <text class="sync-qr-placeholder__text">{{busy ? '正在生成配对码…' : '暂无可用配对码'}}</text>
-          </view>
-
-          <text class="sync-qr-hint">
-            {{ticketStatus === 'expired' ? '配对码已过期，请重新生成' : '或手动输入 8 位配对码（剩余 ' + countdownText + '）'}}
-          </text>
-
-          <text wx:if="{{displayCode}}" class="sync-qr-code">{{displayCode}}</text>
-
-          <view wx:if="{{displayCode}}" class="sync-chip-btn" hover-class="sync-chip-btn--hover" bindtap="onCopyCode">
-            <text class="sync-chip-btn__text">复制配对码</text>
-          </view>
-
-          <view class="sync-steps-box">
-            <text class="sync-step-line">第 1 步：在另一台设备上打开 EnglishPod，点右上角进度胶囊</text>
-            <text class="sync-step-line">第 2 步：选择「我来扫码 / 输入配对码」，扫描上方二维码或输入配对码</text>
-          </view>
-        </view>
+        <text class="sync-subhead__title">本机配对二维码</text>
       </view>
 
-      <!-- 子视图 2：扫码 / 输入配对码加入 -->
-      <view wx:elif="{{subView === 'code'}}" class="sync-panel">
-        <view class="sync-back-row">
-          <view class="sync-back-btn" hover-class="sync-btn--hover" bindtap="onCancelSubView">
-            <text class="sync-back-btn__text">‹ 返回</text>
-          </view>
-          <text class="sync-back-title">加入已有同步组</text>
-        </view>
-
-        <view class="sync-btn sync-btn--primary" hover-class="sync-btn--hover" bindtap="onScanQr">
-          <view class="sync-ico sync-ico--scan sync-ico--accent-fg sync-btn__ico"></view>
-          <text class="sync-btn__text">打开相机扫码配对（推荐）</text>
-        </view>
-
-        <view class="sync-divider">
-          <view class="sync-divider__line"></view>
-          <text class="sync-divider__text">或者手动输入 8 位配对码</text>
-          <view class="sync-divider__line"></view>
-        </view>
-
-        <view class="sync-code-inline">
-          <input
-            class="sync-code-input"
-            type="text"
-            maxlength="9"
-            value="{{codeInput}}"
-            placeholder="XXXX-XXXX"
-            placeholder-class="sync-code-input__placeholder"
-            bindinput="onCodeInput"
-            bindconfirm="onSubmitCode"
+      <view class="sync-qr-card">
+        <view wx:if="{{displayCode}}" class="sync-qr-frame">
+          <canvas
+            id="syncQrCanvas"
+            type="2d"
+            class="sync-qr__canvas"
+            style="width: {{qrSizePx}}px; height: {{qrSizePx}}px;"
           />
-          <view
-            class="sync-submit-btn {{codeReady ? 'is-ready' : ''}} {{busy ? 'is-busy' : ''}}"
-            hover-class="sync-btn--hover"
-            bindtap="onSubmitCode"
-          >
-            <text class="sync-submit-btn__text">{{busy ? '配对中' : '配对'}}</text>
+        </view>
+        <view wx:else class="sync-qr-placeholder">
+          <text class="sync-qr-placeholder__text">{{busy ? '正在生成配对码…' : '暂无可用配对码'}}</text>
+        </view>
+
+        <view wx:if="{{displayCode}}" class="sync-code-row">
+          <text class="sync-qr-code">{{displayCode}}</text>
+          <view class="sync-copy-chip" hover-class="sync-btn--hover" bindtap="onCopyCode">
+            <text class="sync-copy-chip__text">复制</text>
           </view>
         </view>
 
-        <text class="sync-join-note">配对后将自动合并两台设备的学习记录与播放断点，不会覆盖已学完的课程。</text>
-      </view>
+        <text class="sync-qr-countdown {{ticketExpired ? 'is-warn' : ''}}">
+          {{ticketExpired ? '配对码已过期，请重新生成' : '5 分钟有效 · 剩余 ' + countdownText}}
+        </text>
 
-      <!-- 主视图 A：未配对首页（双动作卡片） -->
-      <view wx:elif="{{!linked}}" class="sync-panel">
-        <view class="sync-action-card is-primary" hover-class="sync-btn--hover" bindtap="onGenerateCode">
-          <view class="sync-action-card__ico is-primary">
-            <view class="sync-ico sync-ico--qr sync-ico--accent-fg"></view>
-          </view>
-          <view class="sync-action-card__body">
-            <text class="sync-action-card__title">让其他设备连接我</text>
-            <text class="sync-action-card__desc">生成二维码与 8 位配对码，给另一台设备扫一扫或输入即可</text>
-          </view>
-          <text class="sync-action-card__arrow">›</text>
-        </view>
-
-        <view class="sync-action-card" hover-class="sync-btn--hover" bindtap="onShowCodeInput">
-          <view class="sync-action-card__ico">
-            <view class="sync-ico sync-ico--scan sync-ico--accent"></view>
-          </view>
-          <view class="sync-action-card__body">
-            <text class="sync-action-card__title">我来扫码 / 输入配对码</text>
-            <text class="sync-action-card__desc">可直接打开相机扫码，或输入另一台设备显示的 8 位配对码</text>
-          </view>
-          <text class="sync-action-card__arrow">›</text>
+        <view wx:if="{{ticketExpired}}" class="sync-btn sync-btn--primary sync-qr-regen" hover-class="sync-btn--hover" bindtap="onGenerateCode">
+          <text class="sync-btn__text">重新生成配对码</text>
         </view>
       </view>
 
-      <!-- 主视图 B：已连接同步组与设备列表 -->
-      <view wx:else class="sync-panel">
-        <view class="sync-devices">
-          <view class="sync-devices__header">
-            <text class="sync-devices__title">已连接设备 ({{deviceCount}})</text>
-          </view>
+      <view class="sync-subtle-link" hover-class="sync-btn--hover" bindtap="onScanQr">
+        <text class="sync-subtle-link__text">改为扫另一台设备的二维码</text>
+      </view>
+    </view>
 
-          <view wx:for="{{devices}}" wx:key="deviceId" class="sync-device-item">
-            <view class="sync-device-item__badge">
+    <!-- 视图 2：手动输入 8 位配对码（分格输入） -->
+    <view wx:elif="{{subView === 'code'}}" class="sync-panel">
+      <view
+        class="sync-subhead"
+        bindtouchstart="onSheetTouchStart"
+        bindtouchmove="onSheetTouchMove"
+        bindtouchend="onSheetTouchEnd"
+      >
+        <view class="sync-back-btn" hover-class="sync-btn--hover" bindtap="onCancelSubView">
+          <text class="sync-back-btn__text">‹ 返回</text>
+        </view>
+        <text class="sync-subhead__title">{{hasLinkedPeers ? '输入配对码关联设备' : '输入配对码连接'}}</text>
+      </view>
+
+      <text class="sync-code-hint">
+        请输入另一台设备显示的 8 位配对码{{hasLinkedPeers ? '（将与当前组智能合并）' : ''}}
+      </text>
+
+      <view class="sync-code-boxes" bindtap="onFocusCodeInput">
+        <block wx:for="{{codeCells}}" wx:key="index">
+          <text wx:if="{{index === 4}}" class="sync-code-dash">-</text>
+          <view class="sync-code-cell {{item.filled ? 'is-filled' : ''}} {{item.active ? 'is-active' : ''}}">
+            <text class="sync-code-cell__char">{{item.char}}</text>
+          </view>
+        </block>
+        <input
+          class="sync-code-hidden-input"
+          type="text"
+          maxlength="9"
+          focus="{{codeFocus}}"
+          value="{{codeInput}}"
+          bindinput="onCodeInput"
+          bindconfirm="onSubmitCode"
+        />
+      </view>
+
+      <view
+        class="sync-btn sync-btn--primary {{!codeReady || busy ? 'is-disabled' : ''}}"
+        hover-class="sync-btn--hover"
+        bindtap="onSubmitCode"
+      >
+        <text class="sync-btn__text">{{busy ? '连接中…' : (hasLinkedPeers ? '确认关联并合并进度' : '确认连接')}}</text>
+      </view>
+
+      <view class="sync-subtle-link" hover-class="sync-btn--hover" bindtap="onScanQr">
+        <text class="sync-subtle-link__text">改为打开相机扫码</text>
+      </view>
+    </view>
+
+    <!-- 视图 3：未配对首页（含单机展码未扫） -->
+    <view wx:elif="{{!hasLinkedPeers}}" class="sync-panel">
+      <view
+        class="sync-head"
+        bindtouchstart="onSheetTouchStart"
+        bindtouchmove="onSheetTouchMove"
+        bindtouchend="onSheetTouchEnd"
+      >
+        <view class="sync-head__titles">
+          <text class="sync-head__title">多端进度同步</text>
+          <text class="sync-head__sub">本机已学 {{completedCount}} / {{totalCount}} 课 · 未连接其他设备</text>
+        </view>
+      </view>
+
+      <view class="sync-dual-grid">
+        <view class="sync-dir-tile is-primary" hover-class="sync-btn--hover" bindtap="onScanQr">
+          <view class="sync-dir-tile__ico is-primary">
+            <view class="sync-ico sync-ico--scan sync-ico--accent-fg"></view>
+          </view>
+          <text class="sync-dir-tile__title">扫码连接</text>
+          <text class="sync-dir-tile__desc">扫描另一台设备二维码</text>
+        </view>
+
+        <view class="sync-dir-tile" hover-class="sync-btn--hover" bindtap="onGenerateCode">
+          <view class="sync-dir-tile__ico">
+            <view class="sync-ico sync-ico--qr sync-ico--accent"></view>
+          </view>
+          <text class="sync-dir-tile__title">展示二维码</text>
+          <text class="sync-dir-tile__desc">让另一台设备扫我</text>
+        </view>
+      </view>
+
+      <view class="sync-manual-row" hover-class="sync-btn--hover" bindtap="onShowCodeInput">
+        <text class="sync-manual-row__text">手动输入 8 位配对码</text>
+        <text class="sync-manual-row__arrow">›</text>
+      </view>
+    </view>
+
+    <!-- 视图 4：已加入同步组（参考微信输入法 342.jpg，无右上角关闭按钮） -->
+    <view wx:else class="sync-panel">
+      <view
+        class="sync-head"
+        bindtouchstart="onSheetTouchStart"
+        bindtouchmove="onSheetTouchMove"
+        bindtouchend="onSheetTouchEnd"
+      >
+        <view class="sync-head__titles">
+          <text class="sync-head__title">多端进度同步</text>
+          <view class="sync-status-row">
+            <view class="sync-status-dot {{status === 'offline' || status === 'error' ? 'is-warn' : ''}}"></view>
+            <text class="sync-head__sub">{{statusLabel}}</text>
+          </view>
+        </view>
+        <view class="sync-icon-btn {{busy ? 'is-busy' : ''}}" hover-class="sync-btn--hover" bindtap="onSyncNow">
+          <view class="sync-ico sync-ico--sync sync-ico--muted"></view>
+        </view>
+      </view>
+
+      <text class="sync-section-label">我的设备 ({{deviceCount}})</text>
+
+      <view class="sync-devices-card">
+        <scroll-view
+          class="sync-devices-scroll"
+          scroll-y="{{deviceCount > 3}}"
+          show-scrollbar="{{false}}"
+        >
+          <view wx:for="{{devices}}" wx:key="deviceId" class="sync-device-row {{item.isCurrent ? 'is-self' : ''}}">
+            <view class="sync-device-row__ico {{item.isCurrent ? 'is-self' : ''}}">
               <view class="sync-ico {{item.isWeb ? 'sync-ico--laptop' : 'sync-ico--phone'}} {{item.isCurrent ? 'sync-ico--accent' : 'sync-ico--muted'}}"></view>
             </view>
 
-            <view class="sync-device-item__info">
-              <view class="sync-device-item__name-row">
-                <text class="sync-device-item__name">{{item.deviceName}}</text>
-                <text wx:if="{{item.isCurrent}}" class="sync-device-item__self">本机</text>
+            <view class="sync-device-row__info">
+              <view class="sync-device-row__name-line">
+                <text class="sync-device-row__name">{{item.deviceName}}</text>
+                <text wx:if="{{item.isCurrent}}" class="sync-self-tag">本机</text>
               </view>
-              <text class="sync-device-item__meta">{{item.platformLabel}} · {{item.lastSeenLabel}}</text>
+              <text class="sync-device-row__meta">{{item.platformLabel}} · {{item.lastSeenLabel}}</text>
             </view>
 
             <view
-              wx:if="{{item.isCurrent && !renaming}}"
-              class="sync-chip-btn"
-              hover-class="sync-chip-btn--hover"
-              bindtap="onStartRename"
+              wx:if="{{item.isCurrent}}"
+              class="sync-qr-pill"
+              hover-class="sync-btn--hover"
+              bindtap="onGenerateCode"
             >
-              <text class="sync-chip-btn__text">改名</text>
+              <text class="sync-qr-pill__text">查看二维码</text>
+            </view>
+
+            <view
+              wx:if="{{item.isCurrent}}"
+              class="sync-more-btn"
+              hover-class="sync-btn--hover"
+              bindtap="onOpenSelfMenu"
+            >
+              <text class="sync-more-btn__dots">⋮</text>
             </view>
             <view
-              wx:elif="{{!item.isCurrent}}"
-              class="sync-chip-btn sync-chip-btn--danger"
-              hover-class="sync-chip-btn--hover"
+              wx:else
+              class="sync-more-btn"
+              hover-class="sync-btn--hover"
               data-id="{{item.deviceId}}"
               data-name="{{item.deviceName}}"
               bindtap="onRemoveDevice"
             >
-              <text class="sync-chip-btn__text">移除</text>
+              <text class="sync-more-btn__dots">⋮</text>
             </view>
           </view>
+        </scroll-view>
 
-          <!-- 本机内联重命名条 -->
-          <view wx:if="{{renaming}}" class="sync-rename-row">
-            <input
-              class="sync-rename-input"
-              type="text"
-              maxlength="32"
-              value="{{renameInput}}"
-              placeholder="输入设备名称"
-              bindinput="onRenameInput"
-              bindconfirm="onConfirmRename"
-            />
-            <view class="sync-chip-btn" bindtap="onCancelRename">
-              <text class="sync-chip-btn__text">取消</text>
-            </view>
-            <view class="sync-chip-btn sync-chip-btn--accent" bindtap="onConfirmRename">
-              <text class="sync-chip-btn__text">保存</text>
-            </view>
+        <!-- 本机内联重命名条 -->
+        <view wx:if="{{renaming}}" class="sync-rename-row">
+          <input
+            class="sync-rename-input"
+            type="text"
+            maxlength="32"
+            focus="{{renaming}}"
+            value="{{renameInput}}"
+            placeholder="输入本机名称"
+            bindinput="onRenameInput"
+            bindconfirm="onConfirmRename"
+          />
+          <view class="sync-chip-btn" bindtap="onCancelRename">
+            <text class="sync-chip-btn__text">取消</text>
           </view>
-        </view>
-
-        <view class="sync-row-actions">
-          <view class="sync-btn sync-btn--primary sync-row-actions__half" hover-class="sync-btn--hover" bindtap="onGenerateCode">
-            <text class="sync-btn__text">+ 添加新设备</text>
-          </view>
-          <view class="sync-btn sync-btn--ghost sync-row-actions__half {{busy ? 'is-busy' : ''}}" hover-class="sync-btn--hover" bindtap="onSyncNow">
-            <text class="sync-btn__text">{{status === 'syncing' ? '同步中…' : '立即同步'}}</text>
-          </view>
-        </view>
-
-        <view class="sync-leave-wrap">
-          <view class="sync-leave-btn" hover-class="sync-btn--hover" bindtap="onLeaveGroup">
-            <text class="sync-leave-btn__text">退出同步组</text>
+          <view class="sync-chip-btn sync-chip-btn--accent" bindtap="onConfirmRename">
+            <text class="sync-chip-btn__text">保存</text>
           </view>
         </view>
       </view>
-    </scroll-view>
+
+      <view class="sync-btn sync-btn--primary" hover-class="sync-btn--hover" bindtap="onScanQr">
+        <view class="sync-ico sync-ico--scan sync-ico--accent-fg sync-btn__ico"></view>
+        <text class="sync-btn__text">扫码关联新设备</text>
+      </view>
+
+      <view class="sync-subtle-link" hover-class="sync-btn--hover" bindtap="onShowCodeInput">
+        <text class="sync-subtle-link__text">或手动输入 8 位配对码</text>
+      </view>
+    </view>
   </view>
 </view>

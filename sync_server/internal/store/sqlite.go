@@ -236,9 +236,16 @@ func (s *Store) GetPairingStatus(ctx context.Context, requester *AuthenticatedDe
 	return res, nil
 }
 
-// ClaimPairingTicket atomically validates and consumes a ticket, joining the device to the sync group.
+// ClaimPairingTicket atomically validates and consumes a ticket.
+// When existingCaller is nil, creates a new device credential in the ticket's group.
+// When existingCaller is non-nil (Plan A smart group merge):
+//   - If already in the ticket's group, consumes the ticket idempotently and returns current group state.
+//   - If in a different group, atomically merges all active devices and lesson progress from the caller's
+//     group into the ticket's group (preserving every existing device token and bumping server_seq so all
+//     peers converge on their next pull), provided combined active devices <= maxDevices.
 func (s *Store) ClaimPairingTicket(
 	ctx context.Context,
+	existingCaller *AuthenticatedDevice,
 	normalizedCode string,
 	deviceName string,
 	platform string,
@@ -257,16 +264,16 @@ func (s *Store) ClaimPairingTicket(
 	defer func() { _ = tx.Rollback() }()
 
 	var (
-		groupID      string
-		expiresAtMs  int64
-		consumedAtMs sql.NullInt64
+		ticketGroupID string
+		expiresAtMs   int64
+		consumedAtMs  sql.NullInt64
 	)
 	err = tx.QueryRowContext(ctx, `
 		SELECT group_id, expires_at_ms, consumed_at_ms
 		FROM pairing_tickets
 		WHERE code_hash = ?`,
 		codeHash,
-	).Scan(&groupID, &expiresAtMs, &consumedAtMs)
+	).Scan(&ticketGroupID, &expiresAtMs, &consumedAtMs)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrCodeNotFound
 	}
@@ -280,10 +287,246 @@ func (s *Store) ClaimPairingTicket(
 		return nil, ErrCodeExpired
 	}
 
+	// Re-verify existingCaller inside the write transaction; fall back to fresh join if revoked.
+	var caller *AuthenticatedDevice
+	if existingCaller != nil {
+		var (
+			curGroupID string
+			revoked    sql.NullInt64
+		)
+		err := tx.QueryRowContext(ctx, `
+			SELECT group_id, revoked_at_ms FROM sync_devices WHERE device_id = ?`,
+			existingCaller.DeviceID,
+		).Scan(&curGroupID, &revoked)
+		if err == nil && !revoked.Valid {
+			copied := *existingCaller
+			copied.GroupID = curGroupID
+			caller = &copied
+		}
+	}
+
+	// Case 1: Caller already belongs to the ticket's group -> idempotent no-op merge.
+	if caller != nil && caller.GroupID == ticketGroupID {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE pairing_tickets
+			SET consumed_at_ms = ?, consumed_by = ?
+			WHERE code_hash = ? AND consumed_at_ms IS NULL`,
+			nowMs, caller.DeviceID, codeHash,
+		); err != nil {
+			return nil, err
+		}
+		var serverSeq int64
+		if err := tx.QueryRowContext(ctx, `
+			SELECT server_seq FROM sync_groups WHERE group_id = ?`,
+			ticketGroupID,
+		).Scan(&serverSeq); err != nil {
+			return nil, err
+		}
+		devices, err := queryActiveDevicesTx(ctx, tx, ticketGroupID, caller.DeviceID)
+		if err != nil {
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		return &ClaimPairResult{
+			GroupID:        ticketGroupID,
+			DeviceID:       caller.DeviceID,
+			ServerSeq:      serverSeq,
+			Devices:        devices,
+			AlreadyInGroup: true,
+		}, nil
+	}
+
+	// Case 2: Plan A Smart Group Merge — caller belongs to another active group.
+	if caller != nil && caller.GroupID != ticketGroupID {
+		callerGroupID := caller.GroupID
+
+		var ticketActiveCount, callerActiveCount int
+		if err := tx.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM sync_devices WHERE group_id = ? AND revoked_at_ms IS NULL`,
+			ticketGroupID,
+		).Scan(&ticketActiveCount); err != nil {
+			return nil, err
+		}
+		if err := tx.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM sync_devices WHERE group_id = ? AND revoked_at_ms IS NULL`,
+			callerGroupID,
+		).Scan(&callerActiveCount); err != nil {
+			return nil, err
+		}
+		if ticketActiveCount+callerActiveCount > maxDevices {
+			return nil, ErrGroupFull
+		}
+
+		// Load both group headers so merged server_seq strictly advances past both groups.
+		var (
+			ticketSeq, callerSeq             int64
+			ticketLO, callerLO               sql.NullString
+			ticketLOAt, callerLOAt           int64
+			ticketLOBy, callerLOBy           sql.NullString
+		)
+		if err := tx.QueryRowContext(ctx, `
+			SELECT server_seq, last_opened_lesson_id, last_opened_at_ms, last_opened_by
+			FROM sync_groups WHERE group_id = ?`,
+			ticketGroupID,
+		).Scan(&ticketSeq, &ticketLO, &ticketLOAt, &ticketLOBy); err != nil {
+			return nil, err
+		}
+		if err := tx.QueryRowContext(ctx, `
+			SELECT server_seq, last_opened_lesson_id, last_opened_at_ms, last_opened_by
+			FROM sync_groups WHERE group_id = ?`,
+			callerGroupID,
+		).Scan(&callerSeq, &callerLO, &callerLOAt, &callerLOBy); err != nil {
+			return nil, err
+		}
+
+		newSeq := ticketSeq
+		if callerSeq > newSeq {
+			newSeq = callerSeq
+		}
+		newSeq++
+
+		// Merge all lesson_progress rows from callerGroupID and ticketGroupID losslessly into ticketGroupID.
+		ticketRows, err := loadAllLessonRowsTx(ctx, tx, ticketGroupID)
+		if err != nil {
+			return nil, err
+		}
+		callerRows, err := loadAllLessonRowsTx(ctx, tx, callerGroupID)
+		if err != nil {
+			return nil, err
+		}
+
+		mergedByLesson := make(map[string]lessonRow, len(ticketRows)+len(callerRows))
+		for id, r := range ticketRows {
+			r.GroupID = ticketGroupID
+			r.Seq = newSeq
+			if r.PB != nil {
+				r.PB.Seq = newSeq
+			}
+			if r.DG != nil {
+				r.DG.Seq = newSeq
+			}
+			mergedByLesson[id] = r
+		}
+		for id, src := range callerRows {
+			if dst, exists := mergedByLesson[id]; exists {
+				mergedByLesson[id] = mergeLessonRowsForGroupMerge(ticketGroupID, dst, src, newSeq)
+			} else {
+				src.GroupID = ticketGroupID
+				src.Seq = newSeq
+				if src.PB != nil {
+					src.PB.Seq = newSeq
+				}
+				if src.DG != nil {
+					src.DG.Seq = newSeq
+				}
+				mergedByLesson[id] = src
+			}
+		}
+
+		for _, row := range mergedByLesson {
+			if err := upsertLessonRowTx(ctx, tx, row); err != nil {
+				return nil, err
+			}
+		}
+
+		// Delete migrated progress rows from the source group.
+		if _, err := tx.ExecContext(ctx, `DELETE FROM lesson_progress WHERE group_id = ?`, callerGroupID); err != nil {
+			return nil, err
+		}
+
+		// Move all active devices from callerGroupID into ticketGroupID (their bearer tokens stay valid).
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE sync_devices
+			SET group_id = ?
+			WHERE group_id = ? AND revoked_at_ms IS NULL`,
+			ticketGroupID, callerGroupID,
+		); err != nil {
+			return nil, err
+		}
+
+		// Expire any pending pairing tickets on the abandoned source group and mark it orphaned.
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE pairing_tickets
+			SET expires_at_ms = ?
+			WHERE group_id = ? AND consumed_at_ms IS NULL AND expires_at_ms > ?`,
+			nowMs, callerGroupID, nowMs,
+		); err != nil {
+			return nil, err
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE sync_groups
+			SET orphaned_at_ms = COALESCE(orphaned_at_ms, ?), updated_at_ms = ?
+			WHERE group_id = ?`,
+			nowMs, nowMs, callerGroupID,
+		); err != nil {
+			return nil, err
+		}
+
+		// Reconcile global last_opened anchor (newest timestamp wins).
+		winLO := ticketLO
+		winLOAt := ticketLOAt
+		winLOBy := ticketLOBy
+		if callerLO.Valid && callerLO.String != "" {
+			if !winLO.Valid || winLO.String == "" || callerLOAt > winLOAt || (callerLOAt == winLOAt && callerLOBy.String > winLOBy.String) {
+				winLO = callerLO
+				winLOAt = callerLOAt
+				winLOBy = callerLOBy
+			}
+		}
+		var winLOSeq int64
+		if winLO.Valid && winLO.String != "" {
+			winLOSeq = newSeq
+		}
+
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE sync_groups
+			SET server_seq = ?,
+			    last_opened_lesson_id = ?,
+			    last_opened_at_ms = ?,
+			    last_opened_by = ?,
+			    last_opened_seq = ?,
+			    orphaned_at_ms = NULL,
+			    updated_at_ms = ?
+			WHERE group_id = ?`,
+			newSeq, winLO, winLOAt, winLOBy, winLOSeq, nowMs, ticketGroupID,
+		); err != nil {
+			return nil, err
+		}
+
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE pairing_tickets
+			SET consumed_at_ms = ?, consumed_by = ?
+			WHERE code_hash = ? AND consumed_at_ms IS NULL`,
+			nowMs, caller.DeviceID, codeHash,
+		); err != nil {
+			return nil, err
+		}
+
+		devices, err := queryActiveDevicesTx(ctx, tx, ticketGroupID, caller.DeviceID)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+
+		return &ClaimPairResult{
+			GroupID:   ticketGroupID,
+			DeviceID:  caller.DeviceID,
+			ServerSeq: newSeq,
+			Devices:   devices,
+			Merged:    true,
+		}, nil
+	}
+
+	// Case 3: Unlinked device joining ticketGroupID.
 	var activeCount int
 	if err := tx.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM sync_devices WHERE group_id = ? AND revoked_at_ms IS NULL`,
-		groupID,
+		ticketGroupID,
 	).Scan(&activeCount); err != nil {
 		return nil, err
 	}
@@ -313,14 +556,14 @@ func (s *Store) ClaimPairingTicket(
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO sync_devices (device_id, group_id, token_hash, device_name, platform, created_at_ms, last_seen_at_ms)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		newDeviceID, groupID, auth.HashSecret(newToken), cleanName, platform, nowMs, nowMs,
+		newDeviceID, ticketGroupID, auth.HashSecret(newToken), cleanName, platform, nowMs, nowMs,
 	); err != nil {
 		return nil, err
 	}
 
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE sync_groups SET orphaned_at_ms = NULL, updated_at_ms = ? WHERE group_id = ?`,
-		nowMs, groupID,
+		nowMs, ticketGroupID,
 	); err != nil {
 		return nil, err
 	}
@@ -328,12 +571,12 @@ func (s *Store) ClaimPairingTicket(
 	var serverSeq int64
 	if err := tx.QueryRowContext(ctx, `
 		SELECT server_seq FROM sync_groups WHERE group_id = ?`,
-		groupID,
+		ticketGroupID,
 	).Scan(&serverSeq); err != nil {
 		return nil, err
 	}
 
-	devices, err := queryActiveDevicesTx(ctx, tx, groupID, newDeviceID)
+	devices, err := queryActiveDevicesTx(ctx, tx, ticketGroupID, newDeviceID)
 	if err != nil {
 		return nil, err
 	}
@@ -343,7 +586,7 @@ func (s *Store) ClaimPairingTicket(
 	}
 
 	return &ClaimPairResult{
-		GroupID:     groupID,
+		GroupID:     ticketGroupID,
 		DeviceID:    newDeviceID,
 		DeviceToken: newToken,
 		ServerSeq:   serverSeq,
@@ -931,6 +1174,109 @@ func sameTrackValues(existing *trackState, incoming *TrackPointInput) bool {
 		return false
 	}
 	return equalInt64Ptr(existing.DurationMs, incoming.DurationMs)
+}
+
+func loadAllLessonRowsTx(ctx context.Context, tx *sql.Tx, groupID string) (map[string]lessonRow, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT lesson_id, lesson_completed, completed_at_ms,
+		       pb_position_ms, pb_segment_index, pb_duration_ms, pb_updated_at_ms, pb_updated_by, pb_seq,
+		       dg_position_ms, dg_segment_index, dg_duration_ms, dg_updated_at_ms, dg_updated_by, dg_seq,
+		       seq
+		FROM lesson_progress
+		WHERE group_id = ?`,
+		groupID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make(map[string]lessonRow)
+	for rows.Next() {
+		var (
+			row          lessonRow
+			completedInt int
+			pbPos, pbDur sql.NullInt64
+			pbSeg        sql.NullInt64
+			pbUpdatedAt  int64
+			pbBy         sql.NullString
+			pbSeq        int64
+			dgPos, dgDur sql.NullInt64
+			dgSeg        sql.NullInt64
+			dgUpdatedAt  int64
+			dgBy         sql.NullString
+			dgSeq        int64
+		)
+		if err := rows.Scan(
+			&row.LessonID, &completedInt, &row.CompletedAtMs,
+			&pbPos, &pbSeg, &pbDur, &pbUpdatedAt, &pbBy, &pbSeq,
+			&dgPos, &dgSeg, &dgDur, &dgUpdatedAt, &dgBy, &dgSeq,
+			&row.Seq,
+		); err != nil {
+			return nil, err
+		}
+		row.GroupID = groupID
+		row.LessonCompleted = completedInt != 0
+		row.PB = buildTrackState(pbPos, pbSeg, pbDur, pbUpdatedAt, pbBy, pbSeq)
+		row.DG = buildTrackState(dgPos, dgSeg, dgDur, dgUpdatedAt, dgBy, dgSeq)
+		out[row.LessonID] = row
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func pickMergedTrack(a, b *trackState, newSeq int64) *trackState {
+	if a == nil && b == nil {
+		return nil
+	}
+	var winner *trackState
+	switch {
+	case a == nil:
+		winner = b
+	case b == nil:
+		winner = a
+	case b.UpdatedAtMs > a.UpdatedAtMs:
+		winner = b
+	case a.UpdatedAtMs > b.UpdatedAtMs:
+		winner = a
+	case b.PositionMs > a.PositionMs:
+		winner = b
+	case a.PositionMs > b.PositionMs:
+		winner = a
+	case b.UpdatedBy > a.UpdatedBy:
+		winner = b
+	default:
+		winner = a
+	}
+	return &trackState{
+		PositionMs:   winner.PositionMs,
+		SegmentIndex: cloneIntPtr(winner.SegmentIndex),
+		DurationMs:   cloneInt64Ptr(winner.DurationMs),
+		UpdatedAtMs:  winner.UpdatedAtMs,
+		UpdatedBy:    winner.UpdatedBy,
+		Seq:          newSeq,
+	}
+}
+
+func mergeLessonRowsForGroupMerge(targetGroupID string, a, b lessonRow, newSeq int64) lessonRow {
+	completed := a.LessonCompleted || b.LessonCompleted
+	completedAt := a.CompletedAtMs
+	if completed {
+		if completedAt <= 0 || (b.CompletedAtMs > 0 && b.CompletedAtMs < completedAt) {
+			completedAt = b.CompletedAtMs
+		}
+	}
+	return lessonRow{
+		GroupID:         targetGroupID,
+		LessonID:        a.LessonID,
+		LessonCompleted: completed,
+		CompletedAtMs:   completedAt,
+		PB:              pickMergedTrack(a.PB, b.PB, newSeq),
+		DG:              pickMergedTrack(a.DG, b.DG, newSeq),
+		Seq:             newSeq,
+	}
 }
 
 func loadLessonRowTx(ctx context.Context, tx *sql.Tx, groupID, lessonID string) (lessonRow, bool, error) {

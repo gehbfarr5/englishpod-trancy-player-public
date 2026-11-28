@@ -100,7 +100,7 @@ function resolveAllowlistedRoute(rawMethod, rawPath, rawQuery) {
   }
 
   if (method === 'POST' && path === '/api/sync/v1/pair/claim') {
-    return { method, pathAndQuery: path, authMode: 'none', hasBody: true };
+    return { method, pathAndQuery: path, authMode: 'optional', hasBody: true };
   }
 
   if (method === 'POST' && path === '/api/sync/v1/sync/push') {

@@ -121,9 +121,14 @@ export class SyncEngine {
     return Boolean(this.state.groupId && this.state.deviceId && this.state.deviceToken);
   }
 
+  hasLinkedPeers(): boolean {
+    return this.isLinked() && this.state.devices.length >= 2;
+  }
+
   getSnapshot(): SyncEngineSnapshot {
     return {
       linked: this.isLinked(),
+      hasLinkedPeers: this.hasLinkedPeers(),
       status: this.status,
       groupId: this.state.groupId,
       deviceId: this.state.deviceId,
@@ -265,7 +270,7 @@ export class SyncEngine {
     this.emit();
   }
 
-  /** 使用 8 位设备码或二维码 URI 直接加入同步组（全量上传 +全量拉取合并）。 */
+  /** 使用 8 位设备码或二维码 URI 加入或智能合组（方案 A：已入组设备携带本机 Token 原子合组，不拆散原组）。 */
   async claimPairingCode(rawCode: string): Promise<boolean> {
     if (!this.initialized) {
       this.init();
@@ -278,6 +283,10 @@ export class SyncEngine {
       return false;
     }
 
+    const wasLinked = this.isLinked();
+    const prevToken = this.state.deviceToken;
+    const prevStatus = this.status;
+
     this.clearError();
     this.revokedNotice = false;
     this.cancelPairingPoll();
@@ -286,15 +295,27 @@ export class SyncEngine {
 
     try {
       const claim = await this.transport.pairClaim({
+        token: wasLinked ? prevToken : undefined,
         code,
         deviceName: this.state.deviceName || this.defaultDeviceName,
         platform: 'wechat',
       });
       this.recordClockOffset(claim.serverTimeMs);
 
+      const effectiveToken = claim.deviceToken && claim.deviceToken.trim()
+        ? claim.deviceToken
+        : prevToken;
+      if (!effectiveToken) {
+        throw new SyncApiError({
+          status: 500,
+          code: 'MISSING_TOKEN',
+          message: '配对响应缺少设备凭证，请重试',
+        });
+      }
+
       this.state.groupId = claim.groupId;
       this.state.deviceId = claim.deviceId;
-      this.state.deviceToken = claim.deviceToken;
+      this.state.deviceToken = effectiveToken;
       this.state.lastSyncedSeq = 0;
       this.state.lastSyncedAtMs = 0;
       this.state.trackBaseSeq = {};
@@ -315,30 +336,17 @@ export class SyncEngine {
       return this.getSnapshot().status === 'synced';
     } catch (err) {
       this.handleTransportFailure(err);
+      if (wasLinked && this.isLinked() && this.status === 'syncing') {
+        this.status = prevStatus === 'syncing' ? 'synced' : prevStatus;
+        this.emit();
+      }
       return false;
     }
   }
 
-  /** 若本机已在另一同步组，先 best-effort 退组，再加入目标同步组（保留 100% 本地学习进度）。 */
+  /** 方案 A 智能合组：直接通过 claimPairingCode 携带本机 Token 原子合组，不再先踢出原组。 */
   async switchGroupWithCode(rawCode: string): Promise<boolean> {
-    const code = normalizePairingCode(rawCode);
-    if (!code) {
-      this.errorCode = 'INVALID_CODE';
-      this.errorMessage = '配对码格式无效，请输入 8 位设备码或扫描有效二维码';
-      this.emit();
-      return false;
-    }
-
-    if (this.isLinked()) {
-      const oldToken = this.state.deviceToken;
-      try {
-        await this.transport.revokeDevice({ token: oldToken, deviceId: 'me' });
-      } catch {
-        // 离线或旧凭据失效时不阻塞用户加入新组
-      }
-      this.resetSyncMetadataOnly(false);
-    }
-    return this.claimPairingCode(code);
+    return this.claimPairingCode(rawCode);
   }
 
   /** 记录某门课的本地进度变更；即时事件立刻同步，连续 Seek 防抖 2s。 */

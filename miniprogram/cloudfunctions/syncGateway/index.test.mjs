@@ -34,7 +34,7 @@ describe('syncGateway · route allowlist & SSRF guard', () => {
     assert.deepEqual(resolveAllowlistedRoute('POST', '/api/sync/v1/pair/claim', {}), {
       method: 'POST',
       pathAndQuery: '/api/sync/v1/pair/claim',
-      authMode: 'none',
+      authMode: 'optional',
       hasBody: true,
     });
     assert.deepEqual(resolveAllowlistedRoute('POST', '/api/sync/v1/sync/push', {}), {

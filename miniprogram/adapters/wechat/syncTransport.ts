@@ -178,6 +178,7 @@ export class WechatSyncTransport implements SyncTransport {
   }
 
   pairClaim(params: {
+    token?: string;
     code: string;
     deviceName: string;
     platform: SyncPlatform;
@@ -185,6 +186,7 @@ export class WechatSyncTransport implements SyncTransport {
     return this.request<ClaimPairResult>({
       method: 'POST',
       path: '/api/sync/v1/pair/claim',
+      token: params.token,
       body: {
         code: params.code,
         deviceName: params.deviceName,

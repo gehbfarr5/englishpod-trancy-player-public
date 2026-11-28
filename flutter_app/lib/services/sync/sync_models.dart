@@ -363,6 +363,8 @@ class SyncClaimResult {
   final int serverSeq;
   final int serverTimeMs;
   final List<SyncDeviceSummary> devices;
+  final bool merged;
+  final bool alreadyInGroup;
 
   const SyncClaimResult({
     required this.groupId,
@@ -371,6 +373,8 @@ class SyncClaimResult {
     required this.serverSeq,
     required this.serverTimeMs,
     required this.devices,
+    this.merged = false,
+    this.alreadyInGroup = false,
   });
 
   factory SyncClaimResult.fromJson(Map<String, dynamic> json) {
@@ -385,6 +389,8 @@ class SyncClaimResult {
           .whereType<Map<String, dynamic>>()
           .map(SyncDeviceSummary.fromJson)
           .toList(),
+      merged: json['merged'] == true,
+      alreadyInGroup: json['alreadyInGroup'] == true,
     );
   }
 }

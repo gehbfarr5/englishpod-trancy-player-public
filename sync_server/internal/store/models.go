@@ -73,11 +73,13 @@ type DeviceSummary struct {
 
 // ClaimPairResult contains credentials and device list returned after claiming a ticket.
 type ClaimPairResult struct {
-	GroupID     string          `json:"groupId"`
-	DeviceID    string          `json:"deviceId"`
-	DeviceToken string          `json:"deviceToken"`
-	ServerSeq   int64           `json:"serverSeq"`
-	Devices     []DeviceSummary `json:"devices"`
+	GroupID        string          `json:"groupId"`
+	DeviceID       string          `json:"deviceId"`
+	DeviceToken    string          `json:"deviceToken,omitempty"`
+	ServerSeq      int64           `json:"serverSeq"`
+	Devices        []DeviceSummary `json:"devices"`
+	Merged         bool            `json:"merged,omitempty"`
+	AlreadyInGroup bool            `json:"alreadyInGroup,omitempty"`
 }
 
 // TrackPointInput is an incoming committed position update for podcast or dialogue.

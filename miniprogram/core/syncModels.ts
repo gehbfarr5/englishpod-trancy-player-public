@@ -78,10 +78,12 @@ export interface PairingStatusResult {
 export interface ClaimPairResult {
   readonly groupId: string;
   readonly deviceId: string;
-  readonly deviceToken: string;
+  readonly deviceToken?: string;
   readonly serverSeq: number;
   readonly serverTimeMs: number;
   readonly devices: readonly SyncDeviceSummary[];
+  readonly merged?: boolean;
+  readonly alreadyInGroup?: boolean;
 }
 
 export interface SyncTrackPointInput {
@@ -196,6 +198,7 @@ export interface PersistedSyncState {
 
 export interface SyncEngineSnapshot {
   readonly linked: boolean;
+  readonly hasLinkedPeers: boolean;
   readonly status: SyncConnectionStatus;
   readonly groupId: string;
   readonly deviceId: string;
@@ -220,6 +223,7 @@ export interface SyncTransport {
   }): Promise<PairingTicket>;
   pairStatus(params: { token: string; code: string }): Promise<PairingStatusResult>;
   pairClaim(params: {
+    token?: string;
     code: string;
     deviceName: string;
     platform: SyncPlatform;

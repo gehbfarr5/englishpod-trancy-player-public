@@ -179,10 +179,13 @@ Page<PageData, PageCustom>({
 
     // 订阅多端进度同步状态与远端合并：保持顶部胶囊状态点与课程列表实时一致
     const initialSync = syncService.init();
-    this.setData({ syncStatus: initialSync.status });
+    const resolvePillStatus = (snap: { hasLinkedPeers: boolean; status: string }) =>
+      snap.hasLinkedPeers ? snap.status : 'unlinked';
+    this.setData({ syncStatus: resolvePillStatus(initialSync) });
     this.unsubscribeSync = syncService.subscribe((snap) => {
-      if (this.data.syncStatus !== snap.status) {
-        this.setData({ syncStatus: snap.status });
+      const nextPillStatus = resolvePillStatus(snap);
+      if (this.data.syncStatus !== nextPillStatus) {
+        this.setData({ syncStatus: nextPillStatus });
       }
     });
     this.unsubscribeJournalChange = progressJournal.subscribeChanges((ev) => {
@@ -218,7 +221,7 @@ Page<PageData, PageCustom>({
     const syncSnap = syncService.getSnapshot();
     this.setData({
       isPlaying: session.isPlaying,
-      syncStatus: syncSnap.status,
+      syncStatus: syncSnap.hasLinkedPeers ? syncSnap.status : 'unlinked',
     });
     if (this.lessons && this.lessons.length > 0) {
       this.refreshLibraryView();
